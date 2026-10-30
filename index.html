@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Timesheet Portal</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1942,7 +1942,11 @@ function dashChartTheme() {
 
 function drawDashCombinedChart(expRows, velRows, projIds) {
   const canvas=document.getElementById('dash-combined-chart');
-  if(!canvas||typeof Chart==='undefined') return;
+  if(!canvas) return;
+  if(typeof Chart==='undefined'){
+    canvas.parentElement.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:13px">⚠️ Chart library failed to load. Check your internet connection.</div>';
+    return;
+  }
   const {fg,grid}=dashChartTheme();
   const MTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -1981,8 +1985,9 @@ function drawDashCombinedChart(expRows, velRows, projIds) {
     velData=periods.map(()=>null);
   }
 
-  if(canvas._ci) canvas._ci.destroy();
-  canvas._ci=new Chart(canvas,{
+  if(canvas._ci){try{canvas._ci.destroy();}catch(e){}}
+  canvas._ci=null;
+  try{canvas._ci=new Chart(canvas,{
     type:'bar',
     data:{
       labels,
@@ -2017,7 +2022,9 @@ function drawDashCombinedChart(expRows, velRows, projIds) {
           title:{display:true,text:'Velocity (hrs)',color:'#10b981',font:{size:11}}}
       }
     }
-  });
+  });}catch(err){
+    canvas.parentElement.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:13px">Chart error: '+err.message+'</div>';
+  }
 }
 
 // ═══════════════════════════════════════
