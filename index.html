@@ -175,6 +175,10 @@ tbody tr:hover td{background:#f8fafc}
 
 /* EXPENSE PROJECT HEADER */
 .exp-proj-hdr{background:var(--primary);color:#fff;padding:12px 20px;border-radius:var(--radius) var(--radius) 0 0;font-size:14px;font-weight:700;margin:-24px -24px 0;display:flex;align-items:center;gap:8px}
+.exp-tab-bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.exp-tab-btn{padding:7px 18px;border-radius:20px;border:1.5px solid var(--border);background:none;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;transition:all .15s}
+.exp-tab-btn:hover{border-color:var(--primary);color:var(--primary)}
+.exp-tab-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
 
 /* ALERT */
 .alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px}
@@ -273,6 +277,7 @@ const ETYPES = {
 // STATE
 // ═══════════════════════════════════════
 let wdYear = new Date().getFullYear();
+let expSelProj = null;
 let S = {
   projects:[],
   personnel:[],
@@ -676,54 +681,71 @@ function renderExpenses() {
     return;
   }
 
-  let html='';
-  for(const proj of S.projects){
-    const members=S.personnel.filter(p=>(p.projectIds||[]).includes(proj.id));
-    if(!members.length) continue;
-
-    let rows=[];
-    for(const {year,month,days} of months){
-      const mStart=new Date(year,month,1), mEnd=new Date(year,month+1,0);
-      for(const person of members){
-        // Only show if person was active during this month
-        if(person.startDate && new Date(person.startDate+'T00:00:00')>mEnd) continue;
-        if(person.poUntil  && new Date(person.poUntil+'T00:00:00')<mStart) continue;
-        const {leave,ot,days:worked}=calcDays(person.id,year,month,days);
-        const rate=getRate(person,year,month);
-        const cost=rate!==null?rate*(worked/days):null;
-        rows.push({yyyymm:`${year}${String(month+1).padStart(2,'0')}`,person,days,worked,leave,ot,rate,cost});
-      }
-    }
-
-    html+=`<div class="card">
-      <div class="exp-proj-hdr">📁 ${proj.name}</div>
-      <div style="margin-top:0">
-        <div class="tbl-wrap" style="margin-top:16px">
-          <table>
-            <thead><tr><th>YYYYMM</th><th>Name</th><th>Company</th><th>Days Worked / Total</th><th>Monthly Rate</th><th>Cost (SGD)</th></tr></thead>
-            <tbody>
-              ${rows.map(r=>`<tr>
-                <td>${r.yyyymm}</td>
-                <td><strong>${r.person.name}</strong></td>
-                <td>${r.person.company}</td>
-                <td>
-                  <strong>${r.worked}</strong>/${r.days}
-                  ${r.leave?`<span style="font-size:11px;color:var(--danger);margin-left:4px">-${r.leave}L</span>`:''}
-                  ${r.ot?`<span style="font-size:11px;color:var(--success);margin-left:4px">+${r.ot}OT</span>`:''}
-                </td>
-                <td>${r.rate!==null?money(r.rate):'<span style="color:var(--muted)">N/A</span>'}</td>
-                <td><strong>${r.cost!==null?money(r.cost):'—'}</strong></td>
-              </tr>`).join('')||`<tr><td colspan="6" class="empty-row">No active members for recorded months.</td></tr>`}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>`;
+  // Ensure expSelProj is valid
+  const projsWithMembers=S.projects.filter(p=>S.personnel.some(m=>(m.projectIds||[]).includes(p.id)));
+  if(projsWithMembers.length&&(!expSelProj||!projsWithMembers.find(p=>p.id===expSelProj))){
+    expSelProj=projsWithMembers[0].id;
   }
 
-  el.innerHTML=html||`<div class="card"><div style="text-align:center;padding:40px;color:var(--muted)">
-    <p>No projects with assigned personnel found.</p>
-  </div></div>`;
+  // Tab bar
+  const tabBar=`<div class="exp-tab-bar">
+    ${projsWithMembers.map(p=>`<button class="exp-tab-btn${expSelProj===p.id?' active':''}" onclick="setExpProj('${p.id}')">${p.name}</button>`).join('')}
+  </div>`;
+
+  if(!projsWithMembers.length){
+    el.innerHTML=`<div class="card"><div style="text-align:center;padding:40px;color:var(--muted)">
+      <p>No projects with assigned personnel found.</p>
+    </div></div>`;
+    return;
+  }
+
+  const proj=S.projects.find(p=>p.id===expSelProj);
+  const members=S.personnel.filter(p=>(p.projectIds||[]).includes(proj.id));
+
+  let rows=[];
+  for(const {year,month,days} of months){
+    const mStart=new Date(year,month,1), mEnd=new Date(year,month+1,0);
+    for(const person of members){
+      if(person.startDate && new Date(person.startDate+'T00:00:00')>mEnd) continue;
+      if(person.poUntil  && new Date(person.poUntil+'T00:00:00')<mStart) continue;
+      const {leave,ot,days:worked}=calcDays(person.id,year,month,days);
+      const rate=getRate(person,year,month);
+      const cost=rate!==null?rate*(worked/days):null;
+      rows.push({yyyymm:`${year}${String(month+1).padStart(2,'0')}`,person,days,worked,leave,ot,rate,cost});
+    }
+  }
+
+  const tableHtml=`<div class="card">
+    <div class="exp-proj-hdr">📁 ${proj.name}</div>
+    <div style="margin-top:0">
+      <div class="tbl-wrap" style="margin-top:16px">
+        <table>
+          <thead><tr><th>YYYYMM</th><th>Name</th><th>Company</th><th>Days Worked / Total</th><th>Monthly Rate</th><th>Cost (SGD)</th></tr></thead>
+          <tbody>
+            ${rows.map(r=>`<tr>
+              <td>${r.yyyymm}</td>
+              <td><strong>${r.person.name}</strong></td>
+              <td>${r.person.company}</td>
+              <td>
+                <strong>${r.worked}</strong>/${r.days}
+                ${r.leave?`<span style="font-size:11px;color:var(--danger);margin-left:4px">-${r.leave}L</span>`:''}
+                ${r.ot?`<span style="font-size:11px;color:var(--success);margin-left:4px">+${r.ot}OT</span>`:''}
+              </td>
+              <td>${r.rate!==null?money(r.rate):'<span style="color:var(--muted)">N/A</span>'}</td>
+              <td><strong>${r.cost!==null?money(r.cost):'—'}</strong></td>
+            </tr>`).join('')||`<tr><td colspan="6" class="empty-row">No active members for recorded months.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+
+  el.innerHTML=tabBar+tableHtml;
+}
+
+function setExpProj(id){
+  expSelProj=id;
+  renderExpenses();
 }
 
 // ═══════════════════════════════════════
