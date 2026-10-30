@@ -41,8 +41,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;text-decoration:none}
 .btn-primary{background:var(--primary);color:#fff}
 .btn-primary:hover{background:var(--primary-light)}
-.btn-secondary{background:#f1f5f9;color:var(--text)}
-.btn-secondary:hover{background:#e2e8f0}
+.btn-secondary,.btn-ghost{background:#f1f5f9;color:var(--text)}
+.btn-secondary:hover,.btn-ghost:hover{background:#e2e8f0}
 .btn-danger{background:#fee2e2;color:var(--danger)}
 .btn-danger:hover{background:#fecaca}
 .btn-sm{padding:5px 12px;font-size:12px}
@@ -74,6 +74,22 @@ tbody td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover td{background:#f8fafc}
 .empty-row{text-align:center;padding:32px!important;color:var(--muted)}
+
+/* WORKING DAYS GRID */
+.wd-year-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.wd-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:600px){.wd-grid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:400px){.wd-grid{grid-template-columns:repeat(2,1fr)}}
+.wd-cell{background:var(--surface-2,#f8fafc);border:1.5px solid var(--border,#e2e8f0);
+  border-radius:10px;padding:14px 10px 10px;text-align:center;transition:border-color .15s}
+.wd-cell.wd-has{border-color:#2563eb}
+.wd-mn{font-size:11px;font-weight:700;color:var(--muted,#64748b);
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+.wd-inp{width:100%;text-align:center;font-family:'JetBrains Mono',monospace;
+  font-size:22px;font-weight:600;border:none;background:transparent;
+  color:var(--text,#1e293b);padding:0;outline:none;-moz-appearance:textfield}
+.wd-inp::-webkit-outer-spin-button,.wd-inp::-webkit-inner-spin-button{-webkit-appearance:none}
+.wd-inp::placeholder{color:#cbd5e1;font-size:18px}
 
 /* STATUS */
 .status{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
@@ -255,6 +271,7 @@ const ETYPES = {
 // ═══════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════
+let wdYear = new Date().getFullYear();
 let S = {
   projects:[],
   personnel:[],
@@ -582,61 +599,43 @@ function delPerson(id) {
 // WORKING DAYS TAB
 // ═══════════════════════════════════════
 function renderWD() {
-  const sorted=[...S.workingDays].sort((a,b)=>b.year-a.year||b.month-a.month);
-  const el=document.getElementById('tab-workingdays');
-  el.innerHTML=`
+  const years=[2026,2027,2028];
+  if(!years.includes(wdYear)) wdYear=years[0];
+  const cells=MN.map((mn,mi)=>{
+    const wd=getWD(wdYear,mi);
+    return`<div class="wd-cell${wd!==null?' wd-has':''}">
+      <div class="wd-mn">${mn}</div>
+      <input class="wd-inp" type="number" min="1" max="31"
+        value="${wd!==null?wd:''}" placeholder="—"
+        onchange="saveWDCell(${wdYear},${mi},this.value)"
+        oninput="this.closest('.wd-cell').classList.toggle('wd-has',!!this.value.trim())">
+    </div>`;
+  }).join('');
+  document.getElementById('tab-workingdays').innerHTML=`
   <div class="card">
-    <div class="card-title">📅 Set Monthly Working Days</div>
-    <div class="input-row">
-      <div class="form-group">
-        <label>Year</label>
-        <select id="wd_y">${[2024,2025,2026,2027,2028].map(y=>`<option ${y===new Date().getFullYear()?'selected':''}>${y}</option>`).join('')}</select>
-      </div>
-      <div class="form-group">
-        <label>Month</label>
-        <select id="wd_m">${MN.map((m,i)=>`<option value="${i}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('')}</select>
-      </div>
-      <div class="form-group">
-        <label>Working Days</label>
-        <input type="number" id="wd_d" min="1" max="31" placeholder="e.g. 22" style="width:100px">
-      </div>
-      <button class="btn btn-primary" onclick="saveWD()" style="flex-shrink:0;margin-top:19px">Save</button>
+    <div class="card-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      📅 Working Days
+      <span class="wd-year-bar" style="margin-left:auto">
+        ${years.map(y=>`<button class="btn ${y===wdYear?'btn-primary':'btn-ghost'} btn-sm"
+          onclick="wdYear=${y};renderWD()">${y}</button>`).join('')}
+      </span>
     </div>
-  </div>
-  <div class="card">
-    <div class="card-title">📋 Working Days History</div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr><th>Year</th><th>Month</th><th>Working Days</th><th></th></tr></thead>
-        <tbody>
-          ${sorted.map(w=>`<tr>
-            <td>${w.year}</td>
-            <td>${MN[w.month]}</td>
-            <td><strong>${w.days}</strong></td>
-            <td style="text-align:right"><button class="btn btn-danger btn-sm" onclick="delWD(${w.year},${w.month})">Remove</button></td>
-          </tr>`).join('')||`<tr><td colspan="4" class="empty-row">No data yet. Add working days above.</td></tr>`}
-        </tbody>
-      </table>
-    </div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:16px">
+      Enter the number of working days for each month. Changes save automatically.
+    </p>
+    <div class="wd-grid">${cells}</div>
   </div>`;
 }
 
-function saveWD() {
-  const year=parseInt(document.getElementById('wd_y').value);
-  const month=parseInt(document.getElementById('wd_m').value);
-  const days=parseInt(document.getElementById('wd_d').value);
-  if(!days||days<1||days>31) return alert('Enter valid working days (1–31).');
-  const i=S.workingDays.findIndex(w=>w.year===year&&w.month===month);
-  if(i>=0) S.workingDays[i].days=days; else S.workingDays.push({year,month,days});
+function saveWDCell(y,m,val) {
+  const d=parseInt(val);
+  if(!val||!val.trim()||isNaN(d)){
+    S.workingDays=S.workingDays.filter(w=>!(w.year===y&&w.month===m));
+  } else if(d>=1&&d<=31){
+    const i=S.workingDays.findIndex(w=>w.year===y&&w.month===m);
+    if(i>=0) S.workingDays[i].days=d; else S.workingDays.push({year:y,month:m,days:d});
+  }
   save('workingDays');
-  renderWD();
-}
-
-function delWD(year,month) {
-  if(!confirm(`Remove working days for ${MN[month]} ${year}?`)) return;
-  S.workingDays=S.workingDays.filter(w=>!(w.year===year&&w.month===month));
-  save('workingDays');
-  renderWD();
 }
 
 // ═══════════════════════════════════════
