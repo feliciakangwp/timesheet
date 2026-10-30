@@ -2042,7 +2042,7 @@ document.getElementById('modal-overlay').addEventListener('click',function(e){
 // ═══════════════════════════════════════
 let _stRenderer=null,_stAnimId=null,_stClock=null,_stObjs=[],_stRO=null,_stCam=null,_stScene=null;
 let _stShowNames=true,_stPanX=0,_stPanZ=0,_stCamH=22,_stCamD=24;
-let _stPaused=false,_stRaycaster=null,_stWavers=[];
+let _stPaused=false,_stRaycaster=null,_stWavers=[],_stFlags=[];
 const _ST_FEMALE=new Set(['shivani','dharani','eejya']);
 const _ST_COLORS={p_orion:0xE91E8C,p_polaris:0x29B6F6,p_cordis:0xFDD835};
 const _ST_LANES=[{a:9.1,b:6.1},{a:9.75,b:6.75},{a:10.4,b:7.35}];
@@ -2061,7 +2061,7 @@ function _stIsBA(per){return(per.role||'').toLowerCase().startsWith('ba')||per.c
 
 function _stSetCam(){if(!_stCam)return;_stCam.position.set(_stPanX,_stCamH,_stPanZ+_stCamD);_stCam.lookAt(_stPanX,0,_stPanZ);}
 
-function _stResetCam(){_stPanX=0;_stPanZ=0;_stCamH=22;_stCamD=24;_stSetCam();}
+function _stResetCam(){_stPanX=0;_stPanZ=0;_stCamH=30;_stCamD=34;_stSetCam();}
 
 function _stToggleNames(){
   _stShowNames=!_stShowNames;
@@ -2174,114 +2174,182 @@ function _stMakeSpectator(x,y,z,color){
 }
 
 function _stBuildStadium(sc){
-  const gnd=new THREE.Mesh(new THREE.PlaneGeometry(80,80),new THREE.MeshLambertMaterial({color:0x2d5a27}));
-  gnd.rotation.x=-Math.PI/2;gnd.position.y=-.02;sc.add(gnd);
+  const SEGS=64;
+  _stWavers=[];_stFlags=[];
 
-  const segs=80;
-  function mkEllipse(ax,bx){
+  function mkEll(ax,bx){
     const sh=new THREE.Shape();
-    for(let i=0;i<=segs;i++){const a=i/segs*Math.PI*2;sh[i===0?'moveTo':'lineTo'](ax*Math.cos(a),bx*Math.sin(a));}
+    for(let i=0;i<=SEGS;i++){const a=i/SEGS*Math.PI*2;i===0?sh.moveTo(ax*Math.cos(a),bx*Math.sin(a)):sh.lineTo(ax*Math.cos(a),bx*Math.sin(a));}
     return sh;
   }
+  function mkRing(oA,oB,iA,iB){
+    const sh=mkEll(oA,oB);
+    const h=new THREE.Path();
+    for(let i=0;i<=SEGS;i++){const a=i/SEGS*Math.PI*2;i===0?h.moveTo(iA*Math.cos(a),iB*Math.sin(a)):h.lineTo(iA*Math.cos(a),iB*Math.sin(a));}
+    sh.holes=[h];return sh;
+  }
 
-  const track=mkEllipse(11,8);
-  const hole=new THREE.Path();
-  for(let i=0;i<=segs;i++){const a=i/segs*Math.PI*2;hole[i===0?'moveTo':'lineTo'](8.5*Math.cos(a),5.5*Math.sin(a));}
-  track.holes=[hole];
-  const trackM=new THREE.Mesh(new THREE.ShapeGeometry(track,64),new THREE.MeshLambertMaterial({color:0xB03A2E}));
-  trackM.rotation.x=-Math.PI/2;sc.add(trackM);
+  // Ground
+  const gnd=new THREE.Mesh(new THREE.PlaneGeometry(120,120),new THREE.MeshLambertMaterial({color:0x4A7835}));
+  gnd.rotation.x=-Math.PI/2;gnd.position.y=-0.05;sc.add(gnd);
 
-  const infM=new THREE.Mesh(new THREE.ShapeGeometry(mkEllipse(8.5,5.5),64),new THREE.MeshLambertMaterial({color:0x3a7a32}));
-  infM.rotation.x=-Math.PI/2;infM.position.y=.01;sc.add(infM);
+  // Track (warm terracotta)
+  const trkSh=mkEll(11,8);
+  const trkHole=new THREE.Path();
+  for(let i=0;i<=SEGS;i++){const a=i/SEGS*Math.PI*2;i===0?trkHole.moveTo(8.5*Math.cos(a),5.5*Math.sin(a)):trkHole.lineTo(8.5*Math.cos(a),5.5*Math.sin(a));}
+  trkSh.holes=[trkHole];
+  const trkM=new THREE.Mesh(new THREE.ShapeGeometry(trkSh,64),new THREE.MeshLambertMaterial({color:0xC9654C}));
+  trkM.rotation.x=-Math.PI/2;sc.add(trkM);
 
+  // Infield (natural grass)
+  const infM=new THREE.Mesh(new THREE.ShapeGeometry(mkEll(8.5,5.5),64),new THREE.MeshLambertMaterial({color:0x548A42}));
+  infM.rotation.x=-Math.PI/2;infM.position.y=0.01;sc.add(infM);
+
+  // Lane markings
   [{a:9.1,b:6.1},{a:9.75,b:6.75},{a:10.4,b:7.35}].forEach(({a,b})=>{
-    const pts=[];
-    for(let i=0;i<=segs;i++){const ang=i/segs*Math.PI*2;pts.push(new THREE.Vector3(a*Math.cos(ang),.015,b*Math.sin(ang)));}
+    const pts=[];for(let i=0;i<=SEGS;i++){const ang=i/SEGS*Math.PI*2;pts.push(new THREE.Vector3(a*Math.cos(ang),.015,b*Math.sin(ang)));}
     sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xffffff})));
   });
   sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(8.5,.015,0),new THREE.Vector3(11,.015,0)]),new THREE.LineBasicMaterial({color:0xffff00})));
 
-  // Grandstands
-  const sM=new THREE.MeshLambertMaterial({color:0x455A64});
-  const stM=new THREE.MeshLambertMaterial({color:0x1565C0});
-  [-11,11].forEach(z=>{
-    const sign=z<0?-1:1;
-    const b=new THREE.Mesh(new THREE.BoxGeometry(28,2.5,4.5),sM);b.position.set(0,1.25,z+sign*2.5);sc.add(b);
-    const s=new THREE.Mesh(new THREE.BoxGeometry(26,.5,3.5),stM);s.position.set(0,2.75,z+sign*2.6);sc.add(s);
-  });
-  [-16,16].forEach(x=>{
-    const sign=x<0?-1:1;
-    const b=new THREE.Mesh(new THREE.BoxGeometry(5,2,18),sM);b.position.set(x+sign*2.5,1,0);sc.add(b);
-    const s=new THREE.Mesh(new THREE.BoxGeometry(4,.5,17),stM);s.position.set(x+sign*2.5,2.3,0);sc.add(s);
-  });
+  // ── Grandstand tiered bowl ────────────────────────────
+  const N_ROWS=8;
+  const SA=12.5,SB=9.5;    // stand inner start radii
+  const RWA=1.02,RWB=0.82; // row width A/B axes
+  const RH=0.46;            // height step per row
+  const concMat=new THREE.MeshLambertMaterial({color:0x8B8177});
+  const darkMat=new THREE.MeshLambertMaterial({color:0x5A5650});
+  const SPEC_COLS=[0xFF6B6B,0xFF8C00,0xFFD700,0x4CAF50,0x29B6F6,0xBA68C8,0xFF80AB,0x80DEEA,0xFFAB91,0xA5D6A7,0xF48FB1,0x81D4FA,0xCE93D8,0xFFCC80,0xEF9A9A,0xB2DFDB,0xF9A825,0x66BB6A,0x42A5F5,0xEC407A];
 
-  // Spectators with ~30% waving
-  const spc=[0xFF6B6B,0x4ECDC4,0xFFE66D,0xA8E6CF,0xFF8B94,0xC7B3E5,0xFFC3A0,0x88D8B0,0xE695AA,0xFF9A9E];
-  let si=0;_stWavers=[];
-  [-11,11].forEach(z=>{
-    const sign=z<0?-1:1;
-    for(let row=0;row<2;row++){
-      for(let col=-11;col<=11;col+=2.2){
-        const sg=_stMakeSpectator(col,2.9+row*.38,z+sign*2.6+sign*row*.25,spc[si++%spc.length]);
-        sc.add(sg);
-        if(Math.random()<.3)_stWavers.push({g:sg,phase:Math.random()*Math.PI*2,freq:.6+Math.random()*.9});
-      }
+  for(let row=0;row<N_ROWS;row++){
+    const iA=SA+row*RWA,iB=SB+row*RWB;
+    const oA=iA+RWA,oB=iB+RWB;
+    const y=row*RH;
+    const ringMesh=new THREE.Mesh(new THREE.ShapeGeometry(mkRing(oA,oB,iA,iB),64),row%2===0?concMat:darkMat);
+    ringMesh.rotation.x=-Math.PI/2;ringMesh.position.y=y;sc.add(ringMesh);
+
+    // Spectators on this tier
+    const midA=iA+RWA*0.5,midB=iB+RWB*0.5;
+    const specY=y+0.2;
+    const nSpec=Math.round(36+row*3.5);
+    for(let s=0;s<nSpec;s++){
+      const ang=s/nSpec*Math.PI*2;
+      const sx=midA*Math.cos(ang),sz=midB*Math.sin(ang);
+      const col=SPEC_COLS[Math.floor(Math.random()*SPEC_COLS.length)];
+      const sg=_stMakeSpectator(sx,specY,sz,col);
+      sg.rotation.y=Math.atan2(-sx,-sz);
+      sc.add(sg);
+      if(Math.random()<0.32)_stWavers.push({g:sg,phase:Math.random()*Math.PI*2,freq:0.5+Math.random()*1.2});
+    }
+  }
+
+  // ── Outer stadium structure ───────────────────────────
+  const wallA=SA+N_ROWS*RWA,wallB=SB+N_ROWS*RWB;
+  const wallY=N_ROWS*RH;
+  // Outer retaining wall top
+  const wallRing=new THREE.Mesh(new THREE.ShapeGeometry(mkRing(wallA+0.65,wallB+0.55,wallA,wallB),64),darkMat);
+  wallRing.rotation.x=-Math.PI/2;wallRing.position.y=wallY;sc.add(wallRing);
+  // Concrete skirt (visible from outside)
+  const skirtRing=new THREE.Mesh(new THREE.ShapeGeometry(mkRing(wallA+0.65,wallB+0.55,SA-0.2,SB-0.2),64),new THREE.MeshLambertMaterial({color:0x706560}));
+  skirtRing.rotation.x=-Math.PI/2;skirtRing.position.y=-0.04;sc.add(skirtRing);
+
+  // ── Structural support columns ────────────────────────
+  const colMat=new THREE.MeshLambertMaterial({color:0x7A7570});
+  const nCols=20;const colH=wallY+3.0;
+  for(let c=0;c<nCols;c++){
+    const ang=c/nCols*Math.PI*2;
+    const cx=(wallA+0.3)*Math.cos(ang),cz=(wallB+0.3)*Math.sin(ang);
+    const col=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.22,colH,8),colMat);
+    col.position.set(cx,colH/2,cz);sc.add(col);
+  }
+
+  // ── Roof canopy ring ──────────────────────────────────
+  const roofY=wallY+2.4;
+  const roofOA=wallA+3.8,roofOB=wallB+3.0;
+  const roofRing=new THREE.Mesh(new THREE.ShapeGeometry(mkRing(roofOA,roofOB,wallA+0.5,wallB+0.4),64),new THREE.MeshLambertMaterial({color:0x7A7370,side:THREE.DoubleSide}));
+  roofRing.rotation.x=-Math.PI/2;roofRing.position.y=roofY;sc.add(roofRing);
+
+  // ── Flags around upper perimeter ─────────────────────
+  const FLAG_COLS=[0xE53935,0xFB8C00,0xFDD835,0x43A047,0x1565C0,0x8E24AA,0xE91E8C,0x00BCD4,0xFF7043,0x66BB6A];
+  const nFlags=28;const fPoleH=1.9;
+  const fBaseA=roofOA+0.4,fBaseB=roofOB+0.4;
+  for(let f=0;f<nFlags;f++){
+    const ang=f/nFlags*Math.PI*2;
+    const fx=fBaseA*Math.cos(ang),fz=fBaseB*Math.sin(ang);
+    const poleBase=roofY+0.05;
+    const poleMesh=new THREE.Mesh(new THREE.CylinderGeometry(0.038,0.038,fPoleH,6),new THREE.MeshLambertMaterial({color:0x9E9E9E}));
+    poleMesh.position.set(fx,poleBase+fPoleH/2,fz);sc.add(poleMesh);
+    const fc=FLAG_COLS[f%FLAG_COLS.length];
+    const flagM=new THREE.Mesh(new THREE.PlaneGeometry(0.58,0.34),new THREE.MeshLambertMaterial({color:fc,side:THREE.DoubleSide}));
+    flagM.position.set(fx+0.29*Math.cos(ang),poleBase+fPoleH-0.1,fz+0.29*Math.sin(ang));
+    flagM.rotation.y=ang+Math.PI/2;
+    sc.add(flagM);_stFlags.push(flagM);
+  }
+
+  // ── Floodlight towers ─────────────────────────────────
+  const lMet=new THREE.MeshLambertMaterial({color:0x8090A0});
+  [[18,12],[18,-12],[-18,12],[-18,-12],[0,16],[0,-16]].forEach(([lx,lz])=>{
+    const lH=19;
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.18,lH,8),lMet);
+    pole.position.set(lx,lH/2,lz);sc.add(pole);
+    const crossbar=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.15,0.15),lMet);
+    crossbar.position.set(lx,lH+0.12,lz);sc.add(crossbar);
+    for(let li=-1;li<=1;li++){
+      const lt=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.26,0.3),new THREE.MeshLambertMaterial({color:0xFFFDE7,emissive:0xFFEE58,emissiveIntensity:0.9}));
+      lt.position.set(lx+li*0.7,lH+0.28,lz);sc.add(lt);
     }
   });
-  [-16,16].forEach(x=>{
-    const sign=x<0?-1:1;
-    for(let row=0;row<2;row++){
-      for(let col=-7;col<=7;col+=2.2){
-        const sg=_stMakeSpectator(x+sign*2.5+sign*row*.25,2.5+row*.38,col,spc[si++%spc.length]);
-        sc.add(sg);
-        if(Math.random()<.3)_stWavers.push({g:sg,phase:Math.random()*Math.PI*2,freq:.6+Math.random()*.9});
-      }
-    }
+
+  // ── Scoreboard ────────────────────────────────────────
+  const sbBaseY=wallY;
+  const sbBd=new THREE.Mesh(new THREE.BoxGeometry(11,7,0.7),new THREE.MeshLambertMaterial({color:0x2A2A2A}));
+  sbBd.position.set(0,sbBaseY+4,-(wallB+4.5));sc.add(sbBd);
+  const sbSc=new THREE.Mesh(new THREE.PlaneGeometry(10.0,5.8),new THREE.MeshLambertMaterial({color:0x050F1A,emissive:0x0D2A5A,emissiveIntensity:0.45}));
+  sbSc.position.set(0,sbBaseY+4,-(wallB+4.15));sc.add(sbSc);
+  [-5,5].forEach(sx=>{
+    const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.18,sbBaseY+1.5,8),new THREE.MeshLambertMaterial({color:0x808080}));
+    sp.position.set(sx,(sbBaseY+1.5)/2,-(wallB+4.5));sc.add(sp);
   });
 
-  // Light poles
-  const pM=new THREE.MeshLambertMaterial({color:0x78909C});
-  [[14,9],[14,-9],[-14,9],[-14,-9]].forEach(([px,pz])=>{
-    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,12,8),pM);pole.position.set(px,6,pz);sc.add(pole);
-    const lt=new THREE.Mesh(new THREE.BoxGeometry(1.2,.5,.5),new THREE.MeshLambertMaterial({color:0xFFFDE7,emissive:0xFFF59D,emissiveIntensity:.5}));
-    lt.position.set(px,12.3,pz);sc.add(lt);
-  });
+  // ── Advertising boards (trackside) ───────────────────
+  const AD_COLS=[0xE53935,0xFB8C00,0x283593,0x1B5E20,0x6A1B9A,0x880E4F,0xBF360C,0x004D40];
+  const nAds=14;
+  for(let a=0;a<nAds;a++){
+    const ang=a/nAds*Math.PI*2;
+    const ax2=12.35*Math.cos(ang),az=9.35*Math.sin(ang);
+    const adMesh=new THREE.Mesh(new THREE.BoxGeometry(3.0,0.72,0.12),new THREE.MeshLambertMaterial({color:AD_COLS[a%AD_COLS.length]}));
+    adMesh.position.set(ax2,0.46,az);adMesh.rotation.y=ang+Math.PI/2;sc.add(adMesh);
+    const stripe=new THREE.Mesh(new THREE.BoxGeometry(2.8,0.13,0.14),new THREE.MeshLambertMaterial({color:0xffffff}));
+    stripe.position.set(ax2,0.64,az);stripe.rotation.y=ang+Math.PI/2;sc.add(stripe);
+  }
 
-  // Scoreboard
-  const sbBd=new THREE.Mesh(new THREE.BoxGeometry(8,4,.5),new THREE.MeshLambertMaterial({color:0x212121}));
-  sbBd.position.set(0,5.5,-17);sc.add(sbBd);
-  const sbSc=new THREE.Mesh(new THREE.PlaneGeometry(7.2,3.4),new THREE.MeshLambertMaterial({color:0x0D1B2A,emissive:0x0D47A1,emissiveIntensity:.3}));
-  sbSc.position.set(0,5.5,-16.74);sc.add(sbSc);
-
-  // ── Field event props ──────────────────────────────
-  // Javelin (Ryan) — thin cylinder lying on ground near station
+  // ── Field event props ──────────────────────────────────
+  // Javelin (Ryan)
   const jvMat=new THREE.MeshLambertMaterial({color:0xD4A017});
   const jv=new THREE.Mesh(new THREE.CylinderGeometry(.02,.015,2.6,8),jvMat);
   jv.position.set(-5.5,.04,.4);jv.rotation.z=Math.PI/2;sc.add(jv);
 
-  // Shot put (Christopher) — circle + ball
+  // Shot put (Christopher)
   const spCirc=new THREE.Mesh(new THREE.RingGeometry(1.0,1.12,32),new THREE.MeshLambertMaterial({color:0xffffff,side:THREE.DoubleSide}));
   spCirc.position.set(4.5,.02,-2);spCirc.rotation.x=-Math.PI/2;sc.add(spCirc);
   const spBall=new THREE.Mesh(new THREE.SphereGeometry(.18,12,12),new THREE.MeshLambertMaterial({color:0x888888}));
   spBall.position.set(4.5,.2,-2);sc.add(spBall);
 
-  // Long jump (Norman) — sandpit + runway line
+  // Long jump (Norman)
   const pitM=new THREE.Mesh(new THREE.BoxGeometry(1.5,.1,3.2),new THREE.MeshLambertMaterial({color:0xC2A060}));
   pitM.position.set(.5,.02,0);sc.add(pitM);
   sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(.5,.02,-4.5),new THREE.Vector3(.5,.02,-1)]),new THREE.LineBasicMaterial({color:0xffffff})));
 
-  // High jump (Raja) — standards + bar + mat
-  const stdMat=new THREE.MeshLambertMaterial({color:0x607080});
+  // High jump (Raja)
+  const stdMat2=new THREE.MeshLambertMaterial({color:0x607080});
   [-1,1].forEach(sx=>{
-    const std=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,2,8),stdMat);
-    std.position.set(2+sx,1,2.5);sc.add(std);
-    const basem=new THREE.Mesh(new THREE.BoxGeometry(.4,.08,.4),stdMat);
-    basem.position.set(2+sx,.04,2.5);sc.add(basem);
+    const std=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,2,8),stdMat2);std.position.set(2+sx,1,2.5);sc.add(std);
+    const basem=new THREE.Mesh(new THREE.BoxGeometry(.4,.08,.4),stdMat2);basem.position.set(2+sx,.04,2.5);sc.add(basem);
   });
   const hjBar=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,2,8),new THREE.MeshLambertMaterial({color:0xFF6B00}));
   hjBar.position.set(2,1.38,2.5);hjBar.rotation.z=Math.PI/2;sc.add(hjBar);
-  const mat=new THREE.Mesh(new THREE.BoxGeometry(2,.18,1.2),new THREE.MeshLambertMaterial({color:0x4A90D9}));
-  mat.position.set(2,.09,2.5);sc.add(mat);
+  const hjMat2=new THREE.Mesh(new THREE.BoxGeometry(2,.18,1.2),new THREE.MeshLambertMaterial({color:0x7B68EE}));
+  hjMat2.position.set(2,.09,2.5);sc.add(hjMat2);
 }
 
 // ── BA Field Event Animations ────────────────────────
@@ -2448,7 +2516,7 @@ function closeSprintTrack(){
   document.getElementById('sprint-track-overlay').classList.remove('open');
   if(_stAnimId){cancelAnimationFrame(_stAnimId);_stAnimId=null;}
   if(_stRO){_stRO.disconnect();_stRO=null;}
-  if(_stRenderer){_stRenderer.dispose();_stRenderer=null;_stScene=null;_stCam=null;_stObjs=[];_stWavers=[];}
+  if(_stRenderer){_stRenderer.dispose();_stRenderer=null;_stScene=null;_stCam=null;_stObjs=[];_stWavers=[];_stFlags=[];}
 }
 
 function _stInit(){
@@ -2457,20 +2525,20 @@ function _stInit(){
   const W=canvas.clientWidth||900,H=canvas.clientHeight||520;
 
   _stScene=new THREE.Scene();
-  _stScene.background=new THREE.Color(0x87CEEB);
-  _stScene.fog=new THREE.Fog(0x87CEEB,50,90);
+  _stScene.background=new THREE.Color(0x8AAFD4);
+  _stScene.fog=new THREE.Fog(0x8AAFD4,80,130);
 
-  _stCam=new THREE.PerspectiveCamera(50,W/H,.1,200);
-  _stPanX=0;_stPanZ=0;_stCamH=22;_stCamD=24;_stPaused=false;
+  _stCam=new THREE.PerspectiveCamera(55,W/H,.1,200);
+  _stPanX=0;_stPanZ=0;_stCamH=30;_stCamD=34;_stPaused=false;
   _stSetCam();
 
   _stRenderer=new THREE.WebGLRenderer({canvas,antialias:true});
   _stRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
   _stRenderer.setSize(W,H);
 
-  _stScene.add(new THREE.AmbientLight(0xffffff,.8));
-  const sun=new THREE.DirectionalLight(0xFFF8E1,.85);sun.position.set(8,20,12);_stScene.add(sun);
-  const fill=new THREE.DirectionalLight(0xE3F2FD,.3);fill.position.set(-10,8,-5);_stScene.add(fill);
+  _stScene.add(new THREE.AmbientLight(0xFFF5E0,.6));
+  const sun=new THREE.DirectionalLight(0xFFCC80,1.05);sun.position.set(15,28,18);_stScene.add(sun);
+  const fill=new THREE.DirectionalLight(0xC8E8FF,.38);fill.position.set(-12,10,-8);_stScene.add(fill);
 
   _stBuildStadium(_stScene);
   _stRaycaster=new THREE.Raycaster();
@@ -2617,6 +2685,7 @@ function _stInit(){
     _stWavers.forEach(w=>{
       if(w.g.userData.arm)w.g.userData.arm.rotation.z=.9+.45*Math.sin(t*w.freq+w.phase);
     });
+    _stFlags.forEach((f,i)=>{f.rotation.z=Math.sin(t*1.9+i*.72)*.15;});
 
     _stRenderer.render(_stScene,_stCam);
   };
