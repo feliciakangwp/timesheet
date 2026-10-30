@@ -192,6 +192,24 @@ tbody tr:hover td{background:#f8fafc}
 .detail-remarks{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;min-height:80px;color:var(--text);outline:none;transition:border-color .2s}
 .detail-remarks:focus{border-color:var(--accent)}
 
+/* HOURLY */
+.ebadge.hours{background:#e0f2fe;color:#0369a1}
+.charge-toggle{display:flex;border-radius:8px;overflow:hidden;border:1.5px solid var(--border);margin-bottom:16px}
+.charge-toggle button{flex:1;padding:8px 12px;border:none;font-size:12px;font-weight:600;cursor:pointer;background:none;color:var(--muted);font-family:inherit;transition:all .15s}
+.charge-toggle button:hover{color:var(--primary)}
+.charge-toggle button.ct-active{background:var(--primary);color:#fff}
+.bp-form{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:0}
+.bp-form .form-group{flex:1;min-width:140px;margin-bottom:0}
+.bp-preview{padding:12px 16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;font-size:13px;margin-top:12px;display:none}
+.bp-preview.show{display:block}
+.bp-stat{display:inline-block;margin-right:24px;margin-bottom:4px}
+.bp-stat span{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;display:block}
+.bp-stat strong{font-size:18px;color:var(--text)}
+.bp-stat strong.hi{color:var(--primary)}
+.po-bar-wrap{margin-top:8px}
+.po-bar{height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.po-bar-fill{height:100%;background:var(--accent);border-radius:3px}
+
 /* ALERT */
 .alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px}
 .alert-warn{background:#fff7ed;border:1px solid #fed7aa;color:var(--warning)}
@@ -296,6 +314,7 @@ let S = {
   personnel:[],
   workingDays:[],
   entries:[],
+  billingPeriods:[],
   calYear: new Date().getFullYear(),
   calMonth: new Date().getMonth(),
   selProjs: null,
@@ -303,18 +322,19 @@ let S = {
 
 function load() {
   S.projects   = JSON.parse(localStorage.getItem('ts_projects')    || 'null')
-               || [{id:'p_orion',name:'ORION'},{id:'p_polaris',name:'POLARIS'},{id:'p_cordis',name:'CORDIS'}];
+               || [{id:'p_orion',name:'ORION'},{id:'p_polaris',name:'POLARIS'},{id:'p_cordis',name:'CORDIS'},{id:'p_hourly',name:'HOURLY CONSULTATIONS'}];
   S.personnel  = JSON.parse(localStorage.getItem('ts_personnel')   || 'null')
                || [
-    {id:'per_shivani',   name:'Shivani',     company:'EY',           role:'Developer - Consultant',  startDate:'2026-02-01',poStart:'2026-02-01',poUntil:'2027-08-31', rates:[{from:'2026-02-01',to:'2026-08-31',rate:9000},{from:'2026-09-01',to:'2027-08-31',rate:10000}], projectIds:['p_orion'],  offboard:false,offboardDate:null,remarks:''},
-    {id:'per_dharani',   name:'Dharani',     company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-02-01',poStart:'2026-02-01',poUntil:'2027-08-31', rates:[{from:'2026-02-01',to:'2026-08-31',rate:9000},{from:'2026-09-01',to:'2027-08-31',rate:10000}], projectIds:['p_orion'],  offboard:false,offboardDate:null,remarks:''},
-    {id:'per_apurv',     name:'Apurv',       company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'], offboard:false,offboardDate:null,remarks:''},
-    {id:'per_ryan',      name:'Ryan',        company:'SimplifyNext', role:'BA - Snr Consultant',     startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:15000}], projectIds:['p_cordis'], offboard:false,offboardDate:null,remarks:''},
-    {id:'per_chris',     name:'Christopher', company:'SimplifyNext', role:'BA - Snr Consultant',     startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:15000}], projectIds:['p_cordis'], offboard:false,offboardDate:null,remarks:''},
-    {id:'per_norman',    name:'Norman',      company:'Cognizant',    role:'BA - Consultant',         startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'], offboard:false,offboardDate:null,remarks:''},
-    {id:'per_gyan',      name:'Gyan',        company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'], offboard:false,offboardDate:null,remarks:''},
-    {id:'per_eejya',     name:'Eejya',       company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'],offboard:false,offboardDate:null,remarks:''},
-    {id:'per_pradipta',  name:'Pradipta',    company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'],offboard:false,offboardDate:null,remarks:''}
+    {id:'per_shivani',   name:'Shivani',     company:'EY',           role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-02-01',poStart:'2026-02-01',poUntil:'2027-08-31', rates:[{from:'2026-02-01',to:'2026-08-31',rate:9000},{from:'2026-09-01',to:'2027-08-31',rate:10000}], projectIds:['p_orion'],   offboard:false,offboardDate:null,remarks:''},
+    {id:'per_dharani',   name:'Dharani',     company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-02-01',poStart:'2026-02-01',poUntil:'2027-08-31', rates:[{from:'2026-02-01',to:'2026-08-31',rate:9000},{from:'2026-09-01',to:'2027-08-31',rate:10000}], projectIds:['p_orion'],   offboard:false,offboardDate:null,remarks:''},
+    {id:'per_apurv',     name:'Apurv',       company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'],  offboard:false,offboardDate:null,remarks:''},
+    {id:'per_ryan',      name:'Ryan',        company:'SimplifyNext', role:'BA - Snr Consultant',     chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:15000}], projectIds:['p_cordis'],  offboard:false,offboardDate:null,remarks:''},
+    {id:'per_chris',     name:'Christopher', company:'SimplifyNext', role:'BA - Snr Consultant',     chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:15000}], projectIds:['p_cordis'],  offboard:false,offboardDate:null,remarks:''},
+    {id:'per_norman',    name:'Norman',      company:'Cognizant',    role:'BA - Consultant',         chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'],  offboard:false,offboardDate:null,remarks:''},
+    {id:'per_gyan',      name:'Gyan',        company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'],  offboard:false,offboardDate:null,remarks:''},
+    {id:'per_eejya',     name:'Eejya',       company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'], offboard:false,offboardDate:null,remarks:''},
+    {id:'per_pradipta',  name:'Pradipta',    company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'], offboard:false,offboardDate:null,remarks:''},
+    {id:'per_raja',      name:'Raja',        company:'ServiceNow',   role:'Consultant',              chargeType:'hourly',  startDate:'2026-02-01',poStart:'2026-02-01',poUntil:null,          rates:[], hourlyRate:200, poHours:400,                              projectIds:['p_hourly'], offboard:false,offboardDate:null,remarks:''}
   ];
   S.workingDays= JSON.parse(localStorage.getItem('ts_workingDays') || 'null')
                || [
@@ -331,7 +351,17 @@ function load() {
     {id:'e_d4',personnelId:'per_dharani',date:'2026-10-05',type:'mc'},
     {id:'e_d5',personnelId:'per_apurv',  date:'2026-09-22',type:'leave_full'},
     {id:'e_d6',personnelId:'per_ryan',   date:'2026-10-07',type:'leave_pm'},
+    {id:'e_h1',personnelId:'per_raja',date:'2026-09-01',type:'hours',hours:7},
+    {id:'e_h2',personnelId:'per_raja',date:'2026-09-02',type:'hours',hours:8},
+    {id:'e_h3',personnelId:'per_raja',date:'2026-09-03',type:'hours',hours:6.5},
+    {id:'e_h4',personnelId:'per_raja',date:'2026-09-07',type:'hours',hours:8},
+    {id:'e_h5',personnelId:'per_raja',date:'2026-09-08',type:'hours',hours:7.5},
+    {id:'e_h6',personnelId:'per_raja',date:'2026-09-09',type:'hours',hours:8},
+    {id:'e_h7',personnelId:'per_raja',date:'2026-09-10',type:'hours',hours:7},
+    {id:'e_h8',personnelId:'per_raja',date:'2026-09-14',type:'hours',hours:8},
+    {id:'e_h9',personnelId:'per_raja',date:'2026-09-15',type:'hours',hours:8},
   ];
+  S.billingPeriods = JSON.parse(localStorage.getItem('ts_billingPeriods') || 'null') || [];
   S.calYear    = parseInt(localStorage.getItem('ts_calYear'))  || new Date().getFullYear();
   S.calMonth   = parseInt(localStorage.getItem('ts_calMonth')) || new Date().getMonth();
   const sp     = localStorage.getItem('ts_selProjs');
@@ -489,10 +519,13 @@ function renderProfile() {
     </div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Status</th><th>Name</th><th>Company</th><th>Role</th><th>PO Start</th><th>PO Until</th><th>Monthly Rate(s)</th></tr></thead>
+        <thead><tr><th>Status</th><th>Name</th><th>Company</th><th>Role</th><th>PO Start</th><th>PO Until</th><th>Rate(s)</th></tr></thead>
         <tbody>
           ${sorted.map((p)=>{
-            const rateStr=(p.rates||[]).map(r=>`<span style="white-space:nowrap">${fmtDate(r.from)}–${fmtDate(r.to)}: <strong>$${Number(r.rate).toLocaleString()}</strong></span>`).join('<br>');
+            const isHourly=(p.chargeType||'monthly')==='hourly';
+            const rateStr=isHourly
+              ?`<span style="white-space:nowrap"><strong>$${p.hourlyRate||0}/hr</strong> · ${p.poHours||0}h PO</span>`
+              :(p.rates||[]).map(r=>`<span style="white-space:nowrap">${fmtDate(r.from)}–${fmtDate(r.to)}: <strong>$${Number(r.rate).toLocaleString()}</strong></span>`).join('<br>');
             return`<tr ${p.offboard?'style="opacity:.55"':''}>
               <td><span class="status ${p.offboard?'status-offboard':'status-active'}">${p.offboard?'Offboarded':'Active'}</span></td>
               <td>
@@ -517,16 +550,40 @@ function showPersonDetail(id) {
   const p = S.personnel.find(m=>m.id===id);
   if(!p) { renderProfile(); return; }
   const projs=(p.projectIds||[]).map(pid=>{const pr=S.projects.find(x=>x.id===pid);return pr?pr.name:'?';}).join(', ')||'—';
-  const rateFields=(p.rates||[]).map(r=>`<div class="detail-field">
-    <label>Rate Period</label>
-    <span>${fmtDate(r.from)} – ${fmtDate(r.to)}<br><strong style="font-size:15px">${money(r.rate)}/mo</strong></span>
-  </div>`).join('');
+  const isHourly=(p.chargeType||'monthly')==='hourly';
+  let rateSection;
+  if(isHourly){
+    const hoursUsed=S.entries.filter(e=>e.personnelId===id&&e.type==='hours').reduce((s,e)=>s+(e.hours||0),0);
+    const hoursLeft=(p.poHours||0)-hoursUsed;
+    const pct=p.poHours?Math.min(100,Math.round(hoursUsed/p.poHours*100)):0;
+    rateSection=`
+    <div class="sec-label">Hourly Details</div>
+    <div class="detail-grid" style="margin-bottom:12px">
+      <div class="detail-field"><label>Hourly Rate</label><span><strong style="font-size:15px">${money(p.hourlyRate||0)}/hr</strong></span></div>
+      <div class="detail-field"><label>PO Hours</label><span><strong>${p.poHours||0}h</strong></span></div>
+      <div class="detail-field"><label>Hours Used</label><span><strong>${hoursUsed}h</strong></span></div>
+      <div class="detail-field"><label>Hours Remaining</label><span><strong style="color:${hoursLeft<50?'var(--danger)':'var(--success)'}">${hoursLeft}h</strong></span></div>
+    </div>
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px">PO Utilisation: ${pct}%</div>
+      <div class="po-bar"><div class="po-bar-fill" style="width:${pct}%"></div></div>
+    </div>`;
+  } else {
+    const rateFields=(p.rates||[]).map(r=>`<div class="detail-field">
+      <label>Rate Period</label>
+      <span>${fmtDate(r.from)} – ${fmtDate(r.to)}<br><strong style="font-size:15px">${money(r.rate)}/mo</strong></span>
+    </div>`).join('');
+    rateSection=`
+    <div class="sec-label">Monthly Rates</div>
+    <div class="detail-grid" style="margin-bottom:20px">${rateFields||'<p style="font-size:13px;color:var(--muted)">No rates defined.</p>'}</div>`;
+  }
   document.getElementById('tab-profile').innerHTML=`
   <div><span class="detail-back" onclick="renderProfile()">← Back to Personnel List</span></div>
   <div class="card">
     <div class="card-title">
       ${p.name}
       <span class="status ${p.offboard?'status-offboard':'status-active'}" style="margin-left:4px">${p.offboard?'Offboarded':'Active'}</span>
+      ${isHourly?'<span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:20px;font-weight:600;margin-left:4px">Hourly</span>':''}
       <button class="btn btn-secondary btn-sm" onclick="openPersonModal('${p.id}')" style="margin-left:auto">✏ Edit</button>
     </div>
     <div class="detail-grid">
@@ -534,12 +591,11 @@ function showPersonDetail(id) {
       <div class="detail-field"><label>Role</label><span>${p.role||'—'}</span></div>
       <div class="detail-field"><label>Start Date</label><span>${fmtDate(p.startDate)}</span></div>
       <div class="detail-field"><label>PO Start</label><span>${fmtDate(p.poStart)}</span></div>
-      <div class="detail-field"><label>PO Until</label><span>${fmtDate(p.poUntil)}</span></div>
+      <div class="detail-field"><label>PO Until</label><span>${p.poUntil?fmtDate(p.poUntil):'Open'}</span></div>
       <div class="detail-field"><label>Projects</label><span>${projs}</span></div>
       ${p.offboard?`<div class="detail-field"><label>Offboard Date</label><span>${fmtDate(p.offboardDate)}</span></div>`:''}
     </div>
-    <div class="sec-label">Monthly Rates</div>
-    <div class="detail-grid" style="margin-bottom:20px">${rateFields||'<p style="font-size:13px;color:var(--muted)">No rates defined.</p>'}</div>
+    ${rateSection}
     <div class="sec-label">Remarks</div>
     <textarea class="detail-remarks" placeholder="Add notes about this person..." onblur="saveRemarks('${p.id}',this.value)">${(p.remarks||'').replace(/</g,'&lt;')}</textarea>
   </div>`;
@@ -554,7 +610,8 @@ function saveRemarks(id, val) {
 
 function openPersonModal(editId) {
   const ex=editId?S.personnel.find(p=>p.id===editId):null;
-  const p=ex||{rates:[{from:'',to:'',rate:''}],projectIds:[],offboard:false};
+  const p=ex||{rates:[{from:'',to:'',rate:''}],projectIds:[],offboard:false,chargeType:'monthly'};
+  const ct=p.chargeType||'monthly';
 
   const projChips=S.projects.map(proj=>`
     <label class="proj-chip ${(p.projectIds||[]).includes(proj.id)?'checked':''}" data-projid="${proj.id}" onclick="toggleChip(this)">
@@ -600,18 +657,46 @@ function openPersonModal(editId) {
       </div>
     </div>
 
-    <div class="sec-label">Monthly Rates</div>
-    <div id="ratesWrap">${ratesHtml}</div>
-    <button class="btn btn-secondary btn-sm" onclick="addRateRow()" style="margin-bottom:18px">+ Add Rate Period</button>
+    <div class="sec-label">Charge Type</div>
+    <div class="charge-toggle">
+      <button id="ct_monthly" onclick="setChargeType('monthly')" class="${ct==='monthly'?'ct-active':''}">📅 Monthly</button>
+      <button id="ct_hourly"  onclick="setChargeType('hourly')"  class="${ct==='hourly' ?'ct-active':''}">⏱ Hourly</button>
+    </div>
+
+    <div id="monthly_section" style="display:${ct==='monthly'?'block':'none'}">
+      <div class="sec-label">Monthly Rates</div>
+      <div id="ratesWrap">${ratesHtml}</div>
+      <button class="btn btn-secondary btn-sm" onclick="addRateRow()" style="margin-bottom:18px">+ Add Rate Period</button>
+    </div>
+
+    <div id="hourly_section" style="display:${ct==='hourly'?'block':'none'}">
+      <div class="form-grid" style="margin-bottom:18px">
+        <div class="form-group" style="margin-bottom:0"><label>Hourly Rate (SGD/hr) *</label>
+          <input type="number" id="f_hrrate" value="${p.hourlyRate||''}" placeholder="e.g. 200" min="0">
+        </div>
+        <div class="form-group" style="margin-bottom:0"><label>PO Hours</label>
+          <input type="number" id="f_pohours" value="${p.poHours||''}" placeholder="e.g. 400" min="0">
+        </div>
+      </div>
+    </div>
 
     <div class="sec-label">Projects</div>
     <div class="proj-chips" id="projChips">${projChips}</div>
+    <input type="hidden" id="f_ct" value="${ct}">
   `;
   document.getElementById('modal-ftr').innerHTML=`
     <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
     <button class="btn btn-primary" onclick="savePerson('${editId||''}')">Save</button>
   `;
   openModal();
+}
+
+function setChargeType(type) {
+  document.getElementById('f_ct').value=type;
+  document.getElementById('monthly_section').style.display=type==='monthly'?'block':'none';
+  document.getElementById('hourly_section').style.display=type==='hourly'?'block':'none';
+  document.getElementById('ct_monthly').className=type==='monthly'?'ct-active':'';
+  document.getElementById('ct_hourly').className=type==='hourly'?'ct-active':'';
 }
 
 function rateRow(r, i) {
@@ -641,32 +726,40 @@ function savePerson(editId) {
   const poUntil=document.getElementById('f_po').value;
   const offboard=document.getElementById('f_ob').checked;
   const offboardDate=document.getElementById('f_obdate').value;
+  const chargeType=document.getElementById('f_ct').value||'monthly';
 
   if(!name||!company||!role) return alert('Name, Company, and Role are required.');
   if(offboard&&!offboardDate) return alert('Please enter the offboard date.');
 
-  // Collect rates
-  const rows=document.querySelectorAll('#ratesWrap .rate-entry');
-  const rates=[];
-  for(const row of rows){
-    const from=row.querySelector('.r-from').value;
-    const to=row.querySelector('.r-to').value;
-    const amt=row.querySelector('.r-amt').value;
-    if(!from&&!to&&!amt) continue;
-    if(!from||!to||!amt) return alert('Please fill all fields for each rate period.');
-    if(poUntil&&to>poUntil) return alert(`Rate end date (${fmtDate(to)}) cannot be later than PO Until (${fmtDate(poUntil)}).`);
-    if(from>to) return alert('Rate "From" date cannot be after "To" date.');
-    rates.push({from,to,rate:parseFloat(amt)});
-  }
-  if(!rates.length) return alert('Please add at least one rate period.');
-  rates.sort((a,b)=>a.from.localeCompare(b.from));
-
   const projectIds=[...document.querySelectorAll('#projChips .proj-chip.checked')].map(el=>el.dataset.projid);
-
   const existRec=editId?S.personnel.find(p=>p.id===editId):null;
+
+  let rates=[], hourlyRate=null, poHours=null;
+  if(chargeType==='hourly'){
+    const hr=parseFloat(document.getElementById('f_hrrate').value);
+    const ph=parseFloat(document.getElementById('f_pohours').value);
+    if(!hr||hr<=0) return alert('Please enter a valid hourly rate.');
+    hourlyRate=hr;
+    poHours=ph||null;
+  } else {
+    const rows=document.querySelectorAll('#ratesWrap .rate-entry');
+    for(const row of rows){
+      const from=row.querySelector('.r-from').value;
+      const to=row.querySelector('.r-to').value;
+      const amt=row.querySelector('.r-amt').value;
+      if(!from&&!to&&!amt) continue;
+      if(!from||!to||!amt) return alert('Please fill all fields for each rate period.');
+      if(poUntil&&to>poUntil) return alert(`Rate end date (${fmtDate(to)}) cannot be later than PO Until (${fmtDate(poUntil)}).`);
+      if(from>to) return alert('Rate "From" date cannot be after "To" date.');
+      rates.push({from,to,rate:parseFloat(amt)});
+    }
+    if(!rates.length) return alert('Please add at least one rate period.');
+    rates.sort((a,b)=>a.from.localeCompare(b.from));
+  }
+
   const rec={
-    id:editId||uid(),name,company,role,startDate,poStart,poUntil,
-    rates,projectIds,offboard,offboardDate:offboard?offboardDate:null,
+    id:editId||uid(),name,company,role,startDate,poStart,poUntil,chargeType,
+    rates,hourlyRate,poHours,projectIds,offboard,offboardDate:offboard?offboardDate:null,
     remarks:existRec?existRec.remarks||'':''
   };
 
@@ -736,25 +829,7 @@ function renderExpenses() {
   const el=document.getElementById('tab-expenses');
   const months=[...S.workingDays].sort((a,b)=>b.year-a.year||b.month-a.month);
 
-  if(!months.length){
-    el.innerHTML=`<div class="card"><div style="text-align:center;padding:40px;color:var(--muted)">
-      <div style="font-size:36px;margin-bottom:8px">💰</div>
-      <p>No working days data. Add it in the <strong>Working Days</strong> tab first.</p>
-    </div></div>`;
-    return;
-  }
-
-  // Ensure expSelProj is valid
   const projsWithMembers=S.projects.filter(p=>S.personnel.some(m=>(m.projectIds||[]).includes(p.id)));
-  if(projsWithMembers.length&&(!expSelProj||!projsWithMembers.find(p=>p.id===expSelProj))){
-    expSelProj=projsWithMembers[0].id;
-  }
-
-  // Tab bar
-  const tabBar=`<div class="exp-tab-bar">
-    ${projsWithMembers.map(p=>`<button class="exp-tab-btn${expSelProj===p.id?' active':''}" onclick="setExpProj('${p.id}')">${p.name}</button>`).join('')}
-  </div>`;
-
   if(!projsWithMembers.length){
     el.innerHTML=`<div class="card"><div style="text-align:center;padding:40px;color:var(--muted)">
       <p>No projects with assigned personnel found.</p>
@@ -762,52 +837,181 @@ function renderExpenses() {
     return;
   }
 
+  if(!expSelProj||!projsWithMembers.find(p=>p.id===expSelProj)){
+    expSelProj=projsWithMembers[0].id;
+  }
+
+  const tabBar=`<div class="exp-tab-bar">
+    ${projsWithMembers.map(p=>`<button class="exp-tab-btn${expSelProj===p.id?' active':''}" onclick="setExpProj('${p.id}')">${p.name}</button>`).join('')}
+  </div>`;
+
   const proj=S.projects.find(p=>p.id===expSelProj);
   const members=S.personnel.filter(p=>(p.projectIds||[]).includes(proj.id));
+  const monthlyMembers=members.filter(p=>(p.chargeType||'monthly')==='monthly');
+  const hourlyMembers=members.filter(p=>(p.chargeType||'monthly')==='hourly');
 
-  let rows=[];
-  for(const {year,month,days} of months){
-    const mStart=new Date(year,month,1), mEnd=new Date(year,month+1,0);
-    for(const person of members){
-      if(person.startDate && new Date(person.startDate+'T00:00:00')>mEnd) continue;
-      if(person.poUntil  && new Date(person.poUntil+'T00:00:00')<mStart) continue;
-      const {leave,ot,days:worked}=calcDays(person.id,year,month,days);
-      const rate=getRate(person,year,month);
-      const cost=rate!==null?rate*(worked/days):null;
-      rows.push({yyyymm:`${year}${String(month+1).padStart(2,'0')}`,person,days,worked,leave,ot,rate,cost});
+  let tableHtml='';
+
+  // Monthly table
+  if(monthlyMembers.length){
+    if(!months.length){
+      tableHtml+=`<div class="card"><div class="alert alert-warn">⚠ No working days data for monthly members. Add it in the <strong>Working Days</strong> tab first.</div></div>`;
+    } else {
+      let rows=[];
+      for(const {year,month,days} of months){
+        const mStart=new Date(year,month,1), mEnd=new Date(year,month+1,0);
+        for(const person of monthlyMembers){
+          if(person.startDate&&new Date(person.startDate+'T00:00:00')>mEnd) continue;
+          if(person.poUntil &&new Date(person.poUntil+'T00:00:00')<mStart) continue;
+          const {leave,ot,days:worked}=calcDays(person.id,year,month,days);
+          const rate=getRate(person,year,month);
+          const cost=rate!==null?rate*(worked/days):null;
+          const mEndD=new Date(year,month+1,0);
+          const bp=`1 ${MN[month].slice(0,3)} ${year} – ${mEndD.getDate()} ${MN[month].slice(0,3)} ${year}`;
+          rows.push({yyyymm:`${year}${String(month+1).padStart(2,'0')}`,person,days,worked,leave,ot,rate,cost,bp});
+        }
+      }
+      tableHtml+=`<div class="card">
+        <div class="exp-proj-hdr">📁 ${proj.name}</div>
+        <div class="tbl-wrap" style="margin-top:16px">
+          <table>
+            <thead><tr><th>YYYYMM</th><th>Billing Period</th><th>Name</th><th>Company</th><th>Days Worked / Total</th><th>Monthly Rate</th><th>Cost (SGD)</th></tr></thead>
+            <tbody>
+              ${rows.map(r=>`<tr>
+                <td>${r.yyyymm}</td>
+                <td style="white-space:nowrap;font-size:12px">${r.bp}</td>
+                <td><strong>${r.person.name}</strong></td>
+                <td>${r.person.company}</td>
+                <td>
+                  <strong>${r.worked}</strong>/${r.days}
+                  ${r.leave?`<span style="font-size:11px;color:var(--danger);margin-left:4px">-${r.leave}L</span>`:''}
+                  ${r.ot?`<span style="font-size:11px;color:var(--success);margin-left:4px">+${r.ot}OT</span>`:''}
+                </td>
+                <td>${r.rate!==null?money(r.rate):'<span style="color:var(--muted)">N/A</span>'}</td>
+                <td><strong>${r.cost!==null?money(r.cost):'—'}</strong></td>
+              </tr>`).join('')||`<tr><td colspan="7" class="empty-row">No active members for recorded months.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
     }
   }
 
-  const tableHtml=`<div class="card">
-    <div class="exp-proj-hdr">📁 ${proj.name}</div>
-    <div style="margin-top:0">
+  // Hourly billing section
+  if(hourlyMembers.length){
+    const bpRows=[...S.billingPeriods.filter(bp=>hourlyMembers.some(m=>m.id===bp.personnelId))].sort((a,b)=>b.createdAt-a.createdAt);
+    const bpTable=bpRows.length?`
       <div class="tbl-wrap" style="margin-top:16px">
         <table>
-          <thead><tr><th>YYYYMM</th><th>Name</th><th>Company</th><th>Days Worked / Total</th><th>Monthly Rate</th><th>Cost (SGD)</th></tr></thead>
+          <thead><tr><th>YYYYMM</th><th>Billing Period</th><th>Name</th><th>Company</th><th>Hours</th><th>Rate</th><th>Amount (SGD)</th><th></th></tr></thead>
           <tbody>
-            ${rows.map(r=>`<tr>
-              <td>${r.yyyymm}</td>
-              <td><strong>${r.person.name}</strong></td>
-              <td>${r.person.company}</td>
-              <td>
-                <strong>${r.worked}</strong>/${r.days}
-                ${r.leave?`<span style="font-size:11px;color:var(--danger);margin-left:4px">-${r.leave}L</span>`:''}
-                ${r.ot?`<span style="font-size:11px;color:var(--success);margin-left:4px">+${r.ot}OT</span>`:''}
-              </td>
-              <td>${r.rate!==null?money(r.rate):'<span style="color:var(--muted)">N/A</span>'}</td>
-              <td><strong>${r.cost!==null?money(r.cost):'—'}</strong></td>
-            </tr>`).join('')||`<tr><td colspan="6" class="empty-row">No active members for recorded months.</td></tr>`}
+            ${bpRows.map(bp=>{
+              const person=S.personnel.find(p=>p.id===bp.personnelId);
+              return`<tr>
+                <td>${bp.yyyymm}</td>
+                <td style="white-space:nowrap;font-size:12px">${fmtDate(bp.periodStart)} – ${fmtDate(bp.periodEnd)}</td>
+                <td><strong>${person?.name||'?'}</strong></td>
+                <td>${person?.company||'?'}</td>
+                <td><strong>${bp.totalHours}h</strong></td>
+                <td>$${bp.rate}/hr</td>
+                <td><strong>${money(bp.amount)}</strong></td>
+                <td><button class="btn btn-danger btn-sm" onclick="delBillingPeriod('${bp.id}')">✕</button></td>
+              </tr>`;
+            }).join('')}
           </tbody>
         </table>
+      </div>`
+    :`<p style="font-size:13px;color:var(--muted);padding:12px 0">No billing periods recorded yet.</p>`;
+    const personOpts=hourlyMembers.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+    tableHtml+=`<div class="card">
+      <div class="exp-proj-hdr">⏱ Hourly Billing</div>
+      <div style="margin-top:16px">
+        <div class="sec-label">Create Billing Period</div>
+        <div class="bp-form">
+          <div class="form-group"><label>Consultant</label>
+            <select id="bp_person" onchange="updateBPPreview()">${personOpts}</select>
+          </div>
+          <div class="form-group"><label>Period Start</label>
+            <input type="date" id="bp_start" onchange="updateBPPreview()">
+          </div>
+          <div class="form-group"><label>Period End</label>
+            <input type="date" id="bp_end" onchange="updateBPPreview()">
+          </div>
+          <button class="btn btn-primary" style="flex-shrink:0;align-self:flex-end" onclick="createBillingPeriod()">Save Period</button>
+        </div>
+        <div class="bp-preview" id="bp_preview">
+          <div class="bp-stat"><span>Hours</span><strong id="bpp_hrs" class="hi">—</strong></div>
+          <div class="bp-stat"><span>Rate</span><strong id="bpp_rate">—</strong></div>
+          <div class="bp-stat"><span>Amount</span><strong id="bpp_amt" class="hi">—</strong></div>
+          <div class="bp-stat"><span>YYYYMM</span><strong id="bpp_yyyymm">—</strong></div>
+          <div class="po-bar-wrap">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px" id="bpp_bar_lbl">PO Utilisation</div>
+            <div class="po-bar"><div class="po-bar-fill" id="bpp_bar" style="width:0%"></div></div>
+          </div>
+        </div>
+        ${bpTable}
       </div>
-    </div>
-  </div>`;
+    </div>`;
+  }
 
   el.innerHTML=tabBar+tableHtml;
 }
 
 function setExpProj(id){
   expSelProj=id;
+  renderExpenses();
+}
+
+function calcHours(pid, startDate, endDate) {
+  return S.entries.filter(e=>e.personnelId===pid&&e.type==='hours'&&e.date>=startDate&&e.date<=endDate).reduce((s,e)=>s+(e.hours||0),0);
+}
+
+function updateBPPreview() {
+  const pid=document.getElementById('bp_person')?.value;
+  const start=document.getElementById('bp_start')?.value;
+  const end=document.getElementById('bp_end')?.value;
+  const preview=document.getElementById('bp_preview');
+  if(!preview) return;
+  if(!pid||!start||!end||start>end){preview.classList.remove('show');return;}
+  const p=S.personnel.find(m=>m.id===pid);
+  const hours=calcHours(pid,start,end);
+  const rate=p?.hourlyRate||0;
+  const amount=hours*rate;
+  const ed=new Date(end+'T00:00:00');
+  const yyyymm=`${ed.getFullYear()}${String(ed.getMonth()+1).padStart(2,'0')}`;
+  const totalUsed=S.entries.filter(e=>e.personnelId===pid&&e.type==='hours').reduce((s,e)=>s+(e.hours||0),0);
+  const pct=p?.poHours?Math.min(100,Math.round(totalUsed/p.poHours*100)):0;
+  document.getElementById('bpp_hrs').textContent=hours+'h';
+  document.getElementById('bpp_rate').textContent='$'+rate+'/hr';
+  document.getElementById('bpp_amt').textContent=money(amount);
+  document.getElementById('bpp_yyyymm').textContent=yyyymm;
+  document.getElementById('bpp_bar_lbl').textContent=`PO: ${pct}% (${totalUsed}h of ${p?.poHours||0}h used)`;
+  document.getElementById('bpp_bar').style.width=pct+'%';
+  preview.classList.add('show');
+}
+
+function createBillingPeriod() {
+  const pid=document.getElementById('bp_person')?.value;
+  const start=document.getElementById('bp_start')?.value;
+  const end=document.getElementById('bp_end')?.value;
+  if(!pid||!start||!end) return alert('Please fill in all fields.');
+  if(start>end) return alert('Period start must be before end.');
+  const p=S.personnel.find(m=>m.id===pid);
+  const hours=calcHours(pid,start,end);
+  if(!hours) return alert('No hours recorded in this period for this consultant.');
+  const rate=p?.hourlyRate||0;
+  const amount=hours*rate;
+  const ed=new Date(end+'T00:00:00');
+  const yyyymm=`${ed.getFullYear()}${String(ed.getMonth()+1).padStart(2,'0')}`;
+  S.billingPeriods.push({id:uid(),personnelId:pid,projectId:(p?.projectIds||[])[0]||null,periodStart:start,periodEnd:end,yyyymm,totalHours:hours,rate,amount,createdAt:Date.now()});
+  save('billingPeriods');
+  renderExpenses();
+}
+
+function delBillingPeriod(id) {
+  if(!confirm('Remove this billing period?')) return;
+  S.billingPeriods=S.billingPeriods.filter(b=>b.id!==id);
+  save('billingPeriods');
   renderExpenses();
 }
 
@@ -881,6 +1085,9 @@ function buildCalHTML() {
     const de=mEntries.filter(e=>e.date===ds);
     const badges=de.slice(0,3).map(e=>{
       const pr=S.personnel.find(p=>p.id===e.personnelId);
+      if(e.type==='hours'){
+        return`<div class="ebadge hours" onclick="clickBadge(event,'${e.id}')" title="${pr?.name}: ${e.hours}h">${initials(pr?.name||'?')} ${e.hours}h</div>`;
+      }
       const ec=ETYPES[e.type];
       return`<div class="ebadge ${ec.cls}" onclick="clickBadge(event,'${e.id}')" title="${pr?.name}: ${ec.label}">${initials(pr?.name||'?')} ${ec.short}</div>`;
     }).join('')+(de.length>3?`<div style="font-size:9px;color:var(--muted)">+${de.length-3} more</div>`:'');
@@ -896,6 +1103,16 @@ function buildCalHTML() {
   let summaryHtml='';
   if(totalWD!==null){
     const mrows=people.map(p=>{
+      if((p.chargeType||'monthly')==='hourly'){
+        const pfx=`${y}-${String(m+1).padStart(2,'0')}`;
+        const hrs=S.entries.filter(e=>e.personnelId===p.id&&e.type==='hours'&&e.date.startsWith(pfx)).reduce((s,e)=>s+(e.hours||0),0);
+        return`<tr>
+          <td><strong>${p.name}</strong></td>
+          <td>${p.company}</td>
+          <td>${p.role||'—'}</td>
+          <td><span class="ebadge hours" style="display:inline-flex">${hrs}h clocked</span></td>
+        </tr>`;
+      }
       const{leave,ot,days}=calcDays(p.id,y,m,totalWD);
       const parts=[];
       if(leave) parts.push(`<span style="color:var(--danger);font-size:11px">-${leave} leave</span>`);
@@ -911,7 +1128,7 @@ function buildCalHTML() {
       <h3>📊 ${MN[m]} ${y} Summary</h3>
       <div class="wd-total">Total Working Days: <strong>${totalWD}</strong></div>
       <div class="tbl-wrap"><table>
-        <thead><tr><th>Name</th><th>Company</th><th>Role</th><th>Days Worked / Total</th></tr></thead>
+        <thead><tr><th>Name</th><th>Company</th><th>Role</th><th>Days / Hours</th></tr></thead>
         <tbody>${mrows||`<tr><td colspan="4" class="empty-row">No members in selected projects.</td></tr>`}</tbody>
       </table></div>
     </div>`;
@@ -935,6 +1152,7 @@ function buildCalHTML() {
       <div class="leg-item"><div class="leg-dot" style="background:#f3e8ff"></div>MC</div>
       <div class="leg-item"><div class="leg-dot" style="background:#dcfce7"></div>OT</div>
       <div class="leg-item"><div class="leg-dot" style="background:#fff7ed;border:1px solid #fed7aa"></div>Holiday</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#e0f2fe"></div>Hours</div>
     </div>
     <div class="cal-grid">
       ${DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('')}
@@ -985,6 +1203,12 @@ function openDayModal(ds, isWe, isHol) {
       <div class="sec-label">Entries on this day</div>
       ${existing.map(e=>{
         const pr=S.personnel.find(p=>p.id===e.personnelId);
+        if(e.type==='hours'){
+          return`<div class="exist-entry">
+            <span><strong>${pr?.name}</strong> — <span class="ebadge hours" style="display:inline">${e.hours}h</span></span>
+            <button class="btn btn-danger btn-sm" onclick="removeEntry('${e.id}','${ds}',${isWe},${isHol})">Remove</button>
+          </div>`;
+        }
         const ec=ETYPES[e.type];
         return`<div class="exist-entry">
           <span><strong>${pr?.name}</strong> — <span class="ebadge ${ec.cls}" style="display:inline">${ec.label}</span></span>
@@ -1004,6 +1228,9 @@ function openDayModal(ds, isWe, isHol) {
     return`<button class="type-btn" onclick="selType(this,'${t}')">${ec.label}</button>`;
   }).join('');
 
+  const firstPerson=people[0];
+  const firstIsHourly=firstPerson&&(firstPerson.chargeType||'monthly')==='hourly';
+
   document.getElementById('modal-title').textContent=`📅 ${dispDate}`;
   document.getElementById('modal-body').innerHTML=`
     ${existHtml}
@@ -1012,11 +1239,19 @@ function openDayModal(ds, isWe, isHol) {
       <div class="sec-label">Add Entry</div>
       <div class="form-group">
         <label>Personnel</label>
-        <select id="ep_person">${personOpts}</select>
+        <select id="ep_person" onchange="toggleEntryForm(this.value)">${personOpts}</select>
       </div>
-      ${!isWe&&!isHol?`<div class="type-section">Leave / MC</div><div class="type-grid" style="grid-template-columns:repeat(4,1fr)">${leaveTypeBtns}</div>`:''}
-      <div class="type-section">Overtime</div>
-      <div class="type-grid">${otTypeBtns}</div>
+      <div id="monthly_entry_form" style="display:${firstIsHourly?'none':'block'}">
+        ${!isWe&&!isHol?`<div class="type-section">Leave / MC</div><div class="type-grid" style="grid-template-columns:repeat(4,1fr)">${leaveTypeBtns}</div>`:''}
+        <div class="type-section">Overtime</div>
+        <div class="type-grid">${otTypeBtns}</div>
+      </div>
+      <div id="hourly_entry_form" style="display:${firstIsHourly?'block':'none'}">
+        <div class="form-group" style="margin-top:8px">
+          <label>Hours Worked</label>
+          <input type="number" id="ep_hours" placeholder="e.g. 8" min="0" max="24" step="0.5" style="width:100%">
+        </div>
+      </div>
       <input type="hidden" id="ep_type" value="">
       <input type="hidden" id="ep_date" value="${ds}">
     </div>`}
@@ -1034,14 +1269,32 @@ function selType(btn,type){
   document.getElementById('ep_type').value=type;
 }
 
+function toggleEntryForm(pid) {
+  const p=S.personnel.find(m=>m.id===pid);
+  const isH=(p?.chargeType||'monthly')==='hourly';
+  const mf=document.getElementById('monthly_entry_form');
+  const hf=document.getElementById('hourly_entry_form');
+  if(mf) mf.style.display=isH?'none':'block';
+  if(hf) hf.style.display=isH?'block':'none';
+}
+
 function addEntry(){
   const pid=document.getElementById('ep_person').value;
-  const type=document.getElementById('ep_type').value;
   const date=document.getElementById('ep_date').value;
-  if(!type) return alert('Please select a type.');
-  if(S.entries.find(e=>e.personnelId===pid&&e.date===date&&e.type===type))
-    return alert('This entry already exists for this person on this date.');
-  S.entries.push({id:uid(),personnelId:pid,date,type});
+  const p=S.personnel.find(m=>m.id===pid);
+  const isH=(p?.chargeType||'monthly')==='hourly';
+  if(isH){
+    const hours=parseFloat(document.getElementById('ep_hours')?.value||0);
+    if(!hours||hours<=0) return alert('Please enter valid hours worked.');
+    S.entries=S.entries.filter(e=>!(e.personnelId===pid&&e.date===date&&e.type==='hours'));
+    S.entries.push({id:uid(),personnelId:pid,date,type:'hours',hours});
+  } else {
+    const type=document.getElementById('ep_type').value;
+    if(!type) return alert('Please select a type.');
+    if(S.entries.find(e=>e.personnelId===pid&&e.date===date&&e.type===type))
+      return alert('This entry already exists for this person on this date.');
+    S.entries.push({id:uid(),personnelId:pid,date,type});
+  }
   save('entries');
   closeModal();
   document.getElementById('tsMain').innerHTML=buildCalHTML();
