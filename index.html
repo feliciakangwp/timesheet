@@ -1767,105 +1767,114 @@ function renderDashboard() {
   const showExp=dashSelVar==='all'||dashSelVar==='expenses';
   const showVel=dashSelVar==='all'||dashSelVar==='velocity';
 
+  // Always compute both for the combined chart
+  const expRows=dashExpenseRows(projIds);
+  const velRows=dashVelocityRows(projIds);
+
+  // Current & last month labels
+  const now=new Date();
+  const curYM=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}`;
+  const lastMo=new Date(now.getFullYear(),now.getMonth()-1,1);
+  const lastYM=`${lastMo.getFullYear()}${String(lastMo.getMonth()+1).padStart(2,'0')}`;
+  const recentYMs=new Set([curYM,lastYM]);
+  const recentLabel=`${MN[lastMo.getMonth()].slice(0,3)} ${lastMo.getFullYear()} & ${MN[now.getMonth()].slice(0,3)} ${now.getFullYear()}`;
+
+  const tblExpRows=expRows.filter(r=>recentYMs.has(r.yyyymm));
+  const tblVelRows=velRows.filter(({s})=>{const[y,m]=s.endDate.split('-');return recentYMs.has(y+m);});
+
   const projOpts=`<option value="">All Projects</option>`
     +S.projects.map(p=>`<option value="${p.id}"${dashSelProj===p.id?'selected':''}>${p.name}</option>`).join('');
-  const varOpts=[
-    ['all','All'],['expenses','Expenses'],['velocity','Sprint Velocity']
-  ].map(([v,l])=>`<option value="${v}"${dashSelVar===v?'selected':''}>${l}</option>`).join('');
+  const varOpts=[['all','All'],['expenses','Expenses'],['velocity','Sprint Velocity']]
+    .map(([v,l])=>`<option value="${v}"${dashSelVar===v?'selected':''}>${l}</option>`).join('');
 
   const filterBar=`<div class="card" style="margin-bottom:16px">
     <div style="display:flex;gap:24px;align-items:flex-end;flex-wrap:wrap">
       <div><div class="sec-label" style="margin-bottom:6px">Project</div>
         <select onchange="setDashFilter('proj',this.value)"
-          style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--text)">
-          ${projOpts}
-        </select>
+          style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--text)">${projOpts}</select>
       </div>
-      <div><div class="sec-label" style="margin-bottom:6px">Show</div>
+      <div><div class="sec-label" style="margin-bottom:6px">Show (tables)</div>
         <select onchange="setDashFilter('var',this.value)"
-          style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--text)">
-          ${varOpts}
-        </select>
+          style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--text)">${varOpts}</select>
       </div>
     </div>
   </div>`;
 
-  const expRows=showExp?dashExpenseRows(projIds):[];
-  const velRows=showVel?dashVelocityRows(projIds):[];
+  const chartCard=`<div class="card" style="margin-bottom:16px">
+    <div class="exp-proj-hdr" style="margin-bottom:12px">📊 Expenses vs Sprint Velocity</div>
+    <div class="chart-wrap" style="height:320px"><canvas id="dash-combined-chart"></canvas></div>
+  </div>`;
 
   let expHtml='';
   if(showExp) {
-    const total=expRows.reduce((s,r)=>s+(r.amount||0),0);
-    const totalSuffix=expRows.length?`<tr style="font-weight:700;background:var(--bg)">
+    const total=tblExpRows.reduce((s,r)=>s+(r.amount||0),0);
+    const totalSuffix=tblExpRows.length?`<tr style="font-weight:700;background:var(--bg)">
       <td colspan="6" style="text-align:right;padding-right:12px">Total</td>
       <td>${money(total)}</td></tr>`:'';
     expHtml=`<div class="card" style="margin-bottom:16px">
-      <div class="exp-proj-hdr" style="margin-bottom:12px">💰 Expenses</div>
-      <div class="chart-wrap" style="height:260px;margin-bottom:20px"><canvas id="dash-exp-chart"></canvas></div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr>
-            <th>YYYYMM</th><th>Billing Period</th><th>Project</th>
-            <th>Consultant</th><th>Company</th><th>Type / Details</th><th>Amount (SGD)</th>
-          </tr></thead>
-          <tbody>
-            ${expRows.map(r=>`<tr>
-              <td>${r.yyyymm}</td>
-              <td style="white-space:nowrap;font-size:12px">${r.bp}</td>
-              <td><span style="font-size:11px;font-weight:700;color:var(--accent)">${r.proj?.name||'—'}</span></td>
-              <td><strong>${r.per?.name||'—'}</strong></td>
-              <td style="font-size:12px">${r.per?.company||'—'}</td>
-              <td style="font-size:12px">${r.type} · ${r.detail}</td>
-              <td><strong>${r.amount!==null&&r.amount!==undefined?money(r.amount):'—'}</strong></td>
-            </tr>`).join('')||`<tr><td colspan="7" class="empty-row">No expense data for selected filter.</td></tr>`}
-            ${totalSuffix}
-          </tbody>
-        </table>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <div class="exp-proj-hdr" style="margin:0">💰 Expenses</div>
+        <span style="font-size:12px;color:var(--muted);font-style:italic">${recentLabel}</span>
       </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr>
+          <th>YYYYMM</th><th>Billing Period</th><th>Project</th>
+          <th>Consultant</th><th>Company</th><th>Type / Details</th><th>Amount (SGD)</th>
+        </tr></thead>
+        <tbody>
+          ${tblExpRows.map(r=>`<tr>
+            <td>${r.yyyymm}</td>
+            <td style="white-space:nowrap;font-size:12px">${r.bp}</td>
+            <td><span style="font-size:11px;font-weight:700;color:var(--accent)">${r.proj?.name||'—'}</span></td>
+            <td><strong>${r.per?.name||'—'}</strong></td>
+            <td style="font-size:12px">${r.per?.company||'—'}</td>
+            <td style="font-size:12px">${r.type} · ${r.detail}</td>
+            <td><strong>${r.amount!=null?money(r.amount):'—'}</strong></td>
+          </tr>`).join('')||`<tr><td colspan="7" class="empty-row">No expense data for ${recentLabel}.</td></tr>`}
+          ${totalSuffix}
+        </tbody>
+      </table></div>
     </div>`;
   }
 
   let velHtml='';
   if(showVel) {
     velHtml=`<div class="card">
-      <div class="exp-proj-hdr" style="margin-bottom:12px">🏃 Sprint Velocity</div>
-      <div class="chart-wrap" style="height:300px;margin-bottom:20px"><canvas id="dash-vel-chart"></canvas></div>
-      <div class="tbl-wrap">
-        <table>
-          <thead><tr>
-            <th>Sprint</th><th>Project</th><th>Start</th><th>End</th>
-            <th>Work Days</th><th>Total Hrs</th><th>Effective (80%)</th>
-            <th>Completed</th><th style="min-width:120px">Progress</th>
-          </tr></thead>
-          <tbody>
-            ${velRows.map(({s,st,proj})=>{
-              const pctColor=st.pct>=80?'#16a34a':st.pct>=50?'#d97706':'#dc2626';
-              return`<tr>
-                <td><strong>${s.name}</strong></td>
-                <td><span style="font-size:11px;font-weight:700;color:var(--accent)">${proj?.name||'—'}</span></td>
-                <td style="font-size:12px;white-space:nowrap">${fmtDate(s.startDate)}</td>
-                <td style="font-size:12px;white-space:nowrap">${fmtDate(s.endDate)}</td>
-                <td style="text-align:center">${st.wd}</td>
-                <td style="text-align:center">${st.totalH}h</td>
-                <td style="text-align:center">${st.effectiveH}h</td>
-                <td style="text-align:center;color:${pctColor};font-weight:700">${st.completedH}h</td>
-                <td>
-                  <div style="display:flex;align-items:center;gap:6px">
-                    <div class="po-bar" style="flex:1;margin:0"><div class="po-bar-fill" style="width:${Math.min(100,st.pct)}%;background:${pctColor}"></div></div>
-                    <span style="font-size:11px;font-weight:700;color:${pctColor};min-width:32px;text-align:right">${st.pct}%</span>
-                  </div>
-                </td>
-              </tr>`;
-            }).join('')||`<tr><td colspan="9" class="empty-row">No sprint data for selected filter.</td></tr>`}
-          </tbody>
-        </table>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <div class="exp-proj-hdr" style="margin:0">🏃 Sprint Velocity</div>
+        <span style="font-size:12px;color:var(--muted);font-style:italic">${recentLabel}</span>
       </div>
+      <div class="tbl-wrap"><table>
+        <thead><tr>
+          <th>Sprint</th><th>Project</th><th>Start</th><th>End</th>
+          <th>Work Days</th><th>Total Hrs</th><th>Effective (80%)</th>
+          <th>Completed</th><th style="min-width:120px">Progress</th>
+        </tr></thead>
+        <tbody>
+          ${tblVelRows.map(({s,st,proj})=>{
+            const pc=st.pct>=80?'#16a34a':st.pct>=50?'#d97706':'#dc2626';
+            return`<tr>
+              <td><strong>${s.name}</strong></td>
+              <td><span style="font-size:11px;font-weight:700;color:var(--accent)">${proj?.name||'—'}</span></td>
+              <td style="font-size:12px;white-space:nowrap">${fmtDate(s.startDate)}</td>
+              <td style="font-size:12px;white-space:nowrap">${fmtDate(s.endDate)}</td>
+              <td style="text-align:center">${st.wd}</td>
+              <td style="text-align:center">${st.totalH}h</td>
+              <td style="text-align:center">${st.effectiveH}h</td>
+              <td style="text-align:center;color:${pc};font-weight:700">${st.completedH}h</td>
+              <td><div style="display:flex;align-items:center;gap:6px">
+                <div class="po-bar" style="flex:1;margin:0"><div class="po-bar-fill" style="width:${Math.min(100,st.pct)}%;background:${pc}"></div></div>
+                <span style="font-size:11px;font-weight:700;color:${pc};min-width:32px;text-align:right">${st.pct}%</span>
+              </div></td>
+            </tr>`;
+          }).join('')||`<tr><td colspan="9" class="empty-row">No sprints ending in ${recentLabel}.</td></tr>`}
+        </tbody>
+      </table></div>
     </div>`;
   }
 
-  el.innerHTML=filterBar+expHtml+velHtml;
-  if(showExp) setTimeout(()=>drawDashExpChart(expRows,projIds),0);
-  if(showVel) setTimeout(()=>drawDashVelChart(velRows,projIds),0);
+  el.innerHTML=filterBar+chartCard+expHtml+velHtml;
+  setTimeout(()=>drawDashCombinedChart(expRows,velRows,projIds),0);
 }
 
 function dashChartTheme() {
@@ -1874,91 +1883,62 @@ function dashChartTheme() {
   return {fg:dark?'#e2e8f0':'#1e293b', grid:dark?'rgba(255,255,255,.1)':'rgba(0,0,0,.07)'};
 }
 
-function drawDashExpChart(rows, projIds) {
-  const canvas=document.getElementById('dash-exp-chart');
+function drawDashCombinedChart(expRows, velRows, projIds) {
+  const canvas=document.getElementById('dash-combined-chart');
   if(!canvas||typeof Chart==='undefined') return;
   const {fg,grid}=dashChartTheme();
-  // Aggregate: per YYYYMM per project
-  const periods=[...new Set(rows.map(r=>r.yyyymm))].sort();
+
+  // Aggregate velocity by YYYYMM of sprint end date
+  const velByYM={};
+  velRows.forEach(({s,st})=>{const[y,m]=s.endDate.split('-');const ym=y+m;velByYM[ym]=(velByYM[ym]||0)+st.completedH;});
+
+  // Union of all periods, sorted
+  const allPeriods=[...new Set([...expRows.map(r=>r.yyyymm),...Object.keys(velByYM)])].sort();
+
+  // Bar datasets: stacked by project (multi) or by consultant (single)
   const multiProj=projIds.length>1;
-  let datasets;
-  if(multiProj) {
-    datasets=projIds.map((pid,i)=>{
-      const proj=S.projects.find(p=>p.id===pid);
-      const c=DASH_COLORS[i%DASH_COLORS.length];
-      return{label:proj?.name||pid,
-        data:periods.map(ym=>rows.filter(r=>r.proj?.id===pid&&r.yyyymm===ym).reduce((s,r)=>s+(r.amount||0),0)),
-        backgroundColor:c+'99',borderColor:c,borderWidth:1.5,borderRadius:4,stack:'exp'};
-    });
-  } else {
-    // single project — one bar per period, coloured by consultant
-    const perNames=[...new Set(rows.map(r=>r.per?.name||'?'))];
-    datasets=perNames.map((name,i)=>{
-      const c=DASH_COLORS[i%DASH_COLORS.length];
-      return{label:name,
-        data:periods.map(ym=>rows.filter(r=>r.per?.name===name&&r.yyyymm===ym).reduce((s,r)=>s+(r.amount||0),0)),
-        backgroundColor:c+'99',borderColor:c,borderWidth:1.5,borderRadius:4,stack:'exp'};
-    });
-  }
+  const barDatasets=multiProj
+    ? projIds.map((pid,i)=>{
+        const proj=S.projects.find(p=>p.id===pid);
+        const c=DASH_COLORS[i%DASH_COLORS.length];
+        return{type:'bar',label:proj?.name||pid,yAxisID:'yExp',stack:'exp',
+          data:allPeriods.map(ym=>expRows.filter(r=>r.proj?.id===pid&&r.yyyymm===ym).reduce((s,r)=>s+(r.amount||0),0)),
+          backgroundColor:c+'88',borderColor:c,borderWidth:1.5,borderRadius:4};
+      })
+    : [...new Set(expRows.map(r=>r.per?.name||'?'))].map((name,i)=>{
+        const c=DASH_COLORS[i%DASH_COLORS.length];
+        return{type:'bar',label:name,yAxisID:'yExp',stack:'exp',
+          data:allPeriods.map(ym=>expRows.filter(r=>r.per?.name===name&&r.yyyymm===ym).reduce((s,r)=>s+(r.amount||0),0)),
+          backgroundColor:c+'88',borderColor:c,borderWidth:1.5,borderRadius:4};
+      });
+
+  const velLine={type:'line',label:'Sprint Velocity (hrs)',yAxisID:'yVel',
+    data:allPeriods.map(ym=>velByYM[ym]??null),
+    borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.12)',
+    borderWidth:2.5,pointRadius:5,pointBackgroundColor:'#10b981',
+    tension:.3,fill:true,spanGaps:false};
+
   if(canvas._ci) canvas._ci.destroy();
   canvas._ci=new Chart(canvas,{
     type:'bar',
-    data:{labels:periods,datasets},
+    data:{labels:allPeriods,datasets:[...barDatasets,velLine]},
     options:{
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
       plugins:{
         legend:{labels:{color:fg,font:{size:11}}},
-        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('en-SG',{minimumFractionDigits:0,maximumFractionDigits:0})}`}}
+        tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='yVel'
+          ?`${ctx.dataset.label}: ${ctx.parsed.y}h`
+          :`${ctx.dataset.label}: $${Number(ctx.parsed.y).toLocaleString('en-SG',{minimumFractionDigits:0,maximumFractionDigits:0})}`}}
       },
       scales:{
         x:{stacked:true,ticks:{color:fg,font:{size:11}},grid:{color:grid}},
-        y:{stacked:true,ticks:{color:fg,callback:v=>'$'+Number(v/1000).toFixed(0)+'k'},grid:{color:grid},
-           title:{display:true,text:'Amount (SGD)',color:fg,font:{size:11}}}
-      }
-    }
-  });
-}
-
-function drawDashVelChart(rows, projIds) {
-  const canvas=document.getElementById('dash-vel-chart');
-  if(!canvas||typeof Chart==='undefined') return;
-  const {fg,grid}=dashChartTheme();
-  const multiProj=projIds.length>1;
-  // Sort chronologically oldest→newest for the chart
-  const sorted=[...rows].sort((a,b)=>a.s.startDate.localeCompare(b.s.startDate));
-  const labels=sorted.map(({s,proj})=>multiProj?`${proj?.name||''} ${s.name}`:s.name);
-  const effective=sorted.map(({st})=>st.effectiveH);
-  const completed=sorted.map(({st})=>st.completedH);
-  // per-project line overlay when multiProj
-  const extraDatasets=multiProj?projIds.map((pid,i)=>{
-    const proj=S.projects.find(p=>p.id===pid);
-    const c=DASH_COLORS[i%DASH_COLORS.length];
-    return{type:'line',label:proj?.name||pid,
-      data:sorted.map(({s,proj:rp})=>rp?.id===pid?sorted.find(r=>r.s.id===s.id)?.st.completedH||null:null),
-      borderColor:c,backgroundColor:c+'33',borderWidth:2,pointRadius:3,tension:.35,
-      yAxisID:'y',spanGaps:false,fill:false};
-  }):[];
-  if(canvas._ci) canvas._ci.destroy();
-  canvas._ci=new Chart(canvas,{
-    type:'bar',
-    data:{
-      labels,
-      datasets:[
-        {label:'Effective (80%)',data:effective,backgroundColor:'rgba(99,102,241,.2)',borderColor:'#6366f1',borderWidth:1.5,borderRadius:4},
-        {label:'Completed',data:completed,backgroundColor:'rgba(16,185,129,.6)',borderColor:'#10b981',borderWidth:1.5,borderRadius:4},
-        ...extraDatasets
-      ]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      interaction:{mode:'index',intersect:false},
-      plugins:{legend:{labels:{color:fg,font:{size:11}}},
-        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y}h`}}},
-      scales:{
-        x:{ticks:{color:fg,font:{size:10},maxRotation:45},grid:{color:grid}},
-        y:{ticks:{color:fg,callback:v=>v+'h'},grid:{color:grid},
-           title:{display:true,text:'Hours',color:fg,font:{size:11}}}
+        yExp:{type:'linear',position:'left',stacked:true,
+          ticks:{color:'#6366f1',callback:v=>'$'+(v/1000).toFixed(0)+'k'},grid:{color:grid},
+          title:{display:true,text:'Expenses (SGD)',color:'#6366f1',font:{size:11}}},
+        yVel:{type:'linear',position:'right',
+          ticks:{color:'#10b981',callback:v=>v+'h'},grid:{drawOnChartArea:false},
+          title:{display:true,text:'Velocity (hrs)',color:'#10b981',font:{size:11}}}
       }
     }
   });
