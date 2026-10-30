@@ -273,6 +273,11 @@ tbody tr:hover td{background:#f8fafc}
 .st-sb-name{color:#e2e8f0;font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .st-sb-pct{font-size:11px;font-weight:700;color:#cbd5e1;text-align:right}
 .st-sb-spd{font-size:10px;color:#64748b;text-align:right}
+#st-profile-panel{position:absolute;top:60px;right:220px;width:200px;background:rgba(0,0,0,.9);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:14px;color:#fff;z-index:10;pointer-events:auto}
+.st-sb-clickable{cursor:pointer;border-radius:4px;transition:background .15s}
+.st-sb-clickable:hover{background:rgba(255,255,255,.08)}
+.st-ctrl{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer}
+.st-ctrl:hover{background:rgba(255,255,255,.24)}
 </style>
 </head>
 <body>
@@ -316,14 +321,24 @@ tbody tr:hover td{background:#f8fafc}
       <span class="st-badge" style="background:#E91E8C;color:#fff">● ORION</span>
       <span class="st-badge" style="background:#29B6F6;color:#fff">● POLARIS</span>
       <span class="st-badge" style="background:#FDD835;color:#333">● CORDIS</span>
+      <span class="st-badge" style="background:rgba(255,215,0,.25);color:#FFD700">■ BA</span>
     </div>
-    <button id="st-names-btn" class="st-close" onclick="_stToggleNames()" style="margin-right:6px">👁 Names</button>
-    <button class="st-close" onclick="closeSprintTrack()">✕ Close</button>
+    <select id="st-sys-filter" class="st-ctrl" onchange="_stApplyFilter(this.value)">
+      <option value="">All Systems</option>
+      <option value="p_orion">ORION</option>
+      <option value="p_polaris">POLARIS</option>
+      <option value="p_cordis">CORDIS</option>
+    </select>
+    <button id="st-pause-btn" class="st-ctrl" onclick="_stTogglePause()">⏸</button>
+    <button class="st-ctrl" onclick="_stResetCam()" title="Reset View">⟳</button>
+    <button id="st-names-btn" class="st-ctrl" onclick="_stToggleNames()">👁</button>
+    <button class="st-ctrl" onclick="closeSprintTrack()">✕</button>
   </div>
   <div class="st-body">
     <canvas id="sprint-track-canvas"></canvas>
-    <div class="st-board" id="st-scoreboard"><div class="st-sb-hdr">Sprint Velocity</div></div>
+    <div class="st-board" id="st-scoreboard"><div class="st-sb-hdr">Sprint Board</div></div>
   </div>
+  <div id="st-profile-panel" style="display:none"></div>
 </div>
 
 <script>
@@ -1929,36 +1944,56 @@ function drawDashCombinedChart(expRows, velRows, projIds) {
   const canvas=document.getElementById('dash-combined-chart');
   if(!canvas||typeof Chart==='undefined') return;
   const {fg,grid}=dashChartTheme();
+  const MTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  // Aggregate totals by YYYYMM
+  // Monthly expenses by YYYYMM
   const expByYM={};
   expRows.forEach(r=>{expByYM[r.yyyymm]=(expByYM[r.yyyymm]||0)+(r.amount||0);});
-  const velByYM={};
-  velRows.forEach(({s,st})=>{const[y,m]=s.endDate.split('-');const ym=y+m;velByYM[ym]=(velByYM[ym]||0)+st.completedH;});
 
-  const allPeriods=[...new Set([...Object.keys(expByYM),...Object.keys(velByYM)])].sort();
+  // Sort sprints by end date ascending
+  const sortedSprints=[...velRows].sort((a,b)=>a.s.endDate.localeCompare(b.s.endDate));
 
-  if(!allPeriods.length){
+  if(!sortedSprints.length&&!Object.keys(expByYM).length){
     if(canvas._ci){canvas._ci.destroy();canvas._ci=null;}
     canvas.parentElement.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:13px">No data to display</div>';
     return;
+  }
+
+  let labels,expData,velData;
+  if(sortedSprints.length){
+    // Per-sprint x-axis: "12 Sep '26" — each sprint is a unique data point
+    // Expense bar shows monthly total only on the first sprint of each month (0 for subsequent)
+    const seenMonths=new Set();
+    labels=sortedSprints.map(({s})=>{
+      const[y,m,d]=s.endDate.split('-');
+      return d+' '+MTHS[parseInt(m,10)-1]+" '"+y.slice(2);
+    });
+    expData=sortedSprints.map(({s})=>{
+      const[y,m]=s.endDate.split('-');const ym=y+m;
+      if(seenMonths.has(ym))return 0;
+      seenMonths.add(ym);return expByYM[ym]||0;
+    });
+    velData=sortedSprints.map(({st})=>st.completedH||null);
+  } else {
+    const periods=Object.keys(expByYM).sort();
+    labels=periods.map(ym=>MTHS[parseInt(ym.slice(4,6),10)-1]+" '"+ym.slice(2,4));
+    expData=periods.map(ym=>expByYM[ym]||0);
+    velData=periods.map(()=>null);
   }
 
   if(canvas._ci) canvas._ci.destroy();
   canvas._ci=new Chart(canvas,{
     type:'bar',
     data:{
-      labels:allPeriods,
+      labels,
       datasets:[
-        {type:'bar',label:'Expenses (SGD)',
-          data:allPeriods.map(ym=>expByYM[ym]||0),
+        {type:'bar',label:'Expenses (SGD)',data:expData,
           backgroundColor:'rgba(99,102,241,0.5)',borderColor:'#6366f1',
           borderWidth:1.5,borderRadius:4,yAxisID:'y',order:2},
-        {type:'line',label:'Sprint Velocity (hrs)',
-          data:allPeriods.map(ym=>velByYM[ym]??null),
+        {type:'line',label:'Sprint Velocity (hrs)',data:velData,
           borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.1)',
-          borderWidth:2.5,pointRadius:5,pointBackgroundColor:'#10b981',
-          tension:0.3,fill:true,yAxisID:'y1',spanGaps:false,order:1}
+          borderWidth:2.5,pointRadius:5,pointHoverRadius:7,pointBackgroundColor:'#10b981',
+          tension:0.3,fill:false,yAxisID:'y1',spanGaps:false,order:1}
       ]
     },
     options:{
@@ -1971,7 +2006,7 @@ function drawDashCombinedChart(expRows, velRows, projIds) {
           :`${ctx.dataset.label}: $${Number(ctx.parsed.y).toLocaleString('en-SG',{minimumFractionDigits:0,maximumFractionDigits:0})}`}}
       },
       scales:{
-        x:{ticks:{color:fg,font:{size:11}},grid:{color:grid}},
+        x:{ticks:{color:fg,font:{size:10},maxRotation:45,minRotation:30},grid:{color:grid}},
         y:{type:'linear',position:'left',
           ticks:{color:'#6366f1',callback:v=>'$'+(v>=1000?(v/1000).toFixed(0)+'k':v)},
           grid:{color:grid},
@@ -2000,19 +2035,43 @@ document.getElementById('modal-overlay').addEventListener('click',function(e){
 // ═══════════════════════════════════════
 let _stRenderer=null,_stAnimId=null,_stClock=null,_stObjs=[],_stRO=null,_stCam=null,_stScene=null;
 let _stShowNames=true,_stPanX=0,_stPanZ=0,_stCamH=22,_stCamD=24;
+let _stPaused=false,_stRaycaster=null,_stWavers=[];
 const _ST_FEMALE=new Set(['shivani','dharani','eejya']);
 const _ST_COLORS={p_orion:0xE91E8C,p_polaris:0x29B6F6,p_cordis:0xFDD835};
 const _ST_LANES=[{a:9.1,b:6.1},{a:9.75,b:6.75},{a:10.4,b:7.35}];
+// BA name → field event key, and starting positions in the infield
+const _ST_BA_EVENTS={ryan:'javelin',christopher:'shotput',norman:'longjump',raja:'highjump'};
+const _ST_BA_POS={javelin:{x:-5.5,z:0},shotput:{x:4.5,z:-2},longjump:{x:.5,z:-4.5},highjump:{x:2,z:-1}};
+
+function _stPhysique(pct){
+  if(pct<=50) return{tR:.22,tH:.46,tB:.20,legL:.36,armL:.30,hdR:.18,label:'Obese'};
+  if(pct<=60) return{tR:.19,tH:.44,tB:.17,legL:.37,armL:.30,hdR:.165,label:'Chubby'};
+  if(pct<=75) return{tR:.155,tH:.43,tB:.13,legL:.38,armL:.32,hdR:.155,label:'Average'};
+  return            {tR:.13,tH:.43,tB:.10,legL:.40,armL:.34,hdR:.14,label:'Muscular'};
+}
 
 function _stIsBA(per){return(per.role||'').toLowerCase().startsWith('ba')||per.chargeType==='hourly';}
 
 function _stSetCam(){if(!_stCam)return;_stCam.position.set(_stPanX,_stCamH,_stPanZ+_stCamD);_stCam.lookAt(_stPanX,0,_stPanZ);}
 
+function _stResetCam(){_stPanX=0;_stPanZ=0;_stCamH=22;_stCamD=24;_stSetCam();}
+
 function _stToggleNames(){
   _stShowNames=!_stShowNames;
   _stObjs.forEach(d=>{if(d.label)d.label.visible=_stShowNames;});
   const btn=document.getElementById('st-names-btn');
-  if(btn)btn.textContent=_stShowNames?'👁 Names':'Names Off';
+  if(btn)btn.textContent=_stShowNames?'👁':'👁‍🗨';
+}
+
+function _stTogglePause(){
+  _stPaused=!_stPaused;
+  const btn=document.getElementById('st-pause-btn');
+  if(btn)btn.textContent=_stPaused?'▶':'⏸';
+  if(_stClock){if(_stPaused)_stClock.stop();else _stClock.start();}
+}
+
+function _stApplyFilter(v){
+  _stObjs.forEach(d=>{d.g.visible=!v||(d.projId===v);});
 }
 
 function _stSpeedPct(devId){
@@ -2034,7 +2093,7 @@ function _stTier(pct){
   return               {spd:.024,freq:13, label:'Very Fast'};
 }
 
-function _stNameLabel(name){
+function _stNameLabel(name,labelY){
   const c=document.createElement('canvas');c.width=256;c.height=72;
   const ctx=c.getContext('2d');
   ctx.fillStyle='rgba(0,0,0,.7)';
@@ -2042,50 +2101,56 @@ function _stNameLabel(name){
   ctx.fillStyle='#fff';ctx.font='bold 28px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.fillText(name,128,36);
   const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
-  sp.scale.set(1.3,.37,1);sp.position.y=1.75;
+  sp.scale.set(1.3,.37,1);sp.position.y=labelY||1.75;
   return sp;
 }
 
-function _stMakeDev(name,female,shirtColor,isBA){
+function _stTagGroup(g,idx){g.traverse(c=>{c.userData.devIdx=idx;});}
+
+function _stMakeDev(name,female,shirtColor,pct){
+  const ph=_stPhysique(pct||0);
   const g=new THREE.Group();
   const skin=new THREE.MeshLambertMaterial({color:0xF5CBA7});
   const shirt=new THREE.MeshLambertMaterial({color:shirtColor});
-  const pants=new THREE.MeshLambertMaterial({color:isBA?0x2c3e50:0x1a1a3e});
+  const pants=new THREE.MeshLambertMaterial({color:0x1a1a3e});
   const hair=new THREE.MeshLambertMaterial({color:female?0x3d1a00:0x1a0a00});
   const shoe=new THREE.MeshLambertMaterial({color:0xf0f0f0});
 
-  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.16,.14,.44,10),shirt);
-  torso.position.y=.62;g.add(torso);
-  const head=new THREE.Mesh(new THREE.SphereGeometry(.155,14,14),skin);
-  head.position.y=.98;g.add(head);
-  const hairM=new THREE.Mesh(new THREE.SphereGeometry(.16,14,14,0,Math.PI*2,0,Math.PI*.54),hair);
-  hairM.position.y=1.01;g.add(hairM);
-  if(female){const bun=new THREE.Mesh(new THREE.SphereGeometry(.075,10,10),hair);bun.position.set(0,1.2,-.1);g.add(bun);}
+  const base=.05;
+  const hipY=ph.legL+base;
+  const shoulderY=hipY+ph.tH*.75;
+  const headY=hipY+ph.tH+ph.hdR*.9;
 
-  function pivot(px,py,pz,cyl,shoe2){
-    const p=new THREE.Group();p.position.set(px,py,pz);
-    const m=new THREE.Mesh(new THREE.CylinderGeometry(cyl[0],cyl[1],cyl[2],8),cyl[3]);
-    m.position.y=-cyl[2]/2;p.add(m);
-    if(shoe2){const s2=new THREE.Mesh(new THREE.BoxGeometry(.09,.065,.18),shoe);s2.position.set(0,-cyl[2]-.02,.045);p.add(s2);}
+  function makeLeg(sx){
+    const p=new THREE.Group();p.position.set(sx*ph.tB*.65,hipY,0);
+    const lm=new THREE.Mesh(new THREE.CylinderGeometry(ph.tB*.36,ph.tB*.3,ph.legL,8),pants);
+    lm.position.y=-ph.legL/2;p.add(lm);
+    const sh=new THREE.Mesh(new THREE.BoxGeometry(.09,.065,.18),shoe);
+    sh.position.set(0,-ph.legL-.02,.045);p.add(sh);
     g.add(p);return p;
   }
-  const laP=pivot(-.21,.58,0,[.045,.04,.32,shirt],false);
-  const raP=pivot( .21,.58,0,[.045,.04,.32,shirt],false);
-  const llP=pivot(-.08,.44,0,[.055,.05,.38,pants],true);
-  const rlP=pivot( .08,.44,0,[.055,.05,.38,pants],true);
+  const llP=makeLeg(-1),rlP=makeLeg(1);
 
-  let baton=null;
-  if(isBA){
-    baton=new THREE.Group();
-    const bm=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,.45,8),new THREE.MeshLambertMaterial({color:0xFFD700}));
-    bm.position.y=-.22;baton.add(bm);
-    baton.position.set(.07,-.32,.02);
-    raP.add(baton);
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(ph.tR*.82,ph.tR,ph.tH,10),shirt);
+  torso.position.y=hipY+ph.tH/2;g.add(torso);
+
+  function makeArm(sx){
+    const p=new THREE.Group();p.position.set(sx*(ph.tR+.04),shoulderY,0);
+    const am=new THREE.Mesh(new THREE.CylinderGeometry(ph.tR*.28,ph.tR*.22,ph.armL,8),shirt);
+    am.position.y=-ph.armL/2;p.add(am);
+    g.add(p);return p;
   }
+  const laP=makeArm(-1),raP=makeArm(1);
 
-  const label=_stNameLabel(isBA?name+' ■':name);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(ph.hdR,14,14),skin);
+  head.position.y=headY;g.add(head);
+  const hairM=new THREE.Mesh(new THREE.SphereGeometry(ph.hdR+.005,14,14,0,Math.PI*2,0,Math.PI*.54),hair);
+  hairM.position.y=headY+.03;g.add(hairM);
+  if(female){const bun=new THREE.Mesh(new THREE.SphereGeometry(ph.hdR*.48,10,10),hair);bun.position.set(0,headY+ph.hdR*.7,-ph.hdR*.65);g.add(bun);}
+
+  const label=_stNameLabel(name,headY+ph.hdR+.55);
   g.add(label);
-  return{g,laP,raP,llP,rlP,baton,label};
+  return{g,laP,raP,llP,rlP,label};
 }
 
 function _stMakeSpectator(x,y,z,color){
@@ -2094,6 +2159,9 @@ function _stMakeSpectator(x,y,z,color){
   const skinMat=new THREE.MeshLambertMaterial({color:0xF0C27F});
   const body=new THREE.Mesh(new THREE.CylinderGeometry(.09,.1,.3,8),mat);body.position.y=.15;g.add(body);
   const head=new THREE.Mesh(new THREE.SphereGeometry(.1,8,8),skinMat);head.position.y=.42;g.add(head);
+  const arm=new THREE.Mesh(new THREE.CylinderGeometry(.04,.035,.22,6),mat);
+  arm.position.set(.12,.32,0);arm.rotation.z=.9;g.add(arm);
+  g.userData.arm=arm;
   g.position.set(x,y,z);
   return g;
 }
@@ -2109,7 +2177,6 @@ function _stBuildStadium(sc){
     return sh;
   }
 
-  // RED track ring
   const track=mkEllipse(11,8);
   const hole=new THREE.Path();
   for(let i=0;i<=segs;i++){const a=i/segs*Math.PI*2;hole[i===0?'moveTo':'lineTo'](8.5*Math.cos(a),5.5*Math.sin(a));}
@@ -2117,17 +2184,14 @@ function _stBuildStadium(sc){
   const trackM=new THREE.Mesh(new THREE.ShapeGeometry(track,64),new THREE.MeshLambertMaterial({color:0xB03A2E}));
   trackM.rotation.x=-Math.PI/2;sc.add(trackM);
 
-  // Infield
   const infM=new THREE.Mesh(new THREE.ShapeGeometry(mkEllipse(8.5,5.5),64),new THREE.MeshLambertMaterial({color:0x3a7a32}));
   infM.rotation.x=-Math.PI/2;infM.position.y=.01;sc.add(infM);
 
-  // Lane lines
   [{a:9.1,b:6.1},{a:9.75,b:6.75},{a:10.4,b:7.35}].forEach(({a,b})=>{
     const pts=[];
     for(let i=0;i<=segs;i++){const ang=i/segs*Math.PI*2;pts.push(new THREE.Vector3(a*Math.cos(ang),.015,b*Math.sin(ang)));}
     sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xffffff})));
   });
-
   sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(8.5,.015,0),new THREE.Vector3(11,.015,0)]),new THREE.LineBasicMaterial({color:0xffff00})));
 
   // Grandstands
@@ -2135,23 +2199,25 @@ function _stBuildStadium(sc){
   const stM=new THREE.MeshLambertMaterial({color:0x1565C0});
   [-11,11].forEach(z=>{
     const sign=z<0?-1:1;
-    const base=new THREE.Mesh(new THREE.BoxGeometry(28,2.5,4.5),sM);base.position.set(0,1.25,z+sign*2.5);sc.add(base);
-    const seats=new THREE.Mesh(new THREE.BoxGeometry(26,.5,3.5),stM);seats.position.set(0,2.75,z+sign*2.6);sc.add(seats);
+    const b=new THREE.Mesh(new THREE.BoxGeometry(28,2.5,4.5),sM);b.position.set(0,1.25,z+sign*2.5);sc.add(b);
+    const s=new THREE.Mesh(new THREE.BoxGeometry(26,.5,3.5),stM);s.position.set(0,2.75,z+sign*2.6);sc.add(s);
   });
   [-16,16].forEach(x=>{
     const sign=x<0?-1:1;
-    const base=new THREE.Mesh(new THREE.BoxGeometry(5,2,18),sM);base.position.set(x+sign*2.5,1,0);sc.add(base);
-    const seats=new THREE.Mesh(new THREE.BoxGeometry(4,.5,17),stM);seats.position.set(x+sign*2.5,2.3,0);sc.add(seats);
+    const b=new THREE.Mesh(new THREE.BoxGeometry(5,2,18),sM);b.position.set(x+sign*2.5,1,0);sc.add(b);
+    const s=new THREE.Mesh(new THREE.BoxGeometry(4,.5,17),stM);s.position.set(x+sign*2.5,2.3,0);sc.add(s);
   });
 
-  // Spectators in stands
+  // Spectators with ~30% waving
   const spc=[0xFF6B6B,0x4ECDC4,0xFFE66D,0xA8E6CF,0xFF8B94,0xC7B3E5,0xFFC3A0,0x88D8B0,0xE695AA,0xFF9A9E];
-  let si=0;
+  let si=0;_stWavers=[];
   [-11,11].forEach(z=>{
     const sign=z<0?-1:1;
     for(let row=0;row<2;row++){
       for(let col=-11;col<=11;col+=2.2){
-        sc.add(_stMakeSpectator(col,2.9+row*.38,z+sign*2.6+sign*row*.25,spc[si++%spc.length]));
+        const sg=_stMakeSpectator(col,2.9+row*.38,z+sign*2.6+sign*row*.25,spc[si++%spc.length]);
+        sc.add(sg);
+        if(Math.random()<.3)_stWavers.push({g:sg,phase:Math.random()*Math.PI*2,freq:.6+Math.random()*.9});
       }
     }
   });
@@ -2159,7 +2225,9 @@ function _stBuildStadium(sc){
     const sign=x<0?-1:1;
     for(let row=0;row<2;row++){
       for(let col=-7;col<=7;col+=2.2){
-        sc.add(_stMakeSpectator(x+sign*2.5+sign*row*.25,2.5+row*.38,col,spc[si++%spc.length]));
+        const sg=_stMakeSpectator(x+sign*2.5+sign*row*.25,2.5+row*.38,col,spc[si++%spc.length]);
+        sc.add(sg);
+        if(Math.random()<.3)_stWavers.push({g:sg,phase:Math.random()*Math.PI*2,freq:.6+Math.random()*.9});
       }
     }
   });
@@ -2177,67 +2245,190 @@ function _stBuildStadium(sc){
   sbBd.position.set(0,5.5,-17);sc.add(sbBd);
   const sbSc=new THREE.Mesh(new THREE.PlaneGeometry(7.2,3.4),new THREE.MeshLambertMaterial({color:0x0D1B2A,emissive:0x0D47A1,emissiveIntensity:.3}));
   sbSc.position.set(0,5.5,-16.74);sc.add(sbSc);
+
+  // ── Field event props ──────────────────────────────
+  // Javelin (Ryan) — thin cylinder lying on ground near station
+  const jvMat=new THREE.MeshLambertMaterial({color:0xD4A017});
+  const jv=new THREE.Mesh(new THREE.CylinderGeometry(.02,.015,2.6,8),jvMat);
+  jv.position.set(-5.5,.04,.4);jv.rotation.z=Math.PI/2;sc.add(jv);
+
+  // Shot put (Christopher) — circle + ball
+  const spCirc=new THREE.Mesh(new THREE.RingGeometry(1.0,1.12,32),new THREE.MeshLambertMaterial({color:0xffffff,side:THREE.DoubleSide}));
+  spCirc.position.set(4.5,.02,-2);spCirc.rotation.x=-Math.PI/2;sc.add(spCirc);
+  const spBall=new THREE.Mesh(new THREE.SphereGeometry(.18,12,12),new THREE.MeshLambertMaterial({color:0x888888}));
+  spBall.position.set(4.5,.2,-2);sc.add(spBall);
+
+  // Long jump (Norman) — sandpit + runway line
+  const pitM=new THREE.Mesh(new THREE.BoxGeometry(1.5,.1,3.2),new THREE.MeshLambertMaterial({color:0xC2A060}));
+  pitM.position.set(.5,.02,0);sc.add(pitM);
+  sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(.5,.02,-4.5),new THREE.Vector3(.5,.02,-1)]),new THREE.LineBasicMaterial({color:0xffffff})));
+
+  // High jump (Raja) — standards + bar + mat
+  const stdMat=new THREE.MeshLambertMaterial({color:0x607080});
+  [-1,1].forEach(sx=>{
+    const std=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,2,8),stdMat);
+    std.position.set(2+sx,1,2.5);sc.add(std);
+    const basem=new THREE.Mesh(new THREE.BoxGeometry(.4,.08,.4),stdMat);
+    basem.position.set(2+sx,.04,2.5);sc.add(basem);
+  });
+  const hjBar=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,2,8),new THREE.MeshLambertMaterial({color:0xFF6B00}));
+  hjBar.position.set(2,1.38,2.5);hjBar.rotation.z=Math.PI/2;sc.add(hjBar);
+  const mat=new THREE.Mesh(new THREE.BoxGeometry(2,.18,1.2),new THREE.MeshLambertMaterial({color:0x4A90D9}));
+  mat.position.set(2,.09,2.5);sc.add(mat);
 }
 
-// BA wander/stand positions
-const _ST_BA_STANDS=[{x:-8,z:-10.5},{x:0,z:-10.5},{x:8,z:-10.5},{x:-8,z:10.5},{x:0,z:10.5},{x:8,z:10.5}];
-function _stRandInfield(){return{x:(Math.random()-.5)*12,z:(Math.random()-.5)*8};}
+// ── BA Field Event Animations ────────────────────────
 
-function _stAnimateBA(d,t,dt){
+function _stAnimateJavelin(d,t,dt){
   if(!d.stateT)d.stateT=t;
-  const elapsed=t-d.stateT;
-  const spd=1.8*dt;
-
-  function moveTo(tx,tz){
-    const dx=tx-d.g.position.x,dz=tz-d.g.position.z;
-    const dist=Math.sqrt(dx*dx+dz*dz);
-    if(dist<.12)return true;
-    const step=Math.min(spd,dist);
-    d.g.position.x+=dx/dist*step;
-    d.g.position.z+=dz/dist*step;
-    d.g.rotation.y=Math.atan2(dx,dz);
-    const ph=t*3;
-    d.llP.rotation.x=.3*Math.sin(ph);d.rlP.rotation.x=-.3*Math.sin(ph);
-    d.laP.rotation.x=-.2*Math.sin(ph);d.raP.rotation.x=.2*Math.sin(ph);
-    d.g.position.y=.02*Math.abs(Math.sin(ph*2));
-    return false;
+  const e=t-d.stateT;
+  if(d.baState==='idle'){
+    d.g.rotation.y=Math.PI/2;
+    d.raP.rotation.x=0;d.laP.rotation.x=0;d.g.rotation.z=0;
+    if(e>2.5){d.baState='windup';d.stateT=t;}
+  } else if(d.baState==='windup'){
+    const wu=Math.min(e/.8,1);
+    d.raP.rotation.x=-Math.PI*.55*wu;
+    d.laP.rotation.x=Math.PI*.2*wu;
+    d.g.rotation.z=.1*wu;
+    if(e>.8){d.baState='release';d.stateT=t;}
+  } else if(d.baState==='release'){
+    const r=Math.min(e/.25,1);
+    d.raP.rotation.x=-Math.PI*.55+Math.PI*r;
+    if(e>.25){d.baState='recover';d.stateT=t;}
+  } else {
+    const rv=Math.min(e/.7,1);
+    d.raP.rotation.x=Math.PI*.45*(1-rv);
+    d.laP.rotation.x=Math.PI*.2*(1-rv);
+    d.g.rotation.z=.1*(1-rv);
+    if(e>.7){d.baState='idle';d.stateT=t;}
   }
+}
 
-  switch(d.baState){
-    case 'wander':
-      if(!d.wanderTarget)d.wanderTarget=_stRandInfield();
-      if(moveTo(d.wanderTarget.x,d.wanderTarget.z)||elapsed>5+Math.random()*4){
-        d.wanderTarget=null;d.baState='to_stand';d.stateT=t;
-        d.standTarget=_ST_BA_STANDS[Math.floor(Math.random()*_ST_BA_STANDS.length)];
-      }
-      break;
-    case 'to_stand':
-      if(moveTo(d.standTarget.x,d.standTarget.z)){d.baState='chat';d.stateT=t;}
-      break;
-    case 'chat':
-      d.g.rotation.z=.05*Math.sin(t*2);
-      d.raP.rotation.x=-.9+.15*Math.sin(t*3.5);
-      d.laP.rotation.x=.3*Math.sin(t*1.8);
-      d.llP.rotation.x=0;d.rlP.rotation.x=0;d.g.position.y=0;
-      if(elapsed>3.5+Math.random()*2){
-        d.raP.rotation.x=0;d.laP.rotation.x=0;d.g.rotation.z=0;
-        d.baState='return';d.stateT=t;d.returnTarget=_stRandInfield();
-      }
-      break;
-    case 'return':
-      if(moveTo(d.returnTarget.x,d.returnTarget.z)){
-        d.baState='pass';d.stateT=t;
-        d.passTarget={x:6.5+Math.random()*1.5,z:(Math.random()-.5)*5};
-      }
-      break;
-    case 'pass':
-      moveTo(d.passTarget.x,d.passTarget.z);
-      d.raP.rotation.x=-.55;d.raP.rotation.z=-.3;
-      if(elapsed>4){d.raP.rotation.x=0;d.raP.rotation.z=0;d.baState='wander';d.stateT=t;d.wanderTarget=null;}
-      break;
-    default:
-      d.baState='wander';d.stateT=t;
+function _stAnimateShotPut(d,t,dt){
+  if(!d.stateT)d.stateT=t;
+  const e=t-d.stateT;
+  if(d.baState==='idle'){
+    d.g.rotation.y=0;d.raP.rotation.x=0;d.laP.rotation.x=0;
+    d.raP.rotation.z=0;d.g.position.y=0;
+    if(e>2.5){d.baState='crouch';d.stateT=t;}
+  } else if(d.baState==='crouch'){
+    const c=Math.min(e/.4,1);
+    d.g.position.y=-.1*c;d.raP.rotation.x=Math.PI*.3*c;
+    if(e>.4){d.baState='spin';d.stateT=t;d._spinY=d.g.rotation.y;}
+  } else if(d.baState==='spin'){
+    const s=Math.min(e/.5,1);
+    d.g.rotation.y=(d._spinY||0)+Math.PI*s;
+    if(e>.5){d.baState='push';d.stateT=t;}
+  } else if(d.baState==='push'){
+    const p=Math.min(e/.3,1);
+    d.raP.rotation.x=Math.PI*.3-Math.PI*.7*p;
+    d.raP.rotation.z=-.4*p;
+    if(e>.3){d.baState='recover';d.stateT=t;}
+  } else {
+    const rv=Math.min(e/.5,1);
+    d.g.position.y=-.1*(1-rv);
+    d.raP.rotation.x=-Math.PI*.4*(1-rv);
+    d.raP.rotation.z=-.4*(1-rv);
+    if(e>.5){d.baState='idle';d.stateT=t;d.g.rotation.y=0;}
   }
+}
+
+function _stAnimateLongJump(d,t,dt){
+  if(!d.stateT)d.stateT=t;
+  const e=t-d.stateT;
+  const spd=dt*2.8;
+  if(d.baState==='idle'){
+    d.g.rotation.y=0;d.llP.rotation.x=0;d.rlP.rotation.x=0;d.laP.rotation.x=0;d.raP.rotation.x=0;
+    if(e>1.5){d.baState='approach';d.stateT=t;}
+  } else if(d.baState==='approach'){
+    d.g.position.z+=spd*1.8;
+    const ph=t*9;
+    d.llP.rotation.x=.55*Math.sin(ph);d.rlP.rotation.x=-.55*Math.sin(ph);
+    d.laP.rotation.x=-.35*Math.sin(ph);d.raP.rotation.x=.35*Math.sin(ph);
+    if(d.g.position.z>=-1){d.baState='leap';d.stateT=t;d._jz=d.g.position.z;}
+  } else if(d.baState==='leap'){
+    const frac=Math.min(e/.65,1);
+    d.g.position.z=(d._jz||0)+2.8*frac;
+    d.g.position.y=.85*Math.sin(frac*Math.PI);
+    d.raP.rotation.x=-Math.PI*.5;d.laP.rotation.x=-Math.PI*.5;
+    d.llP.rotation.x=Math.PI*.4*Math.sin(frac*Math.PI);
+    d.rlP.rotation.x=Math.PI*.4*Math.sin(frac*Math.PI);
+    if(e>.65){d.baState='land';d.stateT=t;}
+  } else if(d.baState==='land'){
+    d.g.position.y=0;d.raP.rotation.x=0;d.laP.rotation.x=0;d.llP.rotation.x=0;d.rlP.rotation.x=0;
+    if(e>1){d.baState='return';d.stateT=t;}
+  } else {
+    d.g.position.z-=spd;d.g.rotation.y=Math.PI;
+    const ph=t*5;d.llP.rotation.x=.3*Math.sin(ph);d.rlP.rotation.x=-.3*Math.sin(ph);
+    if(d.g.position.z<=-4.2){d.g.rotation.y=0;d.g.position.set(.5,0,-4.5);d.baState='idle';d.stateT=t;}
+  }
+}
+
+function _stAnimateHighJump(d,t,dt){
+  if(!d.stateT)d.stateT=t;
+  const e=t-d.stateT;
+  const spd=dt*2.0;
+  if(d.baState==='idle'){
+    d.g.rotation.y=0;d.g.rotation.x=0;
+    d.raP.rotation.x=0;d.laP.rotation.x=0;d.llP.rotation.x=0;d.rlP.rotation.x=0;
+    if(e>2){d.baState='approach';d.stateT=t;}
+  } else if(d.baState==='approach'){
+    d.g.position.z+=spd*1.5;
+    const ph=t*7;
+    d.llP.rotation.x=.5*Math.sin(ph);d.rlP.rotation.x=-.5*Math.sin(ph);
+    d.laP.rotation.x=-.3*Math.sin(ph);d.raP.rotation.x=.3*Math.sin(ph);
+    if(d.g.position.z>=1.5){d.baState='jump';d.stateT=t;}
+  } else if(d.baState==='jump'){
+    const frac=Math.min(e/.75,1);
+    d.g.position.y=1.6*Math.sin(frac*Math.PI);
+    d.g.rotation.x=-Math.PI*.25*Math.sin(frac*Math.PI);
+    d.raP.rotation.x=-Math.PI*.6;d.laP.rotation.x=-Math.PI*.6;
+    d.llP.rotation.x=.45;d.rlP.rotation.x=.45;
+    if(e>.75){d.baState='land';d.stateT=t;}
+  } else {
+    d.g.position.y=0;d.g.rotation.x=0;
+    d.raP.rotation.x=0;d.laP.rotation.x=0;d.llP.rotation.x=0;d.rlP.rotation.x=0;
+    if(e>1){d.g.position.set(2,0,-1);d.baState='idle';d.stateT=t;}
+  }
+}
+
+// ── Profile Panel ───────────────────────────────────
+
+function _stSelectDev(idx){
+  const d=_stObjs[idx];if(!d)return;
+  const panel=document.getElementById('st-profile-panel');if(!panel)return;
+  const per=d.per;const pct=d.pct||0;
+  const ph=_stPhysique(pct);
+  const projName=(S.projects||[]).find(p=>p.id===((per.projectIds||[])[0]||''))?.name||'—';
+  const physColor=pct<=50?'#ef4444':pct<=60?'#f97316':pct<=75?'#eab308':'#22c55e';
+  const recentSprints=(S.sprints||[])
+    .filter(s=>s.completedHours&&s.completedHours[per.id]!==undefined)
+    .sort((a,b)=>b.startDate.localeCompare(a.startDate)).slice(0,3);
+  const sprintRows=recentSprints.map(s=>{
+    const wd=workDaysInRange(s.startDate,s.endDate);
+    const eff=Math.round(wd*8*.8)||1;
+    const p=Math.min(200,Math.round((s.completedHours[per.id]||0)/eff*100));
+    return`<div style="font-size:11px;display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="color:rgba(255,255,255,.7)">${s.name}</span><span style="color:#10b981;font-weight:700">${p}%</span></div>`;
+  }).join('');
+  panel.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <b style="font-size:14px">${per.name}</b>
+      <button onclick="_stHideProfile()" style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:18px;line-height:1;padding:0">×</button>
+    </div>
+    <div style="font-size:11px;color:rgba(255,255,255,.55);margin-bottom:6px">${per.role||'—'} · ${projName}</div>
+    ${d.isBA?`<div style="font-size:12px;color:#FFD700;margin-bottom:8px">🏅 ${d.fieldEvent}</div>`:''}
+    <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:10px">
+      <div><div style="font-size:26px;font-weight:900;color:${physColor};line-height:1">${pct}%</div><div style="font-size:10px;color:rgba(255,255,255,.4)">Velocity</div></div>
+      <div><div style="font-size:13px;font-weight:700;color:${physColor}">${ph.label}</div><div style="font-size:10px;color:rgba(255,255,255,.4)">Physique</div></div>
+    </div>
+    ${sprintRows?`<div style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Recent Sprints</div>${sprintRows}`:''}
+  `;
+  panel.style.display='block';
+}
+
+function _stHideProfile(){
+  const p=document.getElementById('st-profile-panel');if(p)p.style.display='none';
 }
 
 function openSprintTrack(){
@@ -2246,10 +2437,11 @@ function openSprintTrack(){
 }
 
 function closeSprintTrack(){
+  _stHideProfile();
   document.getElementById('sprint-track-overlay').classList.remove('open');
   if(_stAnimId){cancelAnimationFrame(_stAnimId);_stAnimId=null;}
   if(_stRO){_stRO.disconnect();_stRO=null;}
-  if(_stRenderer){_stRenderer.dispose();_stRenderer=null;_stScene=null;_stCam=null;_stObjs=[];}
+  if(_stRenderer){_stRenderer.dispose();_stRenderer=null;_stScene=null;_stCam=null;_stObjs=[];_stWavers=[];}
 }
 
 function _stInit(){
@@ -2262,7 +2454,7 @@ function _stInit(){
   _stScene.fog=new THREE.Fog(0x87CEEB,50,90);
 
   _stCam=new THREE.PerspectiveCamera(50,W/H,.1,200);
-  _stPanX=0;_stPanZ=0;_stCamH=22;_stCamD=24;
+  _stPanX=0;_stPanZ=0;_stCamH=22;_stCamD=24;_stPaused=false;
   _stSetCam();
 
   _stRenderer=new THREE.WebGLRenderer({canvas,antialias:true});
@@ -2274,11 +2466,26 @@ function _stInit(){
   const fill=new THREE.DirectionalLight(0xE3F2FD,.3);fill.position.set(-10,8,-5);_stScene.add(fill);
 
   _stBuildStadium(_stScene);
+  _stRaycaster=new THREE.Raycaster();
 
   const today=new Date().toISOString().slice(0,10);
   const allDevs=(S.personnel||[]).filter(p=>!p.offboard||(p.offboardDate&&p.offboardDate>=today));
   _stObjs=[];
-  let sbHTML='<div class="st-sb-hdr">Sprint Velocity</div>';
+
+  // ── Project velocity averages for scoreboard ──
+  const projVel={};
+  (S.sprints||[]).forEach(s=>{
+    const st=sprintStats(s);
+    if(st.pct>0){if(!projVel[s.projectId]){projVel[s.projectId]={sum:0,n:0};}projVel[s.projectId].sum+=st.pct;projVel[s.projectId].n++;}
+  });
+  let sbHTML='<div class="st-sb-hdr">⚡ Sprint Board</div>';
+  Object.entries(projVel).forEach(([pid,v])=>{
+    const pn=(S.projects||[]).find(p=>p.id===pid)?.name||pid;
+    const dot=pid==='p_orion'?'#E91E8C':pid==='p_polaris'?'#29B6F6':pid==='p_cordis'?'#FDD835':'#9E9E9E';
+    const avg=v.n?Math.round(v.sum/v.n):0;
+    sbHTML+=`<div class="st-sb-row"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${pn}</div><div><div class="st-sb-pct">${avg}%</div><div class="st-sb-spd">avg velocity</div></div></div>`;
+  });
+  sbHTML+='<div class="st-sb-hdr" style="margin-top:12px">Athletes</div>';
 
   const runners=allDevs.filter(p=>!_stIsBA(p));
   const bas=allDevs.filter(p=>_stIsBA(p));
@@ -2289,71 +2496,100 @@ function _stInit(){
     const female=_ST_FEMALE.has(per.name.toLowerCase());
     const pct=_stSpeedPct(per.id);
     const{spd,freq,label}=_stTier(pct);
+    const ph=_stPhysique(pct);
     const lane=_ST_LANES[i%3];
     const angle=(i/Math.max(runners.length,1))*Math.PI*2;
-    const dev=_stMakeDev(per.name,female,shirtHex,false);
+    const dev=_stMakeDev(per.name,female,shirtHex,pct);
     dev.g.position.set(lane.a*Math.cos(angle),0,lane.b*Math.sin(angle));
     dev.g.rotation.y=Math.atan2(-lane.a*Math.sin(angle),lane.b*Math.cos(angle));
+    const idx=_stObjs.length;
     _stScene.add(dev.g);
-    _stObjs.push({...dev,angle,spd,freq,lA:lane.a,lB:lane.b,pct,isBA:false});
-
+    _stTagGroup(dev.g,idx);
+    _stObjs.push({...dev,angle,spd,freq,lA:lane.a,lB:lane.b,pct,isBA:false,projId,per});
     const dot=projId==='p_orion'?'#E91E8C':projId==='p_polaris'?'#29B6F6':projId==='p_cordis'?'#FDD835':'#9E9E9E';
-    sbHTML+=`<div class="st-sb-row"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct">${pct}%</div><div class="st-sb-spd">${label}</div></div></div>`;
+    sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct">${pct}%</div><div class="st-sb-spd">${label} · ${ph.label}</div></div></div>`;
   });
 
-  bas.forEach((per)=>{
+  bas.forEach(per=>{
     const projId=(per.projectIds||[])[0]||'';
     const shirtHex=_ST_COLORS[projId]||0xBDBDBD;
     const female=_ST_FEMALE.has(per.name.toLowerCase());
-    const dev=_stMakeDev(per.name,female,shirtHex,true);
-    const ip=_stRandInfield();
-    dev.g.position.set(ip.x,0,ip.z);
+    const pct=_stSpeedPct(per.id);
+    const eventKey=_ST_BA_EVENTS[per.name.toLowerCase()]||'idle';
+    const eventLabel={javelin:'Javelin Throw',shotput:'Shot Put',longjump:'Long Jump',highjump:'High Jump'}[eventKey]||'Coordinator';
+    const pos=_ST_BA_POS[eventKey]||{x:0,z:0};
+    const dev=_stMakeDev(per.name,female,shirtHex,pct);
+    // Set initial position based on event
+    if(eventKey==='longjump')dev.g.position.set(.5,0,-4.5);
+    else if(eventKey==='highjump')dev.g.position.set(2,0,-1);
+    else dev.g.position.set(pos.x,0,pos.z);
+    const idx=_stObjs.length;
     _stScene.add(dev.g);
-    _stObjs.push({...dev,isBA:true,baState:'wander',stateT:0,wanderTarget:null,standTarget:null,returnTarget:null,passTarget:null});
-
+    _stTagGroup(dev.g,idx);
+    _stObjs.push({...dev,isBA:true,baState:'idle',stateT:0,projId,per,pct,fieldEvent:eventLabel,eventKey});
     const dot=projId==='p_orion'?'#E91E8C':projId==='p_polaris'?'#29B6F6':projId==='p_cordis'?'#FDD835':'#9E9E9E';
-    sbHTML+=`<div class="st-sb-row"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct" style="color:#FFD700">BA</div><div class="st-sb-spd">Coordinator</div></div></div>`;
+    sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct" style="color:#FFD700">BA</div><div class="st-sb-spd">${eventLabel}</div></div></div>`;
   });
 
   document.getElementById('st-scoreboard').innerHTML=sbHTML;
 
-  // Pan camera — drag translates, scroll zooms
-  let _drag=false,_pmx=0,_pmy=0;
-  canvas.addEventListener('mousedown',e=>{_drag=true;_pmx=e.clientX;_pmy=e.clientY;e.preventDefault();});
-  canvas.addEventListener('mouseup',()=>_drag=false,false);
-  canvas.addEventListener('mouseleave',()=>_drag=false,false);
+  // ── Pan + click to select ──────────────────────────
+  let _drag=false,_mx=0,_my=0,_downX=0,_downY=0,_didDrag=false;
+  canvas.addEventListener('mousedown',e=>{_drag=true;_mx=e.clientX;_my=e.clientY;_downX=e.clientX;_downY=e.clientY;_didDrag=false;e.preventDefault();});
+  canvas.addEventListener('mouseup',()=>_drag=false);
+  canvas.addEventListener('mouseleave',()=>_drag=false);
   canvas.addEventListener('mousemove',e=>{
     if(!_drag)return;
-    _stPanX-=(e.clientX-_pmx)*.04;
-    _stPanZ-=(e.clientY-_pmy)*.04;
-    _pmx=e.clientX;_pmy=e.clientY;
-    _stSetCam();
+    if(Math.abs(e.clientX-_downX)>4||Math.abs(e.clientY-_downY)>4)_didDrag=true;
+    _stPanX-=(e.clientX-_mx)*.04;_stPanZ-=(e.clientY-_my)*.04;
+    _mx=e.clientX;_my=e.clientY;_stSetCam();
+  });
+  canvas.addEventListener('click',e=>{
+    if(_didDrag)return;
+    const rect=canvas.getBoundingClientRect();
+    const nx=((e.clientX-rect.left)/rect.width)*2-1;
+    const ny=-((e.clientY-rect.top)/rect.height)*2+1;
+    _stRaycaster.setFromCamera({x:nx,y:ny},_stCam);
+    const hits=_stRaycaster.intersectObjects(_stObjs.map(d=>d.g),true);
+    if(hits.length&&hits[0].object.userData.devIdx!==undefined){
+      _stSelectDev(hits[0].object.userData.devIdx);
+    } else {
+      _stHideProfile();
+    }
   });
   canvas.addEventListener('wheel',e=>{
     _stCamD=Math.max(8,Math.min(55,_stCamD+e.deltaY*.05));
     _stCamH=Math.max(6,Math.min(45,_stCamH+e.deltaY*.03));
     _stSetCam();
   },{passive:true});
-  canvas.addEventListener('touchstart',e=>{if(e.touches.length===1){_drag=true;_pmx=e.touches[0].clientX;_pmy=e.touches[0].clientY;}},{passive:true});
-  canvas.addEventListener('touchend',()=>_drag=false,false);
+  canvas.addEventListener('touchstart',e=>{if(e.touches.length===1){_drag=true;_mx=e.touches[0].clientX;_my=e.touches[0].clientY;_downX=_mx;_downY=_my;_didDrag=false;}},{passive:true});
+  canvas.addEventListener('touchend',()=>_drag=false);
   canvas.addEventListener('touchmove',e=>{
     if(!_drag||e.touches.length!==1)return;
-    _stPanX-=(e.touches[0].clientX-_pmx)*.04;
-    _stPanZ-=(e.touches[0].clientY-_pmy)*.04;
-    _pmx=e.touches[0].clientX;_pmy=e.touches[0].clientY;
-    _stSetCam();
+    if(Math.abs(e.touches[0].clientX-_downX)>4||Math.abs(e.touches[0].clientY-_downY)>4)_didDrag=true;
+    _stPanX-=(e.touches[0].clientX-_mx)*.04;_stPanZ-=(e.touches[0].clientY-_my)*.04;
+    _mx=e.touches[0].clientX;_my=e.touches[0].clientY;_stSetCam();
   },{passive:true});
 
+  // Sync filter & pause UI state
+  const sf=document.getElementById('st-sys-filter');if(sf)sf.value='';
+  const pb=document.getElementById('st-pause-btn');if(pb)pb.textContent='⏸';
+
   _stClock=new THREE.Clock();
-  let _stPrevT=0;
+  let _prevT=0;
   const loop=()=>{
     _stAnimId=requestAnimationFrame(loop);
+    if(_stPaused){_stRenderer.render(_stScene,_stCam);return;}
     const t=_stClock.getElapsedTime();
-    const dt=Math.min(t-_stPrevT,.05);
-    _stPrevT=t;
+    const dt=Math.min(t-_prevT,.05);_prevT=t;
+
     _stObjs.forEach(d=>{
+      if(!d.g.visible)return;
       if(d.isBA){
-        _stAnimateBA(d,t,dt);
+        if(d.eventKey==='javelin')_stAnimateJavelin(d,t,dt);
+        else if(d.eventKey==='shotput')_stAnimateShotPut(d,t,dt);
+        else if(d.eventKey==='longjump')_stAnimateLongJump(d,t,dt);
+        else if(d.eventKey==='highjump')_stAnimateHighJump(d,t,dt);
       } else if(d.spd>0){
         d.angle+=d.spd;
         d.g.position.x=d.lA*Math.cos(d.angle);
@@ -2370,6 +2606,11 @@ function _stInit(){
         d.g.position.y=.01*Math.sin(t*1.8+(d.angle||0)*3);
       }
     });
+
+    _stWavers.forEach(w=>{
+      if(w.g.userData.arm)w.g.userData.arm.rotation.z=.9+.45*Math.sin(t*w.freq+w.phase);
+    });
+
     _stRenderer.render(_stScene,_stCam);
   };
   loop();
