@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Timesheet Portal</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --primary:#1e3a5f;--primary-light:#2d5a8e;--accent:#3b82f6;
+  --bg:#f0f4f8;--white:#fff;--border:#e2e8f0;
+  --text:#1e293b;--muted:#64748b;
+  --success:#16a34a;--warning:#d97706;--danger:#dc2626;
+  --radius:10px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+
+/* HEADER */
+.app-header{background:var(--primary);color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.app-header h1{font-size:18px;font-weight:700;letter-spacing:-.3px}
+.app-header h1 span{font-weight:300;opacity:.7}
+
+/* NAV */
+.nav{background:#fff;border-bottom:2px solid var(--border);display:flex;padding:0 24px;overflow-x:auto;position:sticky;top:56px;z-index:99}
+.nav::-webkit-scrollbar{display:none}
+.nav-btn{padding:0 18px;height:48px;border:none;background:none;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:all .2s}
+.nav-btn:hover{color:var(--primary)}
+.nav-btn.active{color:var(--primary);border-bottom-color:var(--primary)}
+
+/* PAGES */
+.page{display:none;padding:24px;max-width:1280px;margin:0 auto}
+.page.active{display:block}
+
+/* CARD */
+.card{background:#fff;border-radius:var(--radius);padding:24px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:20px}
+.card-title{font-size:15px;font-weight:700;color:var(--primary);margin-bottom:16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.card-badge{font-size:11px;background:var(--accent);color:#fff;padding:2px 8px;border-radius:20px;font-weight:600}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;text-decoration:none}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:var(--primary-light)}
+.btn-secondary{background:#f1f5f9;color:var(--text)}
+.btn-secondary:hover{background:#e2e8f0}
+.btn-danger{background:#fee2e2;color:var(--danger)}
+.btn-danger:hover{background:#fecaca}
+.btn-sm{padding:5px 12px;font-size:12px}
+
+/* FORM */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+.form-group input,.form-group select{width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;color:var(--text);transition:border-color .2s;outline:none;background:#fff}
+.form-group input:focus,.form-group select:focus{border-color:var(--accent)}
+.input-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.input-row .form-group{flex:1;margin-bottom:0}
+
+/* RATE ROW */
+.rate-entry{display:flex;gap:8px;align-items:flex-end;margin-bottom:8px;background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:10px;flex-wrap:wrap}
+.rate-entry .form-group{flex:1;min-width:100px;margin-bottom:0}
+
+/* PROJECT CHIPS */
+.proj-chips{display:flex;gap:8px;flex-wrap:wrap}
+.proj-chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1.5px solid var(--border);border-radius:20px;cursor:pointer;font-size:12px;font-weight:600;transition:all .2s;user-select:none}
+.proj-chip.checked{border-color:var(--accent);background:#eff6ff;color:var(--accent)}
+.proj-chip input{display:none}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{background:var(--primary);color:#fff;padding:10px 14px;text-align:left;font-weight:600;white-space:nowrap;font-size:12px}
+tbody td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:#f8fafc}
+.empty-row{text-align:center;padding:32px!important;color:var(--muted)}
+
+/* STATUS */
+.status{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.status-active{background:#dcfce7;color:#15803d}
+.status-offboard{background:#fee2e2;color:#b91c1c}
+
+/* OFFBOARD BOX */
+.offboard-box{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;margin-bottom:14px;flex-wrap:wrap}
+.offboard-box label{font-size:13px;font-weight:600;color:var(--warning);cursor:pointer}
+
+/* CALENDAR */
+.cal-nav{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.cal-nav h2{font-size:17px;font-weight:700;color:var(--primary)}
+.cal-arrow{background:#fff;border:1.5px solid var(--border);border-radius:8px;width:36px;height:36px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;transition:all .2s;flex-shrink:0}
+.cal-arrow:hover{border-color:var(--accent);color:var(--accent)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-dow{text-align:center;font-size:11px;font-weight:700;color:var(--muted);padding:6px 0;text-transform:uppercase}
+.cal-cell{min-height:72px;background:#fff;border:1px solid var(--border);border-radius:6px;padding:5px;cursor:pointer;transition:border-color .2s;position:relative;overflow:hidden}
+.cal-cell:hover{border-color:var(--accent)}
+.cal-cell.empty{background:transparent;border-color:transparent;cursor:default;pointer-events:none}
+.cal-cell.weekend{background:#f8fafc}
+.cal-cell.holiday{background:#fff7ed}
+.cal-cell.today{border-color:var(--accent);border-width:2px}
+.cal-day-num{font-size:12px;font-weight:700;line-height:1}
+.cal-cell.weekend .cal-day-num{color:#94a3b8}
+.cal-cell.holiday .cal-day-num{color:var(--warning)}
+.cal-hname{font-size:8px;color:var(--warning);line-height:1.2;margin-top:1px}
+.cal-entries{display:flex;flex-direction:column;gap:2px;margin-top:3px}
+.ebadge{font-size:9px;font-weight:700;padding:2px 4px;border-radius:3px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.ebadge.leave_full{background:#fee2e2;color:#b91c1c}
+.ebadge.leave_am{background:#fef3c7;color:#92400e}
+.ebadge.leave_pm{background:#fef3c7;color:#92400e}
+.ebadge.ot_full{background:#dcfce7;color:#15803d}
+.ebadge.ot_am{background:#d1fae5;color:#065f46}
+.ebadge.ot_pm{background:#d1fae5;color:#065f46}
+.ebadge.mc{background:#f3e8ff;color:#7e22ce}
+
+/* TIMESHEET LAYOUT */
+.ts-layout{display:flex;gap:16px;align-items:flex-start}
+.ts-sidebar{width:190px;flex-shrink:0;background:#fff;border-radius:var(--radius);padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.07);position:sticky;top:120px}
+.ts-sidebar h3{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin-bottom:10px;letter-spacing:.3px}
+.ts-main{flex:1;min-width:0}
+.filter-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer}
+.filter-item:last-of-type{border-bottom:none}
+.filter-item input{width:14px;height:14px;cursor:pointer;accent-color:var(--accent)}
+
+/* LEGEND */
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)}
+.leg-dot{width:10px;height:10px;border-radius:2px}
+
+/* SUMMARY */
+.summary-card{background:#fff;border-radius:var(--radius);padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-top:16px}
+.summary-card h3{font-size:14px;font-weight:700;color:var(--primary);margin-bottom:4px}
+.wd-total{font-size:13px;color:var(--muted);margin-bottom:12px}
+.wd-total strong{color:var(--primary)}
+
+/* MODAL */
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:none;align-items:center;justify-content:center;padding:16px}
+#modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal-hdr{padding:20px 24px 0;display:flex;align-items:center;justify-content:space-between}
+.modal-hdr h3{font-size:15px;font-weight:700;color:var(--primary)}
+.modal-close{background:#f1f5f9;border:none;border-radius:6px;width:28px;height:28px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.modal-body{padding:20px 24px}
+.modal-ftr{padding:0 24px 20px;display:flex;gap:8px;justify-content:flex-end}
+
+/* TYPE BUTTONS */
+.type-section{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;margin:12px 0 6px}
+.type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:6px}
+.type-btn{padding:9px 4px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;text-align:center;font-size:12px;font-weight:600;transition:all .2s;background:#fff;line-height:1.3}
+.type-btn:hover{border-color:var(--accent)}
+.type-btn.selected{border-color:var(--accent);background:#eff6ff;color:var(--accent)}
+.type-btn.mc-btn{border-color:#e9d5ff;color:#7e22ce}
+.type-btn.mc-btn.selected{background:#f3e8ff;border-color:#7e22ce;color:#7e22ce}
+
+/* EXISTING ENTRIES */
+.exist-entry{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:#f8fafc;border-radius:8px;margin-bottom:5px;gap:8px}
+.exist-entry span{font-size:12px;flex:1}
+
+/* SECTION DIVIDER */
+.sec-label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+
+/* EXPENSE PROJECT HEADER */
+.exp-proj-hdr{background:var(--primary);color:#fff;padding:12px 20px;border-radius:var(--radius) var(--radius) 0 0;font-size:14px;font-weight:700;margin:-24px -24px 0;display:flex;align-items:center;gap:8px}
+
+/* ALERT */
+.alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px}
+.alert-warn{background:#fff7ed;border:1px solid #fed7aa;color:var(--warning)}
+
+/* RESPONSIVE */
+@media(max-width:768px){
+  .app-header{padding:0 16px}
+  .nav{padding:0 8px}
+  .page{padding:16px}
+  .card{padding:16px}
+  .form-grid{grid-template-columns:1fr}
+  .ts-layout{flex-direction:column}
+  .ts-sidebar{width:100%;position:static}
+  .cal-cell{min-height:55px}
+  .ebadge{font-size:8px}
+}
+@media(max-width:480px){
+  .cal-grid{gap:2px}
+  .cal-cell{min-height:48px;padding:3px}
+  .type-grid{grid-template-columns:1fr 1fr}
+  .cal-day-num{font-size:11px}
+}
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <h1>⏱ Timesheet <span>Portal</span></h1>
+</div>
+
+<nav class="nav" id="mainNav">
+  <button class="nav-btn active" onclick="showTab('projects')">📁 Projects</button>
+  <button class="nav-btn" onclick="showTab('profile')">👥 Profile</button>
+  <button class="nav-btn" onclick="showTab('workingdays')">📅 Working Days</button>
+  <button class="nav-btn" onclick="showTab('expenses')">💰 Expenses</button>
+  <button class="nav-btn" onclick="showTab('timesheet')">🗓 Timesheet</button>
+</nav>
+
+<div id="tab-projects" class="page active"></div>
+<div id="tab-profile" class="page"></div>
+<div id="tab-workingdays" class="page"></div>
+<div id="tab-expenses" class="page"></div>
+<div id="tab-timesheet" class="page"></div>
+
+<div id="modal-overlay">
+  <div class="modal" id="modal-box">
+    <div class="modal-hdr">
+      <h3 id="modal-title"></h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-ftr" id="modal-ftr"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════
+const SG_HOLIDAYS = {
+  '2025-01-01':"New Year's Day",'2025-01-29':"Chinese New Year",'2025-01-30':"Chinese New Year",
+  '2025-03-31':"Hari Raya Puasa",'2025-04-18':"Good Friday",'2025-05-01':"Labour Day",
+  '2025-05-12':"Vesak Day",'2025-06-07':"Hari Raya Haji",'2025-06-09':"Hari Raya Haji (sub)",
+  '2025-08-09':"National Day",'2025-08-11':"National Day (sub)",'2025-10-20':"Deepavali",
+  '2025-12-25':"Christmas Day",
+  '2026-01-01':"New Year's Day",'2026-02-17':"Chinese New Year",'2026-02-18':"Chinese New Year",
+  '2026-03-20':"Hari Raya Puasa",'2026-04-03':"Good Friday",'2026-05-01':"Labour Day",
+  '2026-05-22':"Vesak Day",'2026-05-27':"Hari Raya Haji",
+  '2026-08-09':"National Day (Sun)",'2026-08-10':"National Day (sub)",'2026-10-19':"Deepavali",
+  '2026-12-25':"Christmas Day",
+  '2027-01-01':"New Year's Day",'2027-02-06':"Chinese New Year",'2027-02-07':"Chinese New Year",
+  '2027-02-08':"CNY (sub)",'2027-02-09':"CNY (sub)",
+  '2027-03-09':"Hari Raya Puasa",'2027-03-26':"Good Friday",
+  '2027-05-01':"Labour Day",'2027-05-03':"Labour Day (sub)",
+  '2027-05-16':"Hari Raya Haji",'2027-05-18':"Hari Raya Haji (sub)",'2027-05-20':"Vesak Day",
+  '2027-08-09':"National Day",'2027-10-27':"Deepavali",
+  '2027-12-25':"Christmas Day",'2027-12-27':"Christmas (sub)",
+};
+
+const MN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+const ETYPES = {
+  leave_full: {label:'Full Day Leave', short:'Leave',    cls:'leave_full', val:-1  },
+  leave_am:   {label:'AM Leave (½)',   short:'AM Leave', cls:'leave_am',   val:-.5 },
+  leave_pm:   {label:'PM Leave (½)',   short:'PM Leave', cls:'leave_pm',   val:-.5 },
+  mc:         {label:'MC',             short:'MC',       cls:'mc',         val:-1  },
+  ot_full:    {label:'Full Day OT',    short:'OT',       cls:'ot_full',    val:1   },
+  ot_am:      {label:'AM OT (½)',      short:'AM OT',    cls:'ot_am',      val:.5  },
+  ot_pm:      {label:'PM OT (½)',      short:'PM OT',    cls:'ot_pm',      val:.5  },
+};
+
+// ═══════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════
+let S = {
+  projects:[],
+  personnel:[],
+  workingDays:[],
+  entries:[],
+  calYear: new Date().getFullYear(),
+  calMonth: new Date().getMonth(),
+  selProjs: null,
+};
+
+function load() {
+  S.projects   = JSON.parse(localStorage.getItem('ts_projects')    || 'null')
+               || [{id:'p_orion',name:'ORION'},{id:'p_polaris',name:'POLARIS'},{id:'p_cordis',name:'CORDIS'}];
+  S.personnel  = JSON.parse(localStorage.getItem('ts_personnel')   || '[]');
+  S.workingDays= JSON.parse(localStorage.getItem('ts_workingDays') || '[]');
+  S.entries    = JSON.parse(localStorage.getItem('ts_entries')     || '[]');
+  S.calYear    = parseInt(localStorage.getItem('ts_calYear'))  || new Date().getFullYear();
+  S.calMonth   = parseInt(localStorage.getItem('ts_calMonth')) || new Date().getMonth();
+  const sp     = localStorage.getItem('ts_selProjs');
+  S.selProjs   = sp ? JSON.parse(sp) : null;
+}
+
+function save(k) { localStorage.setItem('ts_'+k, JSON.stringify(S[k])); }
+
+// ═══════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════
+function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+function fmtDate(ds) {
+  if (!ds) return '—';
+  const [y,m,d] = ds.split('-');
+  return d+' '+MN[+m-1].slice(0,3)+' '+y;
+}
+
+function dk(y,m,d) {
+  return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+
+function isWE(y,m,d)  { const w=new Date(y,m,d).getDay(); return w===0||w===6; }
+function isHol(ds)    { return !!SG_HOLIDAYS[ds]; }
+
+function initials(name) {
+  return (name||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+}
+
+function money(n) {
+  return '$'+Number(n).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function getRate(person, year, month) {
+  if (!person.rates||!person.rates.length) return null;
+  const ms = new Date(year,month,1), me = new Date(year,month+1,0);
+  for (const r of person.rates) {
+    const f=new Date(r.from+'T00:00:00'), t=new Date(r.to+'T00:00:00');
+    if (f<=me && t>=ms) return parseFloat(r.rate)||0;
+  }
+  return null;
+}
+
+function calcDays(pid, year, month, totalWD) {
+  let leave=0, ot=0;
+  S.entries.filter(e=>{
+    const [ey,em]=e.date.split('-').map(Number);
+    return e.personnelId===pid && ey===year && em-1===month;
+  }).forEach(e=>{
+    const v=ETYPES[e.type]?.val||0;
+    if(v<0) leave+=Math.abs(v); else ot+=v;
+  });
+  return {leave, ot, days: totalWD - leave + ot};
+}
+
+function getWD(year, month) {
+  const e=S.workingDays.find(w=>w.year===year&&w.month===month);
+  return e?e.days:null;
+}
+
+function getSelProjs() {
+  return S.selProjs || S.projects.map(p=>p.id);
+}
+
+// ═══════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════
+const TABS = ['projects','profile','workingdays','expenses','timesheet'];
+let curTab = 'projects';
+
+function showTab(tab) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  const i=TABS.indexOf(tab);
+  if(i>=0) document.querySelectorAll('.nav-btn')[i].classList.add('active');
+  curTab=tab;
+  ({projects:renderProjects,profile:renderProfile,workingdays:renderWD,expenses:renderExpenses,timesheet:renderTS})[tab]();
+}
+
+// ═══════════════════════════════════════
+// PROJECTS TAB
+// ═══════════════════════════════════════
+function renderProjects() {
+  const el=document.getElementById('tab-projects');
+  el.innerHTML=`
+  <div class="card">
+    <div class="card-title">📁 Projects <span class="card-badge">${S.projects.length}</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Project Name</th><th>Members</th><th></th></tr></thead>
+        <tbody>
+          ${S.projects.map((p,i)=>{
+            const cnt=S.personnel.filter(m=>(m.projectIds||[]).includes(p.id)).length;
+            return`<tr>
+              <td>${i+1}</td>
+              <td><strong>${p.name}</strong></td>
+              <td><span class="status status-active">${cnt} member${cnt!==1?'s':''}</span></td>
+              <td style="text-align:right">
+                <button class="btn btn-danger btn-sm" onclick="delProject('${p.id}')">Remove</button>
+              </td>
+            </tr>`;
+          }).join('')||`<tr><td colspan="4" class="empty-row">No projects yet.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">➕ Add New Project</div>
+    <div class="input-row">
+      <div class="form-group">
+        <label>Project Name</label>
+        <input id="newProjName" type="text" placeholder="e.g. ARTEMIS" onkeydown="if(event.key==='Enter')addProject()">
+      </div>
+      <button class="btn btn-primary" onclick="addProject()" style="flex-shrink:0">Add Project</button>
+    </div>
+  </div>`;
+}
+
+function addProject() {
+  const name=document.getElementById('newProjName').value.trim().toUpperCase();
+  if(!name) return alert('Please enter a project name.');
+  if(S.projects.find(p=>p.name===name)) return alert('Project already exists.');
+  S.projects.push({id:'p_'+uid(),name});
+  save('projects');
+  renderProjects();
+}
+
+function delProject(id) {
+  const p=S.projects.find(x=>x.id===id);
+  const cnt=S.personnel.filter(m=>(m.projectIds||[]).includes(id)).length;
+  const msg=cnt>0?`"${p.name}" has ${cnt} member(s). Remove anyway?`:`Remove project "${p.name}"?`;
+  if(!confirm(msg)) return;
+  if(cnt>0) { S.personnel.forEach(m=>{m.projectIds=(m.projectIds||[]).filter(x=>x!==id)}); save('personnel'); }
+  S.projects=S.projects.filter(x=>x.id!==id);
+  save('projects');
+  renderProjects();
+}
+
+// ═══════════════════════════════════════
+// PROFILE TAB
+// ═══════════════════════════════════════
+function renderProfile() {
+  const sorted=[...S.personnel].sort((a,b)=>{
+    if(!!a.offboard!==!!b.offboard) return a.offboard?1:-1;
+    return a.name.localeCompare(b.name);
+  });
+  const el=document.getElementById('tab-profile');
+  el.innerHTML=`
+  <div class="card">
+    <div class="card-title">👥 Personnel <span class="card-badge">${S.personnel.length}</span>
+      <button class="btn btn-primary btn-sm" onclick="openPersonModal()" style="margin-left:auto">+ Add</button>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Name</th><th>Company</th><th>Role</th><th>PO Until</th><th>Projects</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          ${sorted.map((p,i)=>{
+            const projs=(p.projectIds||[]).map(id=>S.projects.find(x=>x.id===id)?.name).filter(Boolean);
+            return`<tr ${p.offboard?'style="opacity:.6"':''}>
+              <td>${i+1}</td>
+              <td><strong>${p.name}</strong>${p.offboard&&p.offboardDate?`<br><span style="font-size:10px;color:var(--muted)">Off: ${fmtDate(p.offboardDate)}</span>`:''}</td>
+              <td>${p.company||'—'}</td>
+              <td>${p.role||'—'}</td>
+              <td>${fmtDate(p.poUntil)}</td>
+              <td>${projs.map(n=>`<span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:1px 6px;font-size:11px;margin:1px">${n}</span>`).join('')||'—'}</td>
+              <td><span class="status ${p.offboard?'status-offboard':'status-active'}">${p.offboard?'Offboarded':'Active'}</span></td>
+              <td style="white-space:nowrap">
+                <button class="btn btn-secondary btn-sm" onclick="openPersonModal('${p.id}')">Edit</button>
+                <button class="btn btn-danger btn-sm" onclick="delPerson('${p.id}')">Del</button>
+              </td>
+            </tr>`;
+          }).join('')||`<tr><td colspan="8" class="empty-row">No personnel added yet.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function openPersonModal(editId) {
+  const ex=editId?S.personnel.find(p=>p.id===editId):null;
+  const p=ex||{rates:[{from:'',to:'',rate:''}],projectIds:[],offboard:false};
+
+  const projChips=S.projects.map(proj=>`
+    <label class="proj-chip ${(p.projectIds||[]).includes(proj.id)?'checked':''}" data-projid="${proj.id}" onclick="toggleChip(this)">
+      <input type="checkbox"> ${proj.name}
+    </label>`).join('');
+
+  const ratesHtml=(p.rates&&p.rates.length?p.rates:[{from:'',to:'',rate:''}]).map((r,i)=>rateRow(r,i)).join('');
+
+  document.getElementById('modal-title').textContent=editId?'Edit Personnel':'Add Personnel';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="offboard-box">
+      <input type="checkbox" id="f_ob" ${p.offboard?'checked':''} onchange="document.getElementById('f_obdate_wrap').style.display=this.checked?'flex':'none'">
+      <label for="f_ob">⚠ Offboard</label>
+      <div id="f_obdate_wrap" style="display:${p.offboard?'flex':'none'};align-items:center;gap:6px;margin-left:auto">
+        <span style="font-size:12px;color:var(--warning)">Date:</span>
+        <input type="date" id="f_obdate" value="${p.offboardDate||''}" style="padding:5px 8px;border:1.5px solid #fed7aa;border-radius:6px;font-size:12px;width:auto">
+      </div>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Name *</label>
+        <input type="text" id="f_name" value="${p.name||''}">
+      </div>
+      <div class="form-group">
+        <label>Company *</label>
+        <input type="text" id="f_company" value="${p.company||''}">
+      </div>
+      <div class="form-group">
+        <label>Role *</label>
+        <input type="text" id="f_role" value="${p.role||''}">
+      </div>
+      <div class="form-group">
+        <label>Start Date</label>
+        <input type="date" id="f_start" value="${p.startDate||''}">
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:18px">
+      <label>Current PO Until</label>
+      <input type="date" id="f_po" value="${p.poUntil||''}">
+    </div>
+
+    <div class="sec-label">Monthly Rates</div>
+    <div id="ratesWrap">${ratesHtml}</div>
+    <button class="btn btn-secondary btn-sm" onclick="addRateRow()" style="margin-bottom:18px">+ Add Rate Period</button>
+
+    <div class="sec-label">Projects</div>
+    <div class="proj-chips" id="projChips">${projChips}</div>
+  `;
+  document.getElementById('modal-ftr').innerHTML=`
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="savePerson('${editId||''}')">Save</button>
+  `;
+  openModal();
+}
+
+function rateRow(r, i) {
+  return `<div class="rate-entry" id="rr_${i}">
+    <div class="form-group"><label>From</label><input type="date" class="r-from" value="${r.from||''}"></div>
+    <div class="form-group"><label>To</label><input type="date" class="r-to" value="${r.to||''}"></div>
+    <div class="form-group"><label>Rate (SGD/month)</label><input type="number" class="r-amt" value="${r.rate||''}" placeholder="e.g. 5000" min="0"></div>
+    <button class="btn btn-danger btn-sm" style="flex-shrink:0;align-self:flex-end" onclick="this.closest('.rate-entry').remove()">✕</button>
+  </div>`;
+}
+
+function addRateRow() {
+  const c=document.getElementById('ratesWrap');
+  const d=document.createElement('div');
+  d.innerHTML=rateRow({from:'',to:'',rate:''},c.children.length);
+  c.appendChild(d.firstElementChild);
+}
+
+function toggleChip(el) { el.classList.toggle('checked'); }
+
+function savePerson(editId) {
+  const name=document.getElementById('f_name').value.trim();
+  const company=document.getElementById('f_company').value.trim();
+  const role=document.getElementById('f_role').value.trim();
+  const startDate=document.getElementById('f_start').value;
+  const poUntil=document.getElementById('f_po').value;
+  const offboard=document.getElementById('f_ob').checked;
+  const offboardDate=document.getElementById('f_obdate').value;
+
+  if(!name||!company||!role) return alert('Name, Company, and Role are required.');
+  if(offboard&&!offboardDate) return alert('Please enter the offboard date.');
+
+  // Collect rates
+  const rows=document.querySelectorAll('#ratesWrap .rate-entry');
+  const rates=[];
+  for(const row of rows){
+    const from=row.querySelector('.r-from').value;
+    const to=row.querySelector('.r-to').value;
+    const amt=row.querySelector('.r-amt').value;
+    if(!from&&!to&&!amt) continue;
+    if(!from||!to||!amt) return alert('Please fill all fields for each rate period.');
+    if(poUntil&&to>poUntil) return alert(`Rate end date (${fmtDate(to)}) cannot be later than PO Until (${fmtDate(poUntil)}).`);
+    if(from>to) return alert('Rate "From" date cannot be after "To" date.');
+    rates.push({from,to,rate:parseFloat(amt)});
+  }
+  if(!rates.length) return alert('Please add at least one rate period.');
+  rates.sort((a,b)=>a.from.localeCompare(b.from));
+
+  const projectIds=[...document.querySelectorAll('#projChips .proj-chip.checked')].map(el=>el.dataset.projid);
+
+  const rec={
+    id:editId||uid(),name,company,role,startDate,poUntil,
+    rates,projectIds,offboard,offboardDate:offboard?offboardDate:null
+  };
+
+  if(editId){ const i=S.personnel.findIndex(p=>p.id===editId); if(i>=0) S.personnel[i]=rec; }
+  else S.personnel.push(rec);
+  save('personnel');
+  closeModal();
+  renderProfile();
+}
+
+function delPerson(id) {
+  const p=S.personnel.find(m=>m.id===id);
+  if(!confirm(`Remove "${p.name}"? This will also delete their leave/OT entries.`)) return;
+  S.personnel=S.personnel.filter(m=>m.id!==id);
+  S.entries=S.entries.filter(e=>e.personnelId!==id);
+  save('personnel'); save('entries');
+  renderProfile();
+}
+
+// ═══════════════════════════════════════
+// WORKING DAYS TAB
+// ═══════════════════════════════════════
+function renderWD() {
+  const sorted=[...S.workingDays].sort((a,b)=>b.year-a.year||b.month-a.month);
+  const el=document.getElementById('tab-workingdays');
+  el.innerHTML=`
+  <div class="card">
+    <div class="card-title">📅 Set Monthly Working Days</div>
+    <div class="input-row">
+      <div class="form-group">
+        <label>Year</label>
+        <select id="wd_y">${[2024,2025,2026,2027,2028].map(y=>`<option ${y===new Date().getFullYear()?'selected':''}>${y}</option>`).join('')}</select>
+      </div>
+      <div class="form-group">
+        <label>Month</label>
+        <select id="wd_m">${MN.map((m,i)=>`<option value="${i}" ${i===new Date().getMonth()?'selected':''}>${m}</option>`).join('')}</select>
+      </div>
+      <div class="form-group">
+        <label>Working Days</label>
+        <input type="number" id="wd_d" min="1" max="31" placeholder="e.g. 22" style="width:100px">
+      </div>
+      <button class="btn btn-primary" onclick="saveWD()" style="flex-shrink:0;margin-top:19px">Save</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">📋 Working Days History</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Year</th><th>Month</th><th>Working Days</th><th></th></tr></thead>
+        <tbody>
+          ${sorted.map(w=>`<tr>
+            <td>${w.year}</td>
+            <td>${MN[w.month]}</td>
+            <td><strong>${w.days}</strong></td>
+            <td style="text-align:right"><button class="btn btn-danger btn-sm" onclick="delWD(${w.year},${w.month})">Remove</button></td>
+          </tr>`).join('')||`<tr><td colspan="4" class="empty-row">No data yet. Add working days above.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function saveWD() {
+  const year=parseInt(document.getElementById('wd_y').value);
+  const month=parseInt(document.getElementById('wd_m').value);
+  const days=parseInt(document.getElementById('wd_d').value);
+  if(!days||days<1||days>31) return alert('Enter valid working days (1–31).');
+  const i=S.workingDays.findIndex(w=>w.year===year&&w.month===month);
+  if(i>=0) S.workingDays[i].days=days; else S.workingDays.push({year,month,days});
+  save('workingDays');
+  renderWD();
+}
+
+function delWD(year,month) {
+  if(!confirm(`Remove working days for ${MN[month]} ${year}?`)) return;
+  S.workingDays=S.workingDays.filter(w=>!(w.year===year&&w.month===month));
+  save('workingDays');
+  renderWD();
+}
+
+// ═══════════════════════════════════════
+// EXPENSES TAB
+// ═══════════════════════════════════════
+function renderExpenses() {
+  const el=document.getElementById('tab-expenses');
+  const months=[...S.workingDays].sort((a,b)=>b.year-a.year||b.month-a.month);
+
+  if(!months.length){
+    el.innerHTML=`<div class="card"><div style="text-align:center;padding:40px;color:var(--muted)">
+      <div style="font-size:36px;margin-bottom:8px">💰</div>
+      <p>No working days data. Add it in the <strong>Working Days</strong> tab first.</p>
+    </div></div>`;
+    return;
+  }
+
+  let html='';
+  for(const proj of S.projects){
+    const members=S.personnel.filter(p=>(p.projectIds||[]).includes(proj.id));
+    if(!members.length) continue;
+
+    let rows=[];
+    for(const {year,month,days} of months){
+      const mStart=new Date(year,month,1), mEnd=new Date(year,month+1,0);
+      for(const person of members){
+        // Only show if person was active during this month
+        if(person.startDate && new Date(person.startDate+'T00:00:00')>mEnd) continue;
+        if(person.poUntil  && new Date(person.poUntil+'T00:00:00')<mStart) continue;
+        const {leave,ot,days:worked}=calcDays(person.id,year,month,days);
+        const rate=getRate(person,year,month);
+        const cost=rate!==null?rate*(worked/days):null;
+        rows.push({yyyymm:`${year}${String(month+1).padStart(2,'0')}`,person,days,worked,leave,ot,rate,cost});
+      }
+    }
+
+    html+=`<div class="card">
+      <div class="exp-proj-hdr">📁 ${proj.name}</div>
+      <div style="margin-top:0">
+        <div class="tbl-wrap" style="margin-top:16px">
+          <table>
+            <thead><tr><th>YYYYMM</th><th>Name</th><th>Company</th><th>Days Worked / Total</th><th>Monthly Rate</th><th>Cost (SGD)</th></tr></thead>
+            <tbody>
+              ${rows.map(r=>`<tr>
+                <td>${r.yyyymm}</td>
+                <td><strong>${r.person.name}</strong></td>
+                <td>${r.person.company}</td>
+                <td>
+                  <strong>${r.worked}</strong>/${r.days}
+                  ${r.leave?`<span style="font-size:11px;color:var(--danger);margin-left:4px">-${r.leave}L</span>`:''}
+                  ${r.ot?`<span style="font-size:11px;color:var(--success);margin-left:4px">+${r.ot}OT</span>`:''}
+                </td>
+                <td>${r.rate!==null?money(r.rate):'<span style="color:var(--muted)">N/A</span>'}</td>
+                <td><strong>${r.cost!==null?money(r.cost):'—'}</strong></td>
+              </tr>`).join('')||`<tr><td colspan="6" class="empty-row">No active members for recorded months.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  el.innerHTML=html||`<div class="card"><div style="text-align:center;padding:40px;color:var(--muted)">
+    <p>No projects with assigned personnel found.</p>
+  </div></div>`;
+}
+
+// ═══════════════════════════════════════
+// TIMESHEET TAB
+// ═══════════════════════════════════════
+function renderTS() {
+  const el=document.getElementById('tab-timesheet');
+  const sel=getSelProjs();
+
+  const filterItems=S.projects.map(p=>`
+    <label class="filter-item">
+      <input type="checkbox" ${sel.includes(p.id)?'checked':''} onchange="toggleProjFilter('${p.id}',this.checked)">
+      <span>${p.name}</span>
+    </label>`).join('');
+
+  el.innerHTML=`
+  <div class="ts-layout">
+    <div class="ts-sidebar">
+      <h3>Filter Projects</h3>
+      ${filterItems||'<p style="font-size:12px;color:var(--muted)">No projects yet.</p>'}
+      <button class="btn btn-secondary btn-sm" style="margin-top:10px;width:100%" onclick="selAllProjs()">Select All</button>
+    </div>
+    <div class="ts-main" id="tsMain">${buildCalHTML()}</div>
+  </div>`;
+}
+
+function toggleProjFilter(id, checked) {
+  let sel=getSelProjs();
+  sel=checked?[...new Set([...sel,id])]:sel.filter(x=>x!==id);
+  S.selProjs=sel;
+  localStorage.setItem('ts_selProjs',JSON.stringify(sel));
+  document.getElementById('tsMain').innerHTML=buildCalHTML();
+}
+
+function selAllProjs() {
+  S.selProjs=S.projects.map(p=>p.id);
+  localStorage.setItem('ts_selProjs',JSON.stringify(S.selProjs));
+  renderTS();
+}
+
+function buildCalHTML() {
+  const y=S.calYear, m=S.calMonth;
+  const sel=getSelProjs();
+  const people=S.personnel.filter(p=>(p.projectIds||[]).some(id=>sel.includes(id))&&!p.offboard);
+  const dim=new Date(y,m+1,0).getDate();
+  const fdow=new Date(y,m,1).getDay();
+  const todayStr=dk(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());
+  const totalWD=getWD(y,m);
+
+  // Month entries for relevant people
+  const mEntries=S.entries.filter(e=>{
+    const[ey,em]=e.date.split('-').map(Number);
+    return ey===y&&em-1===m&&people.some(p=>p.id===e.personnelId);
+  });
+
+  // Build cells
+  let cells='';
+  for(let i=0;i<fdow;i++) cells+=`<div class="cal-cell empty"></div>`;
+  for(let d=1;d<=dim;d++){
+    const ds=dk(y,m,d);
+    const we=isWE(y,m,d), hol=isHol(ds), hn=SG_HOLIDAYS[ds]||'';
+    const today=ds===todayStr;
+    const de=mEntries.filter(e=>e.date===ds);
+    const badges=de.slice(0,3).map(e=>{
+      const pr=S.personnel.find(p=>p.id===e.personnelId);
+      const ec=ETYPES[e.type];
+      return`<div class="ebadge ${ec.cls}" onclick="clickBadge(event,'${e.id}')" title="${pr?.name}: ${ec.label}">${initials(pr?.name||'?')} ${ec.short}</div>`;
+    }).join('')+(de.length>3?`<div style="font-size:9px;color:var(--muted)">+${de.length-3} more</div>`:'');
+
+    cells+=`<div class="cal-cell ${we?'weekend':''} ${hol?'holiday':''} ${today?'today':''}" onclick="openDayModal('${ds}',${we},${hol})">
+      <div class="cal-day-num">${d}</div>
+      ${hn?`<div class="cal-hname">${hn}</div>`:''}
+      <div class="cal-entries">${badges}</div>
+    </div>`;
+  }
+
+  // Summary
+  let summaryHtml='';
+  if(totalWD!==null){
+    const mrows=people.map(p=>{
+      const{leave,ot,days}=calcDays(p.id,y,m,totalWD);
+      const parts=[];
+      if(leave) parts.push(`<span style="color:var(--danger);font-size:11px">-${leave} leave</span>`);
+      if(ot) parts.push(`<span style="color:var(--success);font-size:11px">+${ot} OT</span>`);
+      return`<tr>
+        <td><strong>${p.name}</strong></td>
+        <td>${p.company}</td>
+        <td>${p.role||'—'}</td>
+        <td><strong>${days}</strong> / ${totalWD} ${parts.join(' ')}</td>
+      </tr>`;
+    }).join('');
+    summaryHtml=`<div class="summary-card">
+      <h3>📊 ${MN[m]} ${y} Summary</h3>
+      <div class="wd-total">Total Working Days: <strong>${totalWD}</strong></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Name</th><th>Company</th><th>Role</th><th>Days Worked / Total</th></tr></thead>
+        <tbody>${mrows||`<tr><td colspan="4" class="empty-row">No members in selected projects.</td></tr>`}</tbody>
+      </table></div>
+    </div>`;
+  } else {
+    summaryHtml=`<div class="summary-card"><div class="alert alert-warn">
+      ⚠ Working days for ${MN[m]} ${y} not set. Add it in the <strong>Working Days</strong> tab.
+    </div></div>`;
+  }
+
+  return`
+  <div class="card">
+    <div class="cal-nav">
+      <button class="cal-arrow" onclick="chgMonth(-1)">‹</button>
+      <h2>${MN[m]} ${y}</h2>
+      <button class="cal-arrow" onclick="chgMonth(1)">›</button>
+      <button class="btn btn-secondary btn-sm" onclick="goToday()">Today</button>
+    </div>
+    <div class="legend">
+      <div class="leg-item"><div class="leg-dot" style="background:#fee2e2"></div>Leave</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#fef3c7"></div>AM/PM Leave</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#f3e8ff"></div>MC</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#dcfce7"></div>OT</div>
+      <div class="leg-item"><div class="leg-dot" style="background:#fff7ed;border:1px solid #fed7aa"></div>Holiday</div>
+    </div>
+    <div class="cal-grid">
+      ${DOW.map(d=>`<div class="cal-dow">${d}</div>`).join('')}
+      ${cells}
+    </div>
+  </div>
+  ${summaryHtml}`;
+}
+
+function chgMonth(dir){
+  S.calMonth+=dir;
+  if(S.calMonth>11){S.calMonth=0;S.calYear++;}
+  if(S.calMonth<0){S.calMonth=11;S.calYear--;}
+  localStorage.setItem('ts_calYear',S.calYear);
+  localStorage.setItem('ts_calMonth',S.calMonth);
+  document.getElementById('tsMain').innerHTML=buildCalHTML();
+}
+
+function goToday(){
+  S.calYear=new Date().getFullYear();
+  S.calMonth=new Date().getMonth();
+  localStorage.setItem('ts_calYear',S.calYear);
+  localStorage.setItem('ts_calMonth',S.calMonth);
+  document.getElementById('tsMain').innerHTML=buildCalHTML();
+}
+
+// ═══════════════════════════════════════
+// DAY MODAL
+// ═══════════════════════════════════════
+function openDayModal(ds, isWe, isHol) {
+  const sel=getSelProjs();
+  const people=S.personnel.filter(p=>(p.projectIds||[]).some(id=>sel.includes(id))&&!p.offboard);
+  const [y,m,d]=ds.split('-');
+  const dispDate=`${parseInt(d)} ${MN[parseInt(m)-1]} ${y}`;
+
+  const existing=S.entries.filter(e=>e.date===ds&&people.some(p=>p.id===e.personnelId));
+
+  const existHtml=existing.length?`
+    <div style="margin-bottom:14px">
+      <div class="sec-label">Entries on this day</div>
+      ${existing.map(e=>{
+        const pr=S.personnel.find(p=>p.id===e.personnelId);
+        const ec=ETYPES[e.type];
+        return`<div class="exist-entry">
+          <span><strong>${pr?.name}</strong> — <span class="ebadge ${ec.cls}" style="display:inline">${ec.label}</span></span>
+          <button class="btn btn-danger btn-sm" onclick="removeEntry('${e.id}','${ds}',${isWe},${isHol})">Remove</button>
+        </div>`;
+      }).join('')}
+    </div>`:'';
+
+  const personOpts=people.map(p=>`<option value="${p.id}">${p.name} (${p.company})</option>`).join('');
+
+  const leaveTypeBtns=['leave_full','leave_am','leave_pm','mc'].map(t=>{
+    const ec=ETYPES[t];
+    return`<button class="type-btn ${t==='mc'?'mc-btn':''}" onclick="selType(this,'${t}')">${ec.label}</button>`;
+  }).join('');
+  const otTypeBtns=['ot_full','ot_am','ot_pm'].map(t=>{
+    const ec=ETYPES[t];
+    return`<button class="type-btn" onclick="selType(this,'${t}')">${ec.label}</button>`;
+  }).join('');
+
+  document.getElementById('modal-title').textContent=`📅 ${dispDate}`;
+  document.getElementById('modal-body').innerHTML=`
+    ${existHtml}
+    ${people.length===0?`<p style="color:var(--muted);font-size:13px;text-align:center;padding:16px 0">No personnel in selected projects.</p>`:`
+    <div>
+      <div class="sec-label">Add Entry</div>
+      <div class="form-group">
+        <label>Personnel</label>
+        <select id="ep_person">${personOpts}</select>
+      </div>
+      ${!isWe&&!isHol?`<div class="type-section">Leave / MC</div><div class="type-grid" style="grid-template-columns:repeat(4,1fr)">${leaveTypeBtns}</div>`:''}
+      <div class="type-section">Overtime</div>
+      <div class="type-grid">${otTypeBtns}</div>
+      <input type="hidden" id="ep_type" value="">
+      <input type="hidden" id="ep_date" value="${ds}">
+    </div>`}
+  `;
+  document.getElementById('modal-ftr').innerHTML=`
+    <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+    ${people.length>0?`<button class="btn btn-primary" onclick="addEntry()">Add Entry</button>`:''}
+  `;
+  openModal();
+}
+
+function selType(btn,type){
+  document.querySelectorAll('.type-btn').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+  document.getElementById('ep_type').value=type;
+}
+
+function addEntry(){
+  const pid=document.getElementById('ep_person').value;
+  const type=document.getElementById('ep_type').value;
+  const date=document.getElementById('ep_date').value;
+  if(!type) return alert('Please select a type.');
+  if(S.entries.find(e=>e.personnelId===pid&&e.date===date&&e.type===type))
+    return alert('This entry already exists for this person on this date.');
+  S.entries.push({id:uid(),personnelId:pid,date,type});
+  save('entries');
+  closeModal();
+  document.getElementById('tsMain').innerHTML=buildCalHTML();
+}
+
+function removeEntry(id,ds,isWe,isHol){
+  S.entries=S.entries.filter(e=>e.id!==id);
+  save('entries');
+  closeModal();
+  setTimeout(()=>{
+    if(document.getElementById('tsMain'))
+      document.getElementById('tsMain').innerHTML=buildCalHTML();
+    openDayModal(ds,isWe,isHol);
+  },50);
+}
+
+function clickBadge(evt, id){
+  evt.stopPropagation();
+  if(confirm('Remove this entry?')){
+    S.entries=S.entries.filter(e=>e.id!==id);
+    save('entries');
+    document.getElementById('tsMain').innerHTML=buildCalHTML();
+  }
+}
+
+// ═══════════════════════════════════════
+// MODAL HELPERS
+// ═══════════════════════════════════════
+function openModal()  { document.getElementById('modal-overlay').classList.add('open'); }
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+document.getElementById('modal-overlay').addEventListener('click',function(e){
+  if(e.target===this) closeModal();
+});
+
+// ═══════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════
+load();
+renderProjects();
+</script>
+</body>
+</html>
