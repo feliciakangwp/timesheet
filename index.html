@@ -243,14 +243,15 @@ const SG_HOLIDAYS = {
   '2025-12-25':"Christmas Day",
   '2026-01-01':"New Year's Day",'2026-02-17':"Chinese New Year",'2026-02-18':"Chinese New Year",
   '2026-03-20':"Hari Raya Puasa",'2026-04-03':"Good Friday",'2026-05-01':"Labour Day",
-  '2026-05-22':"Vesak Day",'2026-05-27':"Hari Raya Haji",
-  '2026-08-09':"National Day (Sun)",'2026-08-10':"National Day (sub)",'2026-10-19':"Deepavali",
+  '2026-05-27':"Hari Raya Haji",'2026-05-31':"Vesak Day",'2026-06-01':"Vesak Day (sub)",
+  '2026-08-09':"National Day",'2026-08-10':"National Day (sub)",
+  '2026-11-08':"Deepavali",'2026-11-09':"Deepavali (sub)",
   '2026-12-25':"Christmas Day",
   '2027-01-01':"New Year's Day",'2027-02-06':"Chinese New Year",'2027-02-07':"Chinese New Year",
   '2027-02-08':"CNY (sub)",'2027-02-09':"CNY (sub)",
   '2027-03-09':"Hari Raya Puasa",'2027-03-26':"Good Friday",
   '2027-05-01':"Labour Day",'2027-05-03':"Labour Day (sub)",
-  '2027-05-16':"Hari Raya Haji",'2027-05-18':"Hari Raya Haji (sub)",'2027-05-20':"Vesak Day",
+  '2027-05-16':"Hari Raya Haji",'2027-05-17':"Hari Raya Haji (sub)",'2027-05-20':"Vesak Day",
   '2027-08-09':"National Day",'2027-10-27':"Deepavali",
   '2027-12-25':"Christmas Day",'2027-12-27':"Christmas (sub)",
 };
@@ -285,8 +286,24 @@ let S = {
 function load() {
   S.projects   = JSON.parse(localStorage.getItem('ts_projects')    || 'null')
                || [{id:'p_orion',name:'ORION'},{id:'p_polaris',name:'POLARIS'},{id:'p_cordis',name:'CORDIS'}];
-  S.personnel  = JSON.parse(localStorage.getItem('ts_personnel')   || '[]');
-  S.workingDays= JSON.parse(localStorage.getItem('ts_workingDays') || '[]');
+  S.personnel  = JSON.parse(localStorage.getItem('ts_personnel')   || 'null')
+               || [
+    {id:'per_shivani',name:'Shivani',company:'EY',role:'Developer - Consultant',
+     startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-08-31',
+     rates:[{from:'2026-09-01',to:'2027-08-31',rate:10000}],
+     projectIds:['p_orion'],offboard:false,offboardDate:null},
+    {id:'per_dharani',name:'Dharani',company:'SimplifyNext',role:'Developer - Consultant',
+     startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-08-31',
+     rates:[{from:'2026-09-01',to:'2027-08-31',rate:10000}],
+     projectIds:['p_orion'],offboard:false,offboardDate:null}
+  ];
+  S.workingDays= JSON.parse(localStorage.getItem('ts_workingDays') || 'null')
+               || [
+    {year:2026,month:1,days:18},{year:2026,month:2,days:21},{year:2026,month:3,days:21},
+    {year:2026,month:4,days:19},{year:2026,month:5,days:21},{year:2026,month:6,days:23},
+    {year:2026,month:7,days:20},{year:2026,month:8,days:22},{year:2026,month:9,days:22},
+    {year:2026,month:10,days:20},{year:2026,month:11,days:20}
+  ];
   S.entries    = JSON.parse(localStorage.getItem('ts_entries')     || '[]');
   S.calYear    = parseInt(localStorage.getItem('ts_calYear'))  || new Date().getFullYear();
   S.calMonth   = parseInt(localStorage.getItem('ts_calMonth')) || new Date().getMonth();
@@ -444,18 +461,18 @@ function renderProfile() {
     </div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>#</th><th>Name</th><th>Company</th><th>Role</th><th>PO Until</th><th>Projects</th><th>Status</th><th></th></tr></thead>
+        <thead><tr><th>Status</th><th>Name</th><th>Company</th><th>Role</th><th>PO Start</th><th>PO Until</th><th>Monthly Rate(s)</th><th></th></tr></thead>
         <tbody>
-          ${sorted.map((p,i)=>{
-            const projs=(p.projectIds||[]).map(id=>S.projects.find(x=>x.id===id)?.name).filter(Boolean);
-            return`<tr ${p.offboard?'style="opacity:.6"':''}>
-              <td>${i+1}</td>
+          ${sorted.map((p)=>{
+            const rateStr=(p.rates||[]).map(r=>`<span style="white-space:nowrap">${fmtDate(r.from)}–${fmtDate(r.to)}: <strong>$${Number(r.rate).toLocaleString()}</strong></span>`).join('<br>');
+            return`<tr ${p.offboard?'style="opacity:.55"':''}>
+              <td><span class="status ${p.offboard?'status-offboard':'status-active'}">${p.offboard?'Offboarded':'Active'}</span></td>
               <td><strong>${p.name}</strong>${p.offboard&&p.offboardDate?`<br><span style="font-size:10px;color:var(--muted)">Off: ${fmtDate(p.offboardDate)}</span>`:''}</td>
               <td>${p.company||'—'}</td>
               <td>${p.role||'—'}</td>
-              <td>${fmtDate(p.poUntil)}</td>
-              <td>${projs.map(n=>`<span style="display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:4px;padding:1px 6px;font-size:11px;margin:1px">${n}</span>`).join('')||'—'}</td>
-              <td><span class="status ${p.offboard?'status-offboard':'status-active'}">${p.offboard?'Offboarded':'Active'}</span></td>
+              <td style="white-space:nowrap">${fmtDate(p.poStart)}</td>
+              <td style="white-space:nowrap">${fmtDate(p.poUntil)}</td>
+              <td style="font-size:12px;line-height:1.7">${rateStr||'—'}</td>
               <td style="white-space:nowrap">
                 <button class="btn btn-secondary btn-sm" onclick="openPersonModal('${p.id}')">Edit</button>
                 <button class="btn btn-danger btn-sm" onclick="delPerson('${p.id}')">Del</button>
@@ -507,9 +524,13 @@ function openPersonModal(editId) {
         <input type="date" id="f_start" value="${p.startDate||''}">
       </div>
     </div>
-    <div class="form-group" style="margin-bottom:18px">
-      <label>Current PO Until</label>
-      <input type="date" id="f_po" value="${p.poUntil||''}">
+    <div class="form-grid" style="margin-bottom:18px">
+      <div class="form-group" style="margin-bottom:0"><label>PO Start Date</label>
+        <input type="date" id="f_postart" value="${p.poStart||''}">
+      </div>
+      <div class="form-group" style="margin-bottom:0"><label>PO Until</label>
+        <input type="date" id="f_po" value="${p.poUntil||''}">
+      </div>
     </div>
 
     <div class="sec-label">Monthly Rates</div>
@@ -549,6 +570,7 @@ function savePerson(editId) {
   const company=document.getElementById('f_company').value.trim();
   const role=document.getElementById('f_role').value.trim();
   const startDate=document.getElementById('f_start').value;
+  const poStart=document.getElementById('f_postart').value;
   const poUntil=document.getElementById('f_po').value;
   const offboard=document.getElementById('f_ob').checked;
   const offboardDate=document.getElementById('f_obdate').value;
@@ -575,7 +597,7 @@ function savePerson(editId) {
   const projectIds=[...document.querySelectorAll('#projChips .proj-chip.checked')].map(el=>el.dataset.projid);
 
   const rec={
-    id:editId||uid(),name,company,role,startDate,poUntil,
+    id:editId||uid(),name,company,role,startDate,poStart,poUntil,
     rates,projectIds,offboard,offboardDate:offboard?offboardDate:null
   };
 
