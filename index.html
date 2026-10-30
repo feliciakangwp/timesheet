@@ -232,6 +232,15 @@ tbody tr:hover td{background:#f8fafc}
   .type-grid{grid-template-columns:1fr 1fr}
   .cal-day-num{font-size:11px}
 }
+/* SPRINT / PROJECT DETAIL */
+.sprint-card{border:1.5px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+.sprint-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px;flex-wrap:wrap}
+.sprint-meta{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;margin-bottom:10px}
+.sprint-dev-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--border)}
+.proj-status{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.3px}
+.proj-status.ps-active{background:#dcfce7;color:#15803d}
+.proj-status.ps-hold{background:#fff7ed;color:#d97706}
+.proj-status.ps-done{background:#eff6ff;color:#2563eb}
 </style>
 </head>
 <body>
@@ -309,6 +318,7 @@ const ETYPES = {
 let wdYear = new Date().getFullYear();
 let expSelProj = null;
 let curPersonId = null;
+let curProjectId = null;
 let profileSort = {col:'name', dir:'asc'};
 let S = {
   projects:[],
@@ -316,6 +326,7 @@ let S = {
   workingDays:[],
   entries:[],
   billingPeriods:[],
+  sprints:[],
   calYear: new Date().getFullYear(),
   calMonth: new Date().getMonth(),
   selProjs: null,
@@ -323,7 +334,7 @@ let S = {
 
 function load() {
   S.projects   = JSON.parse(localStorage.getItem('ts_projects')    || 'null')
-               || [{id:'p_orion',name:'ORION'},{id:'p_polaris',name:'POLARIS'},{id:'p_cordis',name:'CORDIS'},{id:'p_hourly',name:'HOURLY CONSULTATIONS'}];
+               || [{id:'p_orion',name:'ORION',status:'active'},{id:'p_polaris',name:'POLARIS',status:'active'},{id:'p_cordis',name:'CORDIS',status:'active'},{id:'p_hourly',name:'HOURLY CONSULTATIONS',status:'active'}];
   S.personnel  = JSON.parse(localStorage.getItem('ts_personnel')   || 'null')
                || [
     {id:'per_shivani',   name:'Shivani',     company:'EY',           role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-02-01',poStart:'2026-02-01',poUntil:'2027-08-31', rates:[{from:'2026-02-01',to:'2026-08-31',rate:9000},{from:'2026-09-01',to:'2027-08-31',rate:10000}], projectIds:['p_orion'],   offboard:false,offboardDate:null,remarks:''},
@@ -333,8 +344,8 @@ function load() {
     {id:'per_chris',     name:'Christopher', company:'SimplifyNext', role:'BA - Snr Consultant',     chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:15000}], projectIds:['p_cordis'],  offboard:false,offboardDate:null,remarks:''},
     {id:'per_norman',    name:'Norman',      company:'Cognizant',    role:'BA - Consultant',         chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'],  offboard:false,offboardDate:null,remarks:''},
     {id:'per_gyan',      name:'Gyan',        company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'],  offboard:false,offboardDate:null,remarks:''},
-    {id:'per_eejya',     name:'Eejya',       company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'], offboard:false,offboardDate:null,remarks:''},
-    {id:'per_pradipta',  name:'Pradipta',    company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'], offboard:false,offboardDate:null,remarks:''},
+    {id:'per_eejya',     name:'Eejya',       company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-08-18',poStart:'2026-08-18',poUntil:'2027-12-31', rates:[{from:'2026-08-18',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'], offboard:false,offboardDate:null,remarks:''},
+    {id:'per_pradipta',  name:'Pradipta',    company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-08-18',poStart:'2026-08-18',poUntil:'2027-12-31', rates:[{from:'2026-08-18',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'], offboard:false,offboardDate:null,remarks:''},
     {id:'per_raja',      name:'Raja',        company:'ServiceNow',   role:'Consultant',              chargeType:'hourly',  startDate:'2026-02-01',poStart:'2026-02-01',poUntil:null,          rates:[], hourlyRate:200, poHours:400,                              projectIds:['p_hourly'], offboard:false,offboardDate:null,remarks:''},
     {id:'per_manfred',   name:'Manfred',     company:'NCS',          role:'BA - Consultant',          chargeType:'monthly', startDate:'2026-08-18',poStart:'2026-08-18',poUntil:'2027-01-31', rates:[{from:'2026-08-18',to:'2027-01-31',rate:10000}],               projectIds:['p_cordis'], offboard:true, offboardDate:'2026-10-29',remarks:''}
   ];
@@ -423,6 +434,34 @@ function load() {
     {id:'bp_8',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-08-27',periodEnd:'2026-09-26',yyyymm:'202609',totalHours:76,  rate:200,amount:15200,createdAt:1759276800000},
     {id:'bp_9',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-09-27',periodEnd:'2026-10-26',yyyymm:'202610',totalHours:32,  rate:200,amount:6400, createdAt:1761955200000},
   ];
+  S.sprints    = JSON.parse(localStorage.getItem('ts_sprints') || 'null') || [
+    {id:'s_o1', projectId:'p_orion',name:'Sprint 1', startDate:'2026-02-01',endDate:'2026-02-14',completedHours:{per_shivani:62,per_dharani:64}},
+    {id:'s_o2', projectId:'p_orion',name:'Sprint 2', startDate:'2026-02-15',endDate:'2026-02-28',completedHours:{per_shivani:46,per_dharani:48}},
+    {id:'s_o3', projectId:'p_orion',name:'Sprint 3', startDate:'2026-03-01',endDate:'2026-03-14',completedHours:{per_shivani:64,per_dharani:62}},
+    {id:'s_o4', projectId:'p_orion',name:'Sprint 4', startDate:'2026-03-15',endDate:'2026-03-28',completedHours:{per_shivani:55,per_dharani:57}},
+    {id:'s_o5', projectId:'p_orion',name:'Sprint 5', startDate:'2026-03-29',endDate:'2026-04-11',completedHours:{per_shivani:56,per_dharani:54}},
+    {id:'s_o6', projectId:'p_orion',name:'Sprint 6', startDate:'2026-04-12',endDate:'2026-04-25',completedHours:{per_shivani:62,per_dharani:64}},
+    {id:'s_o7', projectId:'p_orion',name:'Sprint 7', startDate:'2026-04-26',endDate:'2026-05-09',completedHours:{per_shivani:52,per_dharani:55}},
+    {id:'s_o8', projectId:'p_orion',name:'Sprint 8', startDate:'2026-05-10',endDate:'2026-05-23',completedHours:{per_shivani:64,per_dharani:62}},
+    {id:'s_o9', projectId:'p_orion',name:'Sprint 9', startDate:'2026-05-24',endDate:'2026-06-06',completedHours:{per_shivani:48,per_dharani:46}},
+    {id:'s_o10',projectId:'p_orion',name:'Sprint 10',startDate:'2026-06-07',endDate:'2026-06-20',completedHours:{per_shivani:62,per_dharani:64}},
+    {id:'s_o11',projectId:'p_orion',name:'Sprint 11',startDate:'2026-06-21',endDate:'2026-07-04',completedHours:{per_shivani:64,per_dharani:60}},
+    {id:'s_o12',projectId:'p_orion',name:'Sprint 12',startDate:'2026-07-05',endDate:'2026-07-18',completedHours:{per_shivani:62,per_dharani:62}},
+    {id:'s_o13',projectId:'p_orion',name:'Sprint 13',startDate:'2026-07-19',endDate:'2026-08-01',completedHours:{per_shivani:64,per_dharani:60}},
+    {id:'s_o14',projectId:'p_orion',name:'Sprint 14',startDate:'2026-08-02',endDate:'2026-08-15',completedHours:{per_shivani:54,per_dharani:56}},
+    {id:'s_o15',projectId:'p_orion',name:'Sprint 15',startDate:'2026-08-16',endDate:'2026-08-29',completedHours:{per_shivani:62,per_dharani:64}},
+    {id:'s_o16',projectId:'p_orion',name:'Sprint 16',startDate:'2026-08-30',endDate:'2026-09-12',completedHours:{per_shivani:64,per_dharani:62}},
+    {id:'s_o17',projectId:'p_orion',name:'Sprint 17',startDate:'2026-09-13',endDate:'2026-09-26',completedHours:{per_shivani:60,per_dharani:64}},
+    {id:'s_o18',projectId:'p_orion',name:'Sprint 18',startDate:'2026-09-27',endDate:'2026-10-10',completedHours:{per_shivani:62,per_dharani:62}},
+    {id:'s_o19',projectId:'p_orion',name:'Sprint 19',startDate:'2026-10-11',endDate:'2026-10-24',completedHours:{per_shivani:60,per_dharani:58}},
+    {id:'s_o20',projectId:'p_orion',name:'Sprint 20',startDate:'2026-10-25',endDate:'2026-11-07',completedHours:{per_shivani:28,per_dharani:32}},
+    {id:'s_p1', projectId:'p_polaris',name:'Sprint 1',startDate:'2026-08-18',endDate:'2026-08-31',completedHours:{per_eejya:62,per_pradipta:60}},
+    {id:'s_p2', projectId:'p_polaris',name:'Sprint 2',startDate:'2026-09-01',endDate:'2026-09-14',completedHours:{per_eejya:64,per_pradipta:62}},
+    {id:'s_p3', projectId:'p_polaris',name:'Sprint 3',startDate:'2026-09-15',endDate:'2026-09-28',completedHours:{per_eejya:60,per_pradipta:64}},
+    {id:'s_p4', projectId:'p_polaris',name:'Sprint 4',startDate:'2026-09-29',endDate:'2026-10-12',completedHours:{per_eejya:62,per_pradipta:60}},
+    {id:'s_p5', projectId:'p_polaris',name:'Sprint 5',startDate:'2026-10-13',endDate:'2026-10-26',completedHours:{per_eejya:58,per_pradipta:60}},
+    {id:'s_p6', projectId:'p_polaris',name:'Sprint 6',startDate:'2026-10-27',endDate:'2026-11-09',completedHours:{per_eejya:22,per_pradipta:24}},
+  ];
   S.calYear    = parseInt(localStorage.getItem('ts_calYear'))  || new Date().getFullYear();
   S.calMonth   = parseInt(localStorage.getItem('ts_calMonth')) || new Date().getMonth();
   const sp     = localStorage.getItem('ts_selProjs');
@@ -508,23 +547,25 @@ function showTab(tab) {
 // PROJECTS TAB
 // ═══════════════════════════════════════
 function renderProjects() {
+  curProjectId=null;
   const el=document.getElementById('tab-projects');
+  const statusCls={active:'ps-active',completed:'ps-done',hold:'ps-hold'};
+  const statusLabel={active:'Active',completed:'Completed',hold:'On Hold'};
   el.innerHTML=`
   <div class="card">
     <div class="card-title">📁 Projects <span class="card-badge">${S.projects.length}</span></div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>#</th><th>Project Name</th><th>Members</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Project Name</th><th>Members</th><th>Status</th></tr></thead>
         <tbody>
           ${S.projects.map((p,i)=>{
             const cnt=S.personnel.filter(m=>(m.projectIds||[]).includes(p.id)).length;
-            return`<tr>
+            const st=p.status||'active';
+            return`<tr style="cursor:pointer" onclick="showProjectDetail('${p.id}')">
               <td>${i+1}</td>
               <td><strong>${p.name}</strong></td>
               <td><span class="status status-active">${cnt} member${cnt!==1?'s':''}</span></td>
-              <td style="text-align:right">
-                <button class="btn btn-danger btn-sm" onclick="delProject('${p.id}')">Remove</button>
-              </td>
+              <td><span class="proj-status ${statusCls[st]||'ps-active'}">${statusLabel[st]||'Active'}</span></td>
             </tr>`;
           }).join('')||`<tr><td colspan="4" class="empty-row">No projects yet.</td></tr>`}
         </tbody>
@@ -547,7 +588,7 @@ function addProject() {
   const name=document.getElementById('newProjName').value.trim().toUpperCase();
   if(!name) return alert('Please enter a project name.');
   if(S.projects.find(p=>p.name===name)) return alert('Project already exists.');
-  S.projects.push({id:'p_'+uid(),name});
+  S.projects.push({id:'p_'+uid(),name,status:'active'});
   save('projects');
   renderProjects();
 }
@@ -561,6 +602,173 @@ function delProject(id) {
   S.projects=S.projects.filter(x=>x.id!==id);
   save('projects');
   renderProjects();
+}
+
+function workDaysInRange(startStr, endStr) {
+  const s=new Date(startStr+'T00:00:00'), e=new Date(endStr+'T00:00:00');
+  let n=0;
+  for(let d=new Date(s);d<=e;d.setDate(d.getDate()+1)){
+    const dow=d.getDay();
+    if(dow===0||dow===6) continue;
+    const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    if(!SG_HOLIDAYS[ds]) n++;
+  }
+  return n;
+}
+
+function projDevs(projectId) {
+  return S.personnel.filter(p=>(p.projectIds||[]).includes(projectId)&&!p.offboard&&(p.role||'').toLowerCase().includes('developer'));
+}
+function projBAs(projectId) {
+  return S.personnel.filter(p=>(p.projectIds||[]).includes(projectId)&&!p.offboard&&!(p.role||'').toLowerCase().includes('developer')&&(p.chargeType||'monthly')==='monthly');
+}
+function sprintStats(spr) {
+  const devs=projDevs(spr.projectId);
+  const wd=workDaysInRange(spr.startDate,spr.endDate);
+  const totalH=wd*8*devs.length;
+  const effectiveH=Math.round(totalH*0.8*10)/10;
+  const completedH=Object.values(spr.completedHours||{}).reduce((s,v)=>s+(parseFloat(v)||0),0);
+  const pct=effectiveH>0?Math.round(completedH/effectiveH*100):0;
+  return {devs,wd,totalH,effectiveH,completedH,pct};
+}
+
+function showProjectDetail(id) {
+  curProjectId=id;
+  const proj=S.projects.find(p=>p.id===id);
+  if(!proj){renderProjects();return;}
+  const devs=projDevs(id);
+  const bas=projBAs(id);
+  const sprints=S.sprints.filter(s=>s.projectId===id).sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  const status=proj.status||'active';
+  const statusCls={active:'ps-active',completed:'ps-done',hold:'ps-hold'};
+  document.getElementById('tab-projects').innerHTML=`
+  <div class="card">
+    <div><span class="detail-back" onclick="renderProjects()">← Back to Projects</span></div>
+    <div style="display:flex;align-items:center;gap:12px;margin:12px 0 20px;flex-wrap:wrap">
+      <h2 style="margin:0;font-size:18px;font-weight:700">📁 ${proj.name}</h2>
+      <select onchange="setProjectStatus('${id}',this.value)" style="padding:5px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px;font-weight:600;background:#fff;color:var(--text)">
+        <option value="active"    ${status==='active'   ?'selected':''}>Active</option>
+        <option value="completed" ${status==='completed'?'selected':''}>Completed</option>
+        <option value="hold"      ${status==='hold'     ?'selected':''}>On Hold</option>
+      </select>
+    </div>
+    ${devs.length?`<div class="sec-label">Developers</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      ${devs.map(p=>`<div style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px">
+        <strong>${p.name}</strong><span style="color:var(--muted)">${p.company}</span>
+      </div>`).join('')}
+    </div>`:''}
+    ${bas.length?`<div class="sec-label">Business Analysts</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+      ${bas.map(p=>`<div style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:12px">
+        <strong>${p.name}</strong><span style="color:var(--muted)">${p.company}</span>
+      </div>`).join('')}
+    </div>`:''}
+    <div style="display:flex;align-items:center;margin-bottom:16px">
+      <div class="sec-label" style="margin:0;flex:1">Sprints (${sprints.length})</div>
+      <button class="btn btn-primary btn-sm" onclick="openSprintModal('${id}')">▶ Start Sprint</button>
+    </div>
+    ${sprints.map(spr=>{
+      const st=sprintStats(spr);
+      const pctColor=st.pct>=80?'#16a34a':st.pct>=50?'#d97706':'#dc2626';
+      return`<div class="sprint-card">
+        <div class="sprint-hdr">
+          <div>
+            <strong>${spr.name}</strong>
+            <span style="font-size:11px;color:var(--muted);margin-left:8px">${fmtDate(spr.startDate)} – ${fmtDate(spr.endDate)}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <strong style="color:${pctColor};font-size:16px">${st.pct}%</strong>
+            <button class="btn btn-danger btn-sm" onclick="delSprint('${spr.id}')">✕</button>
+          </div>
+        </div>
+        <div class="sprint-meta">
+          <span>Working Days: <strong>${st.wd}</strong></span>
+          <span>Total: <strong>${st.totalH}h</strong></span>
+          <span>Effective (80%): <strong>${st.effectiveH}h</strong></span>
+          <span>Completed: <strong style="color:${pctColor}">${st.completedH}h</strong></span>
+        </div>
+        <div class="po-bar" style="margin-bottom:12px">
+          <div class="po-bar-fill" style="width:${Math.min(100,st.pct)}%;background:${pctColor}"></div>
+        </div>
+        ${st.devs.map(dev=>{
+          const h=(spr.completedHours||{})[dev.id]||'';
+          return`<div class="sprint-dev-row">
+            <div style="width:120px;font-size:13px;font-weight:600">${dev.name}</div>
+            <input type="number" min="0" value="${h}" placeholder="0"
+              style="width:80px;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;text-align:center;background:#fff;color:var(--text)"
+              onchange="updateDevHours('${spr.id}','${dev.id}',this.value)">
+            <span style="font-size:11px;color:var(--muted)">hours</span>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('')||`<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px">No sprints yet. Click "▶ Start Sprint" to create one.</div>`}
+  </div>`;
+}
+
+function setProjectStatus(id, val) {
+  const proj=S.projects.find(p=>p.id===id);
+  if(proj){proj.status=val;save('projects');}
+}
+
+function openSprintModal(projectId) {
+  document.getElementById('modal-title').textContent='Start Sprint';
+  document.getElementById('modal-body').innerHTML=`
+    <div class="form-group"><label>Start Date</label>
+      <input type="date" id="spr_start" onchange="updateSprintPreview('${projectId}')"></div>
+    <div class="form-group"><label>End Date</label>
+      <input type="date" id="spr_end" onchange="updateSprintPreview('${projectId}')"></div>
+    <div id="spr_preview" class="bp-preview"></div>`;
+  document.getElementById('modal-ftr').innerHTML=`
+    <button class="btn btn-primary" onclick="saveSprint('${projectId}')">Create Sprint</button>`;
+  openModal();
+}
+
+function updateSprintPreview(projectId) {
+  const start=document.getElementById('spr_start')?.value;
+  const end=document.getElementById('spr_end')?.value;
+  const prev=document.getElementById('spr_preview');
+  if(!prev) return;
+  if(!start||!end||end<start){prev.className='bp-preview';return;}
+  const d=projDevs(projectId);
+  const wd=workDaysInRange(start,end);
+  const totalH=wd*8*d.length;
+  const effH=Math.round(totalH*0.8*10)/10;
+  prev.className='bp-preview show';
+  prev.innerHTML=`
+    <div class="bp-stat"><span>Working Days</span><strong>${wd}</strong></div>
+    <div class="bp-stat"><span>Total Hours</span><strong>${totalH}h</strong></div>
+    <div class="bp-stat"><span>Effective (80%)</span><strong class="hi">${effH}h</strong></div>`;
+}
+
+function saveSprint(projectId) {
+  const start=document.getElementById('spr_start')?.value;
+  const end=document.getElementById('spr_end')?.value;
+  if(!start||!end) return alert('Please select both start and end dates.');
+  if(end<start) return alert('End date must be after start date.');
+  const num=S.sprints.filter(s=>s.projectId===projectId).length+1;
+  S.sprints.push({id:'spr_'+uid(),projectId,name:'Sprint '+num,startDate:start,endDate:end,completedHours:{}});
+  save('sprints');
+  closeModal();
+  showProjectDetail(projectId);
+}
+
+function updateDevHours(sprintId, personId, val) {
+  const spr=S.sprints.find(s=>s.id===sprintId);
+  if(!spr) return;
+  spr.completedHours=spr.completedHours||{};
+  spr.completedHours[personId]=parseFloat(val)||0;
+  save('sprints');
+  showProjectDetail(spr.projectId);
+}
+
+function delSprint(id) {
+  const spr=S.sprints.find(s=>s.id===id);
+  if(!spr||!confirm(`Delete "${spr.name}"?`)) return;
+  const projId=spr.projectId;
+  S.sprints=S.sprints.filter(s=>s.id!==id);
+  save('sprints');
+  showProjectDetail(projId);
 }
 
 // ═══════════════════════════════════════
@@ -908,7 +1116,7 @@ function renderWD() {
       </span>
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:16px">
-      Enter the number of working days for each month. Changes save automatically.
+      These are official number of working days declared by Govtech. Changes save automatically.
     </p>
     <div class="wd-grid">${cells}</div>
   </div>`;
