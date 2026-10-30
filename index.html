@@ -1759,6 +1759,8 @@ function dashVelocityRows(projIds) {
     .sort((a,b)=>b.s.startDate.localeCompare(a.s.startDate));
 }
 
+const DASH_COLORS=['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#0ea5e9','#f97316'];
+
 function renderDashboard() {
   const el=document.getElementById('tab-dashboard');
   const projIds=dashProjIds();
@@ -1788,15 +1790,18 @@ function renderDashboard() {
     </div>
   </div>`;
 
+  const expRows=showExp?dashExpenseRows(projIds):[];
+  const velRows=showVel?dashVelocityRows(projIds):[];
+
   let expHtml='';
   if(showExp) {
-    const rows=dashExpenseRows(projIds);
-    const total=rows.reduce((s,r)=>s+(r.amount||0),0);
-    const totalSuffix=rows.length?`<tr style="font-weight:700;background:var(--bg)">
+    const total=expRows.reduce((s,r)=>s+(r.amount||0),0);
+    const totalSuffix=expRows.length?`<tr style="font-weight:700;background:var(--bg)">
       <td colspan="6" style="text-align:right;padding-right:12px">Total</td>
       <td>${money(total)}</td></tr>`:'';
     expHtml=`<div class="card" style="margin-bottom:16px">
-      <div class="exp-proj-hdr" style="margin-bottom:16px">💰 Expenses</div>
+      <div class="exp-proj-hdr" style="margin-bottom:12px">💰 Expenses</div>
+      <div class="chart-wrap" style="height:260px;margin-bottom:20px"><canvas id="dash-exp-chart"></canvas></div>
       <div class="tbl-wrap">
         <table>
           <thead><tr>
@@ -1804,7 +1809,7 @@ function renderDashboard() {
             <th>Consultant</th><th>Company</th><th>Type / Details</th><th>Amount (SGD)</th>
           </tr></thead>
           <tbody>
-            ${rows.map(r=>`<tr>
+            ${expRows.map(r=>`<tr>
               <td>${r.yyyymm}</td>
               <td style="white-space:nowrap;font-size:12px">${r.bp}</td>
               <td><span style="font-size:11px;font-weight:700;color:var(--accent)">${r.proj?.name||'—'}</span></td>
@@ -1822,9 +1827,9 @@ function renderDashboard() {
 
   let velHtml='';
   if(showVel) {
-    const rows=dashVelocityRows(projIds);
     velHtml=`<div class="card">
-      <div class="exp-proj-hdr" style="margin-bottom:16px">🏃 Sprint Velocity</div>
+      <div class="exp-proj-hdr" style="margin-bottom:12px">🏃 Sprint Velocity</div>
+      <div class="chart-wrap" style="height:300px;margin-bottom:20px"><canvas id="dash-vel-chart"></canvas></div>
       <div class="tbl-wrap">
         <table>
           <thead><tr>
@@ -1833,7 +1838,7 @@ function renderDashboard() {
             <th>Completed</th><th style="min-width:120px">Progress</th>
           </tr></thead>
           <tbody>
-            ${rows.map(({s,st,proj})=>{
+            ${velRows.map(({s,st,proj})=>{
               const pctColor=st.pct>=80?'#16a34a':st.pct>=50?'#d97706':'#dc2626';
               return`<tr>
                 <td><strong>${s.name}</strong></td>
@@ -1859,6 +1864,104 @@ function renderDashboard() {
   }
 
   el.innerHTML=filterBar+expHtml+velHtml;
+  if(showExp) setTimeout(()=>drawDashExpChart(expRows,projIds),0);
+  if(showVel) setTimeout(()=>drawDashVelChart(velRows,projIds),0);
+}
+
+function dashChartTheme() {
+  const dark=document.documentElement.getAttribute('data-theme')==='dark'||
+    (!document.documentElement.getAttribute('data-theme')&&window.matchMedia('(prefers-color-scheme:dark)').matches);
+  return {fg:dark?'#e2e8f0':'#1e293b', grid:dark?'rgba(255,255,255,.1)':'rgba(0,0,0,.07)'};
+}
+
+function drawDashExpChart(rows, projIds) {
+  const canvas=document.getElementById('dash-exp-chart');
+  if(!canvas||typeof Chart==='undefined') return;
+  const {fg,grid}=dashChartTheme();
+  // Aggregate: per YYYYMM per project
+  const periods=[...new Set(rows.map(r=>r.yyyymm))].sort();
+  const multiProj=projIds.length>1;
+  let datasets;
+  if(multiProj) {
+    datasets=projIds.map((pid,i)=>{
+      const proj=S.projects.find(p=>p.id===pid);
+      const c=DASH_COLORS[i%DASH_COLORS.length];
+      return{label:proj?.name||pid,
+        data:periods.map(ym=>rows.filter(r=>r.proj?.id===pid&&r.yyyymm===ym).reduce((s,r)=>s+(r.amount||0),0)),
+        backgroundColor:c+'99',borderColor:c,borderWidth:1.5,borderRadius:4,stack:'exp'};
+    });
+  } else {
+    // single project — one bar per period, coloured by consultant
+    const perNames=[...new Set(rows.map(r=>r.per?.name||'?'))];
+    datasets=perNames.map((name,i)=>{
+      const c=DASH_COLORS[i%DASH_COLORS.length];
+      return{label:name,
+        data:periods.map(ym=>rows.filter(r=>r.per?.name===name&&r.yyyymm===ym).reduce((s,r)=>s+(r.amount||0),0)),
+        backgroundColor:c+'99',borderColor:c,borderWidth:1.5,borderRadius:4,stack:'exp'};
+    });
+  }
+  if(canvas._ci) canvas._ci.destroy();
+  canvas._ci=new Chart(canvas,{
+    type:'bar',
+    data:{labels:periods,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{labels:{color:fg,font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('en-SG',{minimumFractionDigits:0,maximumFractionDigits:0})}`}}
+      },
+      scales:{
+        x:{stacked:true,ticks:{color:fg,font:{size:11}},grid:{color:grid}},
+        y:{stacked:true,ticks:{color:fg,callback:v=>'$'+Number(v/1000).toFixed(0)+'k'},grid:{color:grid},
+           title:{display:true,text:'Amount (SGD)',color:fg,font:{size:11}}}
+      }
+    }
+  });
+}
+
+function drawDashVelChart(rows, projIds) {
+  const canvas=document.getElementById('dash-vel-chart');
+  if(!canvas||typeof Chart==='undefined') return;
+  const {fg,grid}=dashChartTheme();
+  const multiProj=projIds.length>1;
+  // Sort chronologically oldest→newest for the chart
+  const sorted=[...rows].sort((a,b)=>a.s.startDate.localeCompare(b.s.startDate));
+  const labels=sorted.map(({s,proj})=>multiProj?`${proj?.name||''} ${s.name}`:s.name);
+  const effective=sorted.map(({st})=>st.effectiveH);
+  const completed=sorted.map(({st})=>st.completedH);
+  // per-project line overlay when multiProj
+  const extraDatasets=multiProj?projIds.map((pid,i)=>{
+    const proj=S.projects.find(p=>p.id===pid);
+    const c=DASH_COLORS[i%DASH_COLORS.length];
+    return{type:'line',label:proj?.name||pid,
+      data:sorted.map(({s,proj:rp})=>rp?.id===pid?sorted.find(r=>r.s.id===s.id)?.st.completedH||null:null),
+      borderColor:c,backgroundColor:c+'33',borderWidth:2,pointRadius:3,tension:.35,
+      yAxisID:'y',spanGaps:false,fill:false};
+  }):[];
+  if(canvas._ci) canvas._ci.destroy();
+  canvas._ci=new Chart(canvas,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'Effective (80%)',data:effective,backgroundColor:'rgba(99,102,241,.2)',borderColor:'#6366f1',borderWidth:1.5,borderRadius:4},
+        {label:'Completed',data:completed,backgroundColor:'rgba(16,185,129,.6)',borderColor:'#10b981',borderWidth:1.5,borderRadius:4},
+        ...extraDatasets
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:fg,font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y}h`}}},
+      scales:{
+        x:{ticks:{color:fg,font:{size:10},maxRotation:45},grid:{color:grid}},
+        y:{ticks:{color:fg,callback:v=>v+'h'},grid:{color:grid},
+           title:{display:true,text:'Hours',color:fg,font:{size:11}}}
+      }
+    }
+  });
 }
 
 // ═══════════════════════════════════════
