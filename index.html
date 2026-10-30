@@ -309,6 +309,7 @@ const ETYPES = {
 let wdYear = new Date().getFullYear();
 let expSelProj = null;
 let curPersonId = null;
+let profileSort = {col:'name', dir:'asc'};
 let S = {
   projects:[],
   personnel:[],
@@ -334,7 +335,8 @@ function load() {
     {id:'per_gyan',      name:'Gyan',        company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'],  offboard:false,offboardDate:null,remarks:''},
     {id:'per_eejya',     name:'Eejya',       company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'], offboard:false,offboardDate:null,remarks:''},
     {id:'per_pradipta',  name:'Pradipta',    company:'SimplifyNext', role:'Developer - Consultant',  chargeType:'monthly', startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'], offboard:false,offboardDate:null,remarks:''},
-    {id:'per_raja',      name:'Raja',        company:'ServiceNow',   role:'Consultant',              chargeType:'hourly',  startDate:'2026-02-01',poStart:'2026-02-01',poUntil:null,          rates:[], hourlyRate:200, poHours:400,                              projectIds:['p_hourly'], offboard:false,offboardDate:null,remarks:''}
+    {id:'per_raja',      name:'Raja',        company:'ServiceNow',   role:'Consultant',              chargeType:'hourly',  startDate:'2026-02-01',poStart:'2026-02-01',poUntil:null,          rates:[], hourlyRate:200, poHours:400,                              projectIds:['p_hourly'], offboard:false,offboardDate:null,remarks:''},
+    {id:'per_manfred',   name:'Manfred',     company:'NCS',          role:'BA - Consultant',          chargeType:'monthly', startDate:'2026-08-18',poStart:'2026-08-18',poUntil:'2027-01-31', rates:[{from:'2026-08-18',to:'2027-01-31',rate:10000}],               projectIds:['p_cordis'], offboard:true, offboardDate:'2026-10-29',remarks:''}
   ];
   S.workingDays= JSON.parse(localStorage.getItem('ts_workingDays') || 'null')
                || [
@@ -351,6 +353,18 @@ function load() {
     {id:'e_d4',personnelId:'per_dharani',date:'2026-10-05',type:'mc'},
     {id:'e_d5',personnelId:'per_apurv',  date:'2026-09-22',type:'leave_full'},
     {id:'e_d6',personnelId:'per_ryan',   date:'2026-10-07',type:'leave_pm'},
+    // Manfred: pre-start (Aug working days before Aug 18), post-offboard (Oct 30)
+    {id:'e_m1', personnelId:'per_manfred',date:'2026-08-03',type:'leave_full'},
+    {id:'e_m2', personnelId:'per_manfred',date:'2026-08-04',type:'leave_full'},
+    {id:'e_m3', personnelId:'per_manfred',date:'2026-08-05',type:'leave_full'},
+    {id:'e_m4', personnelId:'per_manfred',date:'2026-08-06',type:'leave_full'},
+    {id:'e_m5', personnelId:'per_manfred',date:'2026-08-07',type:'leave_full'},
+    {id:'e_m6', personnelId:'per_manfred',date:'2026-08-11',type:'leave_full'},
+    {id:'e_m7', personnelId:'per_manfred',date:'2026-08-12',type:'leave_full'},
+    {id:'e_m8', personnelId:'per_manfred',date:'2026-08-13',type:'leave_full'},
+    {id:'e_m9', personnelId:'per_manfred',date:'2026-08-14',type:'leave_full'},
+    {id:'e_m10',personnelId:'per_manfred',date:'2026-08-17',type:'leave_full'},
+    {id:'e_m11',personnelId:'per_manfred',date:'2026-10-30',type:'leave_full'},
     {id:'e_h1',personnelId:'per_raja',date:'2026-09-01',type:'hours',hours:7},
     {id:'e_h2',personnelId:'per_raja',date:'2026-09-02',type:'hours',hours:8},
     {id:'e_h3',personnelId:'per_raja',date:'2026-09-03',type:'hours',hours:6.5},
@@ -399,15 +413,15 @@ function load() {
     {id:'e_h46',personnelId:'per_raja',date:'2026-10-26',type:'hours',hours:8},
   ];
   S.billingPeriods = JSON.parse(localStorage.getItem('ts_billingPeriods') || 'null') || [
-    {id:'bp_feb',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-02-01',periodEnd:'2026-02-28',yyyymm:'202602',totalHours:40,  rate:200,amount:8000, createdAt:1740700800000},
-    {id:'bp_mar',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-03-01',periodEnd:'2026-03-31',yyyymm:'202603',totalHours:40,  rate:200,amount:8000, createdAt:1743379200000},
-    {id:'bp_apr',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-04-01',periodEnd:'2026-04-30',yyyymm:'202604',totalHours:32,  rate:200,amount:6400, createdAt:1746057600000},
-    {id:'bp_may',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-05-01',periodEnd:'2026-05-31',yyyymm:'202605',totalHours:40,  rate:200,amount:8000, createdAt:1748736000000},
-    {id:'bp_jun',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-06-01',periodEnd:'2026-06-30',yyyymm:'202606',totalHours:32,  rate:200,amount:6400, createdAt:1751328000000},
-    {id:'bp_jul',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-07-01',periodEnd:'2026-07-31',yyyymm:'202607',totalHours:40,  rate:200,amount:8000, createdAt:1754006400000},
-    {id:'bp_aug',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-08-01',periodEnd:'2026-08-31',yyyymm:'202608',totalHours:40,  rate:200,amount:8000, createdAt:1756684800000},
-    {id:'bp_sep',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-09-01',periodEnd:'2026-09-30',yyyymm:'202609',totalHours:68,  rate:200,amount:13600,createdAt:1759276800000},
-    {id:'bp_oct',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-10-01',periodEnd:'2026-10-31',yyyymm:'202610',totalHours:32,  rate:200,amount:6400, createdAt:1761955200000},
+    {id:'bp_1',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-02-01',periodEnd:'2026-02-26',yyyymm:'202602',totalHours:40,  rate:200,amount:8000, createdAt:1740700800000},
+    {id:'bp_2',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-02-27',periodEnd:'2026-03-26',yyyymm:'202603',totalHours:31.5,rate:200,amount:6300, createdAt:1743379200000},
+    {id:'bp_3',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-03-27',periodEnd:'2026-04-26',yyyymm:'202604',totalHours:32.5,rate:200,amount:6500, createdAt:1746057600000},
+    {id:'bp_4',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-04-27',periodEnd:'2026-05-26',yyyymm:'202605',totalHours:40,  rate:200,amount:8000, createdAt:1748736000000},
+    {id:'bp_5',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-05-27',periodEnd:'2026-06-26',yyyymm:'202606',totalHours:40,  rate:200,amount:8000, createdAt:1751328000000},
+    {id:'bp_6',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-06-27',periodEnd:'2026-07-26',yyyymm:'202607',totalHours:24,  rate:200,amount:4800, createdAt:1754006400000},
+    {id:'bp_7',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-07-27',periodEnd:'2026-08-26',yyyymm:'202608',totalHours:48,  rate:200,amount:9600, createdAt:1756684800000},
+    {id:'bp_8',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-08-27',periodEnd:'2026-09-26',yyyymm:'202609',totalHours:76,  rate:200,amount:15200,createdAt:1759276800000},
+    {id:'bp_9',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-09-27',periodEnd:'2026-10-26',yyyymm:'202610',totalHours:32,  rate:200,amount:6400, createdAt:1761955200000},
   ];
   S.calYear    = parseInt(localStorage.getItem('ts_calYear'))  || new Date().getFullYear();
   S.calMonth   = parseInt(localStorage.getItem('ts_calMonth')) || new Date().getMonth();
@@ -552,43 +566,85 @@ function delProject(id) {
 // ═══════════════════════════════════════
 // PROFILE TAB
 // ═══════════════════════════════════════
+function sortProfile(col) {
+  if(profileSort.col===col) profileSort.dir=profileSort.dir==='asc'?'desc':'asc';
+  else { profileSort.col=col; profileSort.dir='asc'; }
+  renderProfile();
+}
+
 function renderProfile() {
   curPersonId = null;
-  const sorted=[...S.personnel].sort((a,b)=>{
-    if(!!a.offboard!==!!b.offboard) return a.offboard?1:-1;
-    return a.name.localeCompare(b.name);
+  const active    = S.personnel.filter(p=>!p.offboard);
+  const offboarded= S.personnel.filter(p=>!!p.offboard);
+
+  const sortKey = p => {
+    switch(profileSort.col) {
+      case 'company': return p.company||'';
+      case 'role':    return p.role||'';
+      case 'poStart': return p.poStart||'';
+      case 'poUntil': return p.poUntil||'';
+      default:        return p.name||'';
+    }
+  };
+  active.sort((a,b)=>{
+    const cmp=sortKey(a).localeCompare(sortKey(b));
+    return profileSort.dir==='asc'?cmp:-cmp;
   });
+  offboarded.sort((a,b)=>a.name.localeCompare(b.name));
+
+  const arrow = col => profileSort.col===col?(profileSort.dir==='asc'?' ↑':' ↓'):'';
+  const thC   = col => `cursor:pointer;user-select:none${profileSort.col===col?';color:var(--accent)':''}`;
+
+  const personRow = (p, dim) => {
+    const isHourly=(p.chargeType||'monthly')==='hourly';
+    const rateStr=isHourly
+      ?`<span style="white-space:nowrap"><strong>$${p.hourlyRate||0}/hr</strong> · ${p.poHours||0}h PO</span>`
+      :(p.rates||[]).map(r=>`<span style="white-space:nowrap">${fmtDate(r.from)}–${fmtDate(r.to)}: <strong>$${Number(r.rate).toLocaleString()}</strong></span>`).join('<br>');
+    return`<tr${dim?' style="opacity:.55"':''}>
+      <td><span class="status ${p.offboard?'status-offboard':'status-active'}">${p.offboard?'Offboarded':'Active'}</span></td>
+      <td>
+        <span class="person-link" onclick="showPersonDetail('${p.id}')">${p.name}</span>
+        ${p.offboard&&p.offboardDate?`<br><span style="font-size:10px;color:var(--muted)">Off: ${fmtDate(p.offboardDate)}</span>`:''}
+      </td>
+      <td>${p.company||'—'}</td>
+      <td>${p.role||'—'}</td>
+      <td style="white-space:nowrap">${fmtDate(p.poStart)}</td>
+      <td style="white-space:nowrap">${fmtDate(p.poUntil)}</td>
+      <td style="font-size:12px;line-height:1.7">${rateStr||'—'}</td>
+    </tr>`;
+  };
+
   const el=document.getElementById('tab-profile');
   el.innerHTML=`
   <div class="card">
     <div class="card-title">👥 Personnel <span class="card-badge">${S.personnel.length}</span>
       <button class="btn btn-primary btn-sm" onclick="openPersonModal()" style="margin-left:auto">+ Add</button>
     </div>
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Active · ${active.length}</div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Status</th><th>Name</th><th>Company</th><th>Role</th><th>PO Start</th><th>PO Until</th><th>Rate(s)</th></tr></thead>
+        <thead><tr>
+          <th>Status</th>
+          <th onclick="sortProfile('name')"    style="${thC('name')}">Name${arrow('name')}</th>
+          <th onclick="sortProfile('company')" style="${thC('company')}">Company${arrow('company')}</th>
+          <th onclick="sortProfile('role')"    style="${thC('role')}">Role${arrow('role')}</th>
+          <th onclick="sortProfile('poStart')" style="${thC('poStart')}">PO Start${arrow('poStart')}</th>
+          <th onclick="sortProfile('poUntil')" style="${thC('poUntil')}">PO Until${arrow('poUntil')}</th>
+          <th>Rate(s)</th>
+        </tr></thead>
         <tbody>
-          ${sorted.map((p)=>{
-            const isHourly=(p.chargeType||'monthly')==='hourly';
-            const rateStr=isHourly
-              ?`<span style="white-space:nowrap"><strong>$${p.hourlyRate||0}/hr</strong> · ${p.poHours||0}h PO</span>`
-              :(p.rates||[]).map(r=>`<span style="white-space:nowrap">${fmtDate(r.from)}–${fmtDate(r.to)}: <strong>$${Number(r.rate).toLocaleString()}</strong></span>`).join('<br>');
-            return`<tr ${p.offboard?'style="opacity:.55"':''}>
-              <td><span class="status ${p.offboard?'status-offboard':'status-active'}">${p.offboard?'Offboarded':'Active'}</span></td>
-              <td>
-                <span class="person-link" onclick="showPersonDetail('${p.id}')">${p.name}</span>
-                ${p.offboard&&p.offboardDate?`<br><span style="font-size:10px;color:var(--muted)">Off: ${fmtDate(p.offboardDate)}</span>`:''}
-              </td>
-              <td>${p.company||'—'}</td>
-              <td>${p.role||'—'}</td>
-              <td style="white-space:nowrap">${fmtDate(p.poStart)}</td>
-              <td style="white-space:nowrap">${fmtDate(p.poUntil)}</td>
-              <td style="font-size:12px;line-height:1.7">${rateStr||'—'}</td>
-            </tr>`;
-          }).join('')||`<tr><td colspan="7" class="empty-row">No personnel added yet.</td></tr>`}
+          ${active.map(p=>personRow(p,false)).join('')||`<tr><td colspan="7" class="empty-row">No active personnel.</td></tr>`}
         </tbody>
       </table>
     </div>
+    ${offboarded.length?`
+    <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:24px 0 8px">Offboarded · ${offboarded.length}</div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Status</th><th>Name</th><th>Company</th><th>Role</th><th>PO Start</th><th>PO Until</th><th>Rate(s)</th></tr></thead>
+        <tbody>${offboarded.map(p=>personRow(p,true)).join('')}</tbody>
+      </table>
+    </div>`:''}
   </div>`;
 }
 
