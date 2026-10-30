@@ -1888,56 +1888,54 @@ function drawDashCombinedChart(expRows, velRows, projIds) {
   if(!canvas||typeof Chart==='undefined') return;
   const {fg,grid}=dashChartTheme();
 
-  // Aggregate velocity by YYYYMM of sprint end date
+  // Aggregate totals by YYYYMM
+  const expByYM={};
+  expRows.forEach(r=>{expByYM[r.yyyymm]=(expByYM[r.yyyymm]||0)+(r.amount||0);});
   const velByYM={};
   velRows.forEach(({s,st})=>{const[y,m]=s.endDate.split('-');const ym=y+m;velByYM[ym]=(velByYM[ym]||0)+st.completedH;});
 
-  // Union of all periods, sorted
-  const allPeriods=[...new Set([...expRows.map(r=>r.yyyymm),...Object.keys(velByYM)])].sort();
+  const allPeriods=[...new Set([...Object.keys(expByYM),...Object.keys(velByYM)])].sort();
 
-  // Bar datasets: stacked by project (multi) or by consultant (single)
-  const multiProj=projIds.length>1;
-  const barDatasets=multiProj
-    ? projIds.map((pid,i)=>{
-        const proj=S.projects.find(p=>p.id===pid);
-        const c=DASH_COLORS[i%DASH_COLORS.length];
-        return{type:'bar',label:proj?.name||pid,yAxisID:'yExp',stack:'exp',
-          data:allPeriods.map(ym=>expRows.filter(r=>r.proj?.id===pid&&r.yyyymm===ym).reduce((s,r)=>s+(r.amount||0),0)),
-          backgroundColor:c+'88',borderColor:c,borderWidth:1.5,borderRadius:4};
-      })
-    : [...new Set(expRows.map(r=>r.per?.name||'?'))].map((name,i)=>{
-        const c=DASH_COLORS[i%DASH_COLORS.length];
-        return{type:'bar',label:name,yAxisID:'yExp',stack:'exp',
-          data:allPeriods.map(ym=>expRows.filter(r=>r.per?.name===name&&r.yyyymm===ym).reduce((s,r)=>s+(r.amount||0),0)),
-          backgroundColor:c+'88',borderColor:c,borderWidth:1.5,borderRadius:4};
-      });
-
-  const velLine={type:'line',label:'Sprint Velocity (hrs)',yAxisID:'yVel',
-    data:allPeriods.map(ym=>velByYM[ym]??null),
-    borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.12)',
-    borderWidth:2.5,pointRadius:5,pointBackgroundColor:'#10b981',
-    tension:.3,fill:true,spanGaps:false};
+  if(!allPeriods.length){
+    if(canvas._ci){canvas._ci.destroy();canvas._ci=null;}
+    canvas.parentElement.innerHTML='<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:13px">No data to display</div>';
+    return;
+  }
 
   if(canvas._ci) canvas._ci.destroy();
   canvas._ci=new Chart(canvas,{
-    type:'bar',
-    data:{labels:allPeriods,datasets:[...barDatasets,velLine]},
+    data:{
+      labels:allPeriods,
+      datasets:[
+        {type:'bar',label:'Expenses (SGD)',
+          data:allPeriods.map(ym=>expByYM[ym]||0),
+          backgroundColor:'rgba(99,102,241,0.5)',borderColor:'#6366f1',
+          borderWidth:1.5,borderRadius:4,yAxisID:'y',order:2},
+        {type:'line',label:'Sprint Velocity (hrs)',
+          data:allPeriods.map(ym=>velByYM[ym]??null),
+          borderColor:'#10b981',backgroundColor:'rgba(16,185,129,0.1)',
+          borderWidth:2.5,pointRadius:5,pointBackgroundColor:'#10b981',
+          tension:0.3,fill:true,yAxisID:'y1',spanGaps:false,order:1}
+      ]
+    },
     options:{
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
       plugins:{
         legend:{labels:{color:fg,font:{size:11}}},
-        tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='yVel'
+        tooltip:{callbacks:{label:ctx=>ctx.dataset.yAxisID==='y1'
           ?`${ctx.dataset.label}: ${ctx.parsed.y}h`
           :`${ctx.dataset.label}: $${Number(ctx.parsed.y).toLocaleString('en-SG',{minimumFractionDigits:0,maximumFractionDigits:0})}`}}
       },
       scales:{
-        x:{stacked:true,ticks:{color:fg,font:{size:11}},grid:{color:grid}},
-        yExp:{type:'linear',position:'left',stacked:true,
-          ticks:{color:'#6366f1',callback:v=>'$'+(v/1000).toFixed(0)+'k'},grid:{color:grid},
+        x:{ticks:{color:fg,font:{size:11}},grid:{color:grid}},
+        y:{type:'linear',position:'left',
+          ticks:{color:'#6366f1',callback:v=>'$'+(v>=1000?(v/1000).toFixed(0)+'k':v)},
+          grid:{color:grid},
           title:{display:true,text:'Expenses (SGD)',color:'#6366f1',font:{size:11}}},
-        yVel:{type:'linear',position:'right',
-          ticks:{color:'#10b981',callback:v=>v+'h'},grid:{drawOnChartArea:false},
+        y1:{type:'linear',position:'right',
+          ticks:{color:'#10b981',callback:v=>v+'h'},
+          grid:{drawOnChartArea:false},
           title:{display:true,text:'Velocity (hrs)',color:'#10b981',font:{size:11}}}
       }
     }
