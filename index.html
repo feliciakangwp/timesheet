@@ -288,14 +288,15 @@ function load() {
                || [{id:'p_orion',name:'ORION'},{id:'p_polaris',name:'POLARIS'},{id:'p_cordis',name:'CORDIS'}];
   S.personnel  = JSON.parse(localStorage.getItem('ts_personnel')   || 'null')
                || [
-    {id:'per_shivani',name:'Shivani',company:'EY',role:'Developer - Consultant',
-     startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-08-31',
-     rates:[{from:'2026-09-01',to:'2027-08-31',rate:10000}],
-     projectIds:['p_orion'],offboard:false,offboardDate:null},
-    {id:'per_dharani',name:'Dharani',company:'SimplifyNext',role:'Developer - Consultant',
-     startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-08-31',
-     rates:[{from:'2026-09-01',to:'2027-08-31',rate:10000}],
-     projectIds:['p_orion'],offboard:false,offboardDate:null}
+    {id:'per_shivani',   name:'Shivani',     company:'EY',           role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-08-31', rates:[{from:'2026-09-01',to:'2027-08-31',rate:10000}], projectIds:['p_orion'],  offboard:false,offboardDate:null},
+    {id:'per_dharani',   name:'Dharani',     company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-08-31', rates:[{from:'2026-09-01',to:'2027-08-31',rate:10000}], projectIds:['p_orion'],  offboard:false,offboardDate:null},
+    {id:'per_apurv',     name:'Apurv',       company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'], offboard:false,offboardDate:null},
+    {id:'per_ryan',      name:'Ryan',        company:'SimplifyNext', role:'BA - Snr Consultant',     startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:15000}], projectIds:['p_cordis'], offboard:false,offboardDate:null},
+    {id:'per_chris',     name:'Christopher', company:'SimplifyNext', role:'BA - Snr Consultant',     startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:15000}], projectIds:['p_cordis'], offboard:false,offboardDate:null},
+    {id:'per_norman',    name:'Norman',      company:'Cognizant',    role:'BA - Consultant',         startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'], offboard:false,offboardDate:null},
+    {id:'per_gyan',      name:'Gyan',        company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'], offboard:false,offboardDate:null},
+    {id:'per_eejya',     name:'Eejya',       company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'],offboard:false,offboardDate:null},
+    {id:'per_pradipta',  name:'Pradipta',    company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'],offboard:false,offboardDate:null}
   ];
   S.workingDays= JSON.parse(localStorage.getItem('ts_workingDays') || 'null')
                || [
