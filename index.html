@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Timesheet Portal</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -241,6 +242,13 @@ tbody tr:hover td{background:#f8fafc}
 .proj-status.ps-active{background:#dcfce7;color:#15803d}
 .proj-status.ps-hold{background:#fff7ed;color:#d97706}
 .proj-status.ps-done{background:#eff6ff;color:#2563eb}
+.toggle-group{display:flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden}
+.toggle-btn{padding:5px 14px;font-size:12px;font-weight:600;background:transparent;border:none;cursor:pointer;color:var(--muted);transition:.15s;white-space:nowrap}
+.toggle-btn:hover{color:var(--primary)}
+.toggle-btn.tg-active{background:var(--accent);color:#fff}
+.sprint-remarks{width:100%;min-height:58px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;resize:vertical;background:var(--white);color:var(--text);font-family:inherit;margin-top:4px}
+.sprint-remarks:focus{outline:none;border-color:var(--accent)}
+.chart-wrap{position:relative;height:340px;padding:8px 0}
 </style>
 </head>
 <body>
@@ -320,6 +328,7 @@ let expSelProj = null;
 let curPersonId = null;
 let curProjectId = null;
 let profileSort = {col:'name', dir:'asc'};
+let sprintView = 'details';
 let S = {
   projects:[],
   personnel:[],
@@ -638,9 +647,10 @@ function showProjectDetail(id) {
   if(!proj){renderProjects();return;}
   const devs=projDevs(id);
   const bas=projBAs(id);
-  const sprints=S.sprints.filter(s=>s.projectId===id).sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  const sprints=S.sprints.filter(s=>s.projectId===id).sort((a,b)=>b.startDate.localeCompare(a.startDate));
   const status=proj.status||'active';
   const statusCls={active:'ps-active',completed:'ps-done',hold:'ps-hold'};
+  const _sprintsForChart=sprints;
   document.getElementById('tab-projects').innerHTML=`
   <div class="card">
     <div><span class="detail-back" onclick="renderProjects()">← Back to Projects</span></div>
@@ -664,46 +674,106 @@ function showProjectDetail(id) {
         <strong>${p.name}</strong><span style="color:var(--muted)">${p.company}</span>
       </div>`).join('')}
     </div>`:''}
-    <div style="display:flex;align-items:center;margin-bottom:16px">
+    <div style="display:flex;align-items:center;margin-bottom:16px;gap:8px;flex-wrap:wrap">
       <div class="sec-label" style="margin:0;flex:1">Sprints (${sprints.length})</div>
+      <div class="toggle-group">
+        <button class="toggle-btn ${sprintView==='details'?'tg-active':''}" onclick="setSprintView('${id}','details')">Details</button>
+        <button class="toggle-btn ${sprintView==='chart'?'tg-active':''}" onclick="setSprintView('${id}','chart')">Velocity Chart</button>
+      </div>
       <button class="btn btn-primary btn-sm" onclick="openSprintModal('${id}')">▶ Start Sprint</button>
     </div>
-    ${sprints.map(spr=>{
-      const st=sprintStats(spr);
-      const pctColor=st.pct>=80?'#16a34a':st.pct>=50?'#d97706':'#dc2626';
-      return`<div class="sprint-card">
-        <div class="sprint-hdr">
-          <div>
-            <strong>${spr.name}</strong>
-            <span style="font-size:11px;color:var(--muted);margin-left:8px">${fmtDate(spr.startDate)} – ${fmtDate(spr.endDate)}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:12px">
-            <strong style="color:${pctColor};font-size:16px">${st.pct}%</strong>
-            <button class="btn btn-danger btn-sm" onclick="delSprint('${spr.id}')">✕</button>
-          </div>
-        </div>
-        <div class="sprint-meta">
-          <span>Working Days: <strong>${st.wd}</strong></span>
-          <span>Total: <strong>${st.totalH}h</strong></span>
-          <span>Effective (80%): <strong>${st.effectiveH}h</strong></span>
-          <span>Completed: <strong style="color:${pctColor}">${st.completedH}h</strong></span>
-        </div>
-        <div class="po-bar" style="margin-bottom:12px">
-          <div class="po-bar-fill" style="width:${Math.min(100,st.pct)}%;background:${pctColor}"></div>
-        </div>
-        ${st.devs.map(dev=>{
-          const h=(spr.completedHours||{})[dev.id]||'';
-          return`<div class="sprint-dev-row">
-            <div style="width:120px;font-size:13px;font-weight:600">${dev.name}</div>
-            <input type="number" min="0" value="${h}" placeholder="0"
-              style="width:80px;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;text-align:center;background:#fff;color:var(--text)"
-              onchange="updateDevHours('${spr.id}','${dev.id}',this.value)">
-            <span style="font-size:11px;color:var(--muted)">hours</span>
+    ${sprintView==='chart'
+      ? `<div class="sprint-card"><div class="chart-wrap"><canvas id="sprint-velocity-canvas"></canvas></div></div>`
+      : sprints.map(spr=>{
+          const st=sprintStats(spr);
+          const pctColor=st.pct>=80?'#16a34a':st.pct>=50?'#d97706':'#dc2626';
+          return`<div class="sprint-card">
+            <div class="sprint-hdr">
+              <div>
+                <strong>${spr.name}</strong>
+                <span style="font-size:11px;color:var(--muted);margin-left:8px">${fmtDate(spr.startDate)} – ${fmtDate(spr.endDate)}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px">
+                <strong style="color:${pctColor};font-size:16px">${st.pct}%</strong>
+                <button class="btn btn-danger btn-sm" onclick="delSprint('${spr.id}')">✕</button>
+              </div>
+            </div>
+            <div class="sprint-meta">
+              <span>Working Days: <strong>${st.wd}</strong></span>
+              <span>Total: <strong>${st.totalH}h</strong></span>
+              <span>Effective (80%): <strong>${st.effectiveH}h</strong></span>
+              <span>Completed: <strong style="color:${pctColor}">${st.completedH}h</strong></span>
+            </div>
+            <div class="po-bar" style="margin-bottom:12px">
+              <div class="po-bar-fill" style="width:${Math.min(100,st.pct)}%;background:${pctColor}"></div>
+            </div>
+            ${st.devs.map(dev=>{
+              const h=(spr.completedHours||{})[dev.id]||'';
+              return`<div class="sprint-dev-row">
+                <div style="width:120px;font-size:13px;font-weight:600">${dev.name}</div>
+                <input type="number" min="0" value="${h}" placeholder="0"
+                  style="width:80px;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:13px;text-align:center;background:var(--white);color:var(--text)"
+                  onchange="updateDevHours('${spr.id}','${dev.id}',this.value)">
+                <span style="font-size:11px;color:var(--muted)">hours</span>
+              </div>`;
+            }).join('')}
+            <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px">
+              <label style="font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.3px;text-transform:uppercase">Remarks</label>
+              <textarea class="sprint-remarks" placeholder="Sprint notes…" onchange="updateSprintRemarks('${spr.id}',this.value)">${spr.remarks||''}</textarea>
+            </div>
           </div>`;
-        }).join('')}
-      </div>`;
-    }).join('')||`<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px">No sprints yet. Click "▶ Start Sprint" to create one.</div>`}
+        }).join('')||`<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px">No sprints yet. Click "▶ Start Sprint" to create one.</div>`
+    }
   </div>`;
+  if(sprintView==='chart') setTimeout(()=>drawSprintChart(_sprintsForChart),0);
+}
+
+function setSprintView(projectId, view) {
+  sprintView=view;
+  showProjectDetail(projectId);
+}
+
+function drawSprintChart(sprints) {
+  const canvas=document.getElementById('sprint-velocity-canvas');
+  if(!canvas||typeof Chart==='undefined') return;
+  const sorted=[...sprints].sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  const labels=sorted.map(s=>s.name);
+  const effective=sorted.map(s=>sprintStats(s).effectiveH);
+  const completed=sorted.map(s=>sprintStats(s).completedH);
+  const isDark=document.documentElement.getAttribute('data-theme')==='dark'||
+    (!document.documentElement.getAttribute('data-theme')&&window.matchMedia('(prefers-color-scheme:dark)').matches);
+  const fg=isDark?'#e2e8f0':'#1e293b';
+  const grid=isDark?'rgba(255,255,255,.1)':'rgba(0,0,0,.08)';
+  if(canvas._ci) canvas._ci.destroy();
+  canvas._ci=new Chart(canvas,{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'Effective (80%)',data:effective,backgroundColor:'rgba(99,102,241,.25)',borderColor:'#6366f1',borderWidth:2,borderRadius:4,order:1},
+        {label:'Completed',data:completed,backgroundColor:'rgba(16,185,129,.7)',borderColor:'#10b981',borderWidth:1.5,borderRadius:4,order:2}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{labels:{color:fg,font:{size:12}}},
+        tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${ctx.parsed.y}h`}}
+      },
+      scales:{
+        x:{ticks:{color:fg,font:{size:11}},grid:{color:grid}},
+        y:{ticks:{color:fg,callback:v=>v+'h'},grid:{color:grid},title:{display:true,text:'Hours',color:fg,font:{size:12}}}
+      }
+    }
+  });
+}
+
+function updateSprintRemarks(sprintId, val) {
+  const spr=S.sprints.find(s=>s.id===sprintId);
+  if(!spr) return;
+  spr.remarks=val;
+  save('sprints');
 }
 
 function setProjectStatus(id, val) {
