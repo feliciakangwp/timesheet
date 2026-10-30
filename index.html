@@ -180,6 +180,18 @@ tbody tr:hover td{background:#f8fafc}
 .exp-tab-btn:hover{border-color:var(--primary);color:var(--primary)}
 .exp-tab-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
 
+/* PERSON DETAIL */
+.person-link{color:var(--primary);cursor:pointer;font-weight:700;text-decoration:underline;text-decoration-style:dashed;text-underline-offset:3px}
+.person-link:hover{opacity:.75}
+.detail-back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;margin-bottom:16px;padding:6px 0}
+.detail-back:hover{color:var(--primary)}
+.detail-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:20px}
+.detail-field{padding:12px 16px;background:#f8fafc;border-radius:8px;border:1px solid var(--border)}
+.detail-field label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:4px}
+.detail-field span{font-size:13px;font-weight:600;color:var(--text);word-break:break-word}
+.detail-remarks{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;min-height:80px;color:var(--text);outline:none;transition:border-color .2s}
+.detail-remarks:focus{border-color:var(--accent)}
+
 /* ALERT */
 .alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px}
 .alert-warn{background:#fff7ed;border:1px solid #fed7aa;color:var(--warning)}
@@ -278,6 +290,7 @@ const ETYPES = {
 // ═══════════════════════════════════════
 let wdYear = new Date().getFullYear();
 let expSelProj = null;
+let curPersonId = null;
 let S = {
   projects:[],
   personnel:[],
@@ -293,15 +306,15 @@ function load() {
                || [{id:'p_orion',name:'ORION'},{id:'p_polaris',name:'POLARIS'},{id:'p_cordis',name:'CORDIS'}];
   S.personnel  = JSON.parse(localStorage.getItem('ts_personnel')   || 'null')
                || [
-    {id:'per_shivani',   name:'Shivani',     company:'EY',           role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-08-31', rates:[{from:'2026-09-01',to:'2027-08-31',rate:10000}], projectIds:['p_orion'],  offboard:false,offboardDate:null},
-    {id:'per_dharani',   name:'Dharani',     company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-08-31', rates:[{from:'2026-09-01',to:'2027-08-31',rate:10000}], projectIds:['p_orion'],  offboard:false,offboardDate:null},
-    {id:'per_apurv',     name:'Apurv',       company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'], offboard:false,offboardDate:null},
-    {id:'per_ryan',      name:'Ryan',        company:'SimplifyNext', role:'BA - Snr Consultant',     startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:15000}], projectIds:['p_cordis'], offboard:false,offboardDate:null},
-    {id:'per_chris',     name:'Christopher', company:'SimplifyNext', role:'BA - Snr Consultant',     startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:15000}], projectIds:['p_cordis'], offboard:false,offboardDate:null},
-    {id:'per_norman',    name:'Norman',      company:'Cognizant',    role:'BA - Consultant',         startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'], offboard:false,offboardDate:null},
-    {id:'per_gyan',      name:'Gyan',        company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'], offboard:false,offboardDate:null},
-    {id:'per_eejya',     name:'Eejya',       company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'],offboard:false,offboardDate:null},
-    {id:'per_pradipta',  name:'Pradipta',    company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'],offboard:false,offboardDate:null}
+    {id:'per_shivani',   name:'Shivani',     company:'EY',           role:'Developer - Consultant',  startDate:'2026-02-01',poStart:'2026-02-01',poUntil:'2027-08-31', rates:[{from:'2026-02-01',to:'2026-08-31',rate:9000},{from:'2026-09-01',to:'2027-08-31',rate:10000}], projectIds:['p_orion'],  offboard:false,offboardDate:null,remarks:''},
+    {id:'per_dharani',   name:'Dharani',     company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-02-01',poStart:'2026-02-01',poUntil:'2027-08-31', rates:[{from:'2026-02-01',to:'2026-08-31',rate:9000},{from:'2026-09-01',to:'2027-08-31',rate:10000}], projectIds:['p_orion'],  offboard:false,offboardDate:null,remarks:''},
+    {id:'per_apurv',     name:'Apurv',       company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'], offboard:false,offboardDate:null,remarks:''},
+    {id:'per_ryan',      name:'Ryan',        company:'SimplifyNext', role:'BA - Snr Consultant',     startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:15000}], projectIds:['p_cordis'], offboard:false,offboardDate:null,remarks:''},
+    {id:'per_chris',     name:'Christopher', company:'SimplifyNext', role:'BA - Snr Consultant',     startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:15000}], projectIds:['p_cordis'], offboard:false,offboardDate:null,remarks:''},
+    {id:'per_norman',    name:'Norman',      company:'Cognizant',    role:'BA - Consultant',         startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'], offboard:false,offboardDate:null,remarks:''},
+    {id:'per_gyan',      name:'Gyan',        company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_cordis'], offboard:false,offboardDate:null,remarks:''},
+    {id:'per_eejya',     name:'Eejya',       company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'],offboard:false,offboardDate:null,remarks:''},
+    {id:'per_pradipta',  name:'Pradipta',    company:'SimplifyNext', role:'Developer - Consultant',  startDate:'2026-09-01',poStart:'2026-09-01',poUntil:'2027-12-31', rates:[{from:'2026-09-01',to:'2027-12-31',rate:10000}], projectIds:['p_polaris'],offboard:false,offboardDate:null,remarks:''}
   ];
   S.workingDays= JSON.parse(localStorage.getItem('ts_workingDays') || 'null')
                || [
@@ -310,7 +323,15 @@ function load() {
     {year:2026,month:7,days:20},{year:2026,month:8,days:22},{year:2026,month:9,days:22},
     {year:2026,month:10,days:20},{year:2026,month:11,days:20}
   ];
-  S.entries    = JSON.parse(localStorage.getItem('ts_entries')     || '[]');
+  S.entries    = JSON.parse(localStorage.getItem('ts_entries')     || 'null')
+               || [
+    {id:'e_d1',personnelId:'per_shivani',date:'2026-09-15',type:'leave_full'},
+    {id:'e_d2',personnelId:'per_shivani',date:'2026-10-12',type:'leave_am'},
+    {id:'e_d3',personnelId:'per_dharani',date:'2026-09-10',type:'leave_am'},
+    {id:'e_d4',personnelId:'per_dharani',date:'2026-10-05',type:'mc'},
+    {id:'e_d5',personnelId:'per_apurv',  date:'2026-09-22',type:'leave_full'},
+    {id:'e_d6',personnelId:'per_ryan',   date:'2026-10-07',type:'leave_pm'},
+  ];
   S.calYear    = parseInt(localStorage.getItem('ts_calYear'))  || new Date().getFullYear();
   S.calMonth   = parseInt(localStorage.getItem('ts_calMonth')) || new Date().getMonth();
   const sp     = localStorage.getItem('ts_selProjs');
@@ -455,6 +476,7 @@ function delProject(id) {
 // PROFILE TAB
 // ═══════════════════════════════════════
 function renderProfile() {
+  curPersonId = null;
   const sorted=[...S.personnel].sort((a,b)=>{
     if(!!a.offboard!==!!b.offboard) return a.offboard?1:-1;
     return a.name.localeCompare(b.name);
@@ -467,28 +489,67 @@ function renderProfile() {
     </div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Status</th><th>Name</th><th>Company</th><th>Role</th><th>PO Start</th><th>PO Until</th><th>Monthly Rate(s)</th><th></th></tr></thead>
+        <thead><tr><th>Status</th><th>Name</th><th>Company</th><th>Role</th><th>PO Start</th><th>PO Until</th><th>Monthly Rate(s)</th></tr></thead>
         <tbody>
           ${sorted.map((p)=>{
             const rateStr=(p.rates||[]).map(r=>`<span style="white-space:nowrap">${fmtDate(r.from)}–${fmtDate(r.to)}: <strong>$${Number(r.rate).toLocaleString()}</strong></span>`).join('<br>');
             return`<tr ${p.offboard?'style="opacity:.55"':''}>
               <td><span class="status ${p.offboard?'status-offboard':'status-active'}">${p.offboard?'Offboarded':'Active'}</span></td>
-              <td><strong>${p.name}</strong>${p.offboard&&p.offboardDate?`<br><span style="font-size:10px;color:var(--muted)">Off: ${fmtDate(p.offboardDate)}</span>`:''}</td>
+              <td>
+                <span class="person-link" onclick="showPersonDetail('${p.id}')">${p.name}</span>
+                ${p.offboard&&p.offboardDate?`<br><span style="font-size:10px;color:var(--muted)">Off: ${fmtDate(p.offboardDate)}</span>`:''}
+              </td>
               <td>${p.company||'—'}</td>
               <td>${p.role||'—'}</td>
               <td style="white-space:nowrap">${fmtDate(p.poStart)}</td>
               <td style="white-space:nowrap">${fmtDate(p.poUntil)}</td>
               <td style="font-size:12px;line-height:1.7">${rateStr||'—'}</td>
-              <td style="white-space:nowrap">
-                <button class="btn btn-secondary btn-sm" onclick="openPersonModal('${p.id}')">Edit</button>
-                <button class="btn btn-danger btn-sm" onclick="delPerson('${p.id}')">Del</button>
-              </td>
             </tr>`;
-          }).join('')||`<tr><td colspan="8" class="empty-row">No personnel added yet.</td></tr>`}
+          }).join('')||`<tr><td colspan="7" class="empty-row">No personnel added yet.</td></tr>`}
         </tbody>
       </table>
     </div>
   </div>`;
+}
+
+function showPersonDetail(id) {
+  curPersonId = id;
+  const p = S.personnel.find(m=>m.id===id);
+  if(!p) { renderProfile(); return; }
+  const projs=(p.projectIds||[]).map(pid=>{const pr=S.projects.find(x=>x.id===pid);return pr?pr.name:'?';}).join(', ')||'—';
+  const rateFields=(p.rates||[]).map(r=>`<div class="detail-field">
+    <label>Rate Period</label>
+    <span>${fmtDate(r.from)} – ${fmtDate(r.to)}<br><strong style="font-size:15px">${money(r.rate)}/mo</strong></span>
+  </div>`).join('');
+  document.getElementById('tab-profile').innerHTML=`
+  <div><span class="detail-back" onclick="renderProfile()">← Back to Personnel List</span></div>
+  <div class="card">
+    <div class="card-title">
+      ${p.name}
+      <span class="status ${p.offboard?'status-offboard':'status-active'}" style="margin-left:4px">${p.offboard?'Offboarded':'Active'}</span>
+      <button class="btn btn-secondary btn-sm" onclick="openPersonModal('${p.id}')" style="margin-left:auto">✏ Edit</button>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-field"><label>Company</label><span>${p.company||'—'}</span></div>
+      <div class="detail-field"><label>Role</label><span>${p.role||'—'}</span></div>
+      <div class="detail-field"><label>Start Date</label><span>${fmtDate(p.startDate)}</span></div>
+      <div class="detail-field"><label>PO Start</label><span>${fmtDate(p.poStart)}</span></div>
+      <div class="detail-field"><label>PO Until</label><span>${fmtDate(p.poUntil)}</span></div>
+      <div class="detail-field"><label>Projects</label><span>${projs}</span></div>
+      ${p.offboard?`<div class="detail-field"><label>Offboard Date</label><span>${fmtDate(p.offboardDate)}</span></div>`:''}
+    </div>
+    <div class="sec-label">Monthly Rates</div>
+    <div class="detail-grid" style="margin-bottom:20px">${rateFields||'<p style="font-size:13px;color:var(--muted)">No rates defined.</p>'}</div>
+    <div class="sec-label">Remarks</div>
+    <textarea class="detail-remarks" placeholder="Add notes about this person..." onblur="saveRemarks('${p.id}',this.value)">${(p.remarks||'').replace(/</g,'&lt;')}</textarea>
+  </div>`;
+}
+
+function saveRemarks(id, val) {
+  const p = S.personnel.find(m=>m.id===id);
+  if(!p) return;
+  p.remarks = val;
+  save('personnel');
 }
 
 function openPersonModal(editId) {
@@ -602,16 +663,18 @@ function savePerson(editId) {
 
   const projectIds=[...document.querySelectorAll('#projChips .proj-chip.checked')].map(el=>el.dataset.projid);
 
+  const existRec=editId?S.personnel.find(p=>p.id===editId):null;
   const rec={
     id:editId||uid(),name,company,role,startDate,poStart,poUntil,
-    rates,projectIds,offboard,offboardDate:offboard?offboardDate:null
+    rates,projectIds,offboard,offboardDate:offboard?offboardDate:null,
+    remarks:existRec?existRec.remarks||'':''
   };
 
   if(editId){ const i=S.personnel.findIndex(p=>p.id===editId); if(i>=0) S.personnel[i]=rec; }
   else S.personnel.push(rec);
   save('personnel');
   closeModal();
-  renderProfile();
+  if(editId) showPersonDetail(editId); else renderProfile();
 }
 
 function delPerson(id) {
@@ -789,7 +852,14 @@ function selAllProjs() {
 function buildCalHTML() {
   const y=S.calYear, m=S.calMonth;
   const sel=getSelProjs();
-  const people=S.personnel.filter(p=>(p.projectIds||[]).some(id=>sel.includes(id))&&!p.offboard);
+  const calStart=new Date(y,m,1), calEnd=new Date(y,m+1,0);
+  const people=S.personnel.filter(p=>{
+    if(!(p.projectIds||[]).some(id=>sel.includes(id))||p.offboard) return false;
+    if(!p.poStart) return false;
+    if(new Date(p.poStart+'T00:00:00')>calEnd) return false;
+    if(p.poUntil&&new Date(p.poUntil+'T00:00:00')<calStart) return false;
+    return true;
+  });
   const dim=new Date(y,m+1,0).getDate();
   const fdow=new Date(y,m,1).getDay();
   const todayStr=dk(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());
@@ -896,8 +966,16 @@ function goToday(){
 // ═══════════════════════════════════════
 function openDayModal(ds, isWe, isHol) {
   const sel=getSelProjs();
-  const people=S.personnel.filter(p=>(p.projectIds||[]).some(id=>sel.includes(id))&&!p.offboard);
   const [y,m,d]=ds.split('-');
+  const ym=parseInt(m)-1;
+  const calStart=new Date(parseInt(y),ym,1), calEnd=new Date(parseInt(y),ym+1,0);
+  const people=S.personnel.filter(p=>{
+    if(!(p.projectIds||[]).some(id=>sel.includes(id))||p.offboard) return false;
+    if(!p.poStart) return false;
+    if(new Date(p.poStart+'T00:00:00')>calEnd) return false;
+    if(p.poUntil&&new Date(p.poUntil+'T00:00:00')<calStart) return false;
+    return true;
+  });
   const dispDate=`${parseInt(d)} ${MN[parseInt(m)-1]} ${y}`;
 
   const existing=S.entries.filter(e=>e.date===ds&&people.some(p=>p.id===e.personnelId));
