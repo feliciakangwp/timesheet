@@ -6,6 +6,7 @@
 <title>Timesheet Portal</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.3/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -18,7 +19,9 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
 
 /* HEADER */
-.app-header{background:var(--primary);color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.app-header{background:var(--primary);color:#fff;padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.btn-sprint-track{background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.45);color:#fff;padding:6px 15px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;letter-spacing:-.2px}
+.btn-sprint-track:hover{background:rgba(255,255,255,.28)}
 .app-header h1{font-size:18px;font-weight:700;letter-spacing:-.3px}
 .app-header h1 span{font-weight:300;opacity:.7}
 
@@ -249,12 +252,34 @@ tbody tr:hover td{background:#f8fafc}
 .sprint-remarks{width:100%;min-height:58px;padding:6px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;resize:vertical;background:var(--white);color:var(--text);font-family:inherit;margin-top:4px}
 .sprint-remarks:focus{outline:none;border-color:var(--accent)}
 .chart-wrap{position:relative;height:340px;padding:8px 0}
+
+/* SPRINT TRACK OVERLAY */
+#sprint-track-overlay{position:fixed;inset:0;background:#0a0e1a;z-index:2000;flex-direction:column;display:none}
+#sprint-track-overlay.open{display:flex}
+.st-hdr{background:rgba(0,0,0,.55);border-bottom:1px solid rgba(255,255,255,.1);padding:0 18px;height:50px;display:flex;align-items:center;gap:14px;flex-shrink:0}
+.st-title{color:#fff;font-size:14px;font-weight:700;flex:1}
+.st-legend{display:flex;gap:8px;flex-wrap:wrap}
+.st-badge{padding:3px 11px;border-radius:20px;font-size:11px;font-weight:700}
+.st-close{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;padding:5px 14px;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer}
+.st-close:hover{background:rgba(255,255,255,.24)}
+.st-body{display:flex;flex:1;overflow:hidden;min-height:0}
+#sprint-track-canvas{flex:1;display:block;min-width:0;height:100%;cursor:grab}
+#sprint-track-canvas:active{cursor:grabbing}
+.st-board{width:210px;background:rgba(0,0,0,.72);border-left:1px solid rgba(255,255,255,.1);overflow-y:auto;padding:12px;flex-shrink:0}
+.st-sb-hdr{color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+.st-sb-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.st-sb-row:last-child{border:none}
+.st-sb-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.st-sb-name{color:#e2e8f0;font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-sb-pct{font-size:11px;font-weight:700;color:#cbd5e1;text-align:right}
+.st-sb-spd{font-size:10px;color:#64748b;text-align:right}
 </style>
 </head>
 <body>
 
 <div class="app-header">
   <h1>⏱ Timesheet <span>Portal</span></h1>
+  <button class="btn-sprint-track" onclick="openSprintTrack()">🏟 Sprint Track</button>
 </div>
 
 <nav class="nav" id="mainNav">
@@ -281,6 +306,22 @@ tbody tr:hover td{background:#f8fafc}
     </div>
     <div class="modal-body" id="modal-body"></div>
     <div class="modal-ftr" id="modal-ftr"></div>
+  </div>
+</div>
+
+<div id="sprint-track-overlay">
+  <div class="st-hdr">
+    <div class="st-title">🏟 Dev Sprint Track</div>
+    <div class="st-legend">
+      <span class="st-badge" style="background:#E91E8C;color:#fff">● ORION</span>
+      <span class="st-badge" style="background:#29B6F6;color:#fff">● POLARIS</span>
+      <span class="st-badge" style="background:#FDD835;color:#333">● CORDIS</span>
+    </div>
+    <button class="st-close" onclick="closeSprintTrack()">✕ Close</button>
+  </div>
+  <div class="st-body">
+    <canvas id="sprint-track-canvas"></canvas>
+    <div class="st-board" id="st-scoreboard"><div class="st-sb-hdr">Sprint Velocity</div></div>
   </div>
 </div>
 
@@ -1904,6 +1945,7 @@ function drawDashCombinedChart(expRows, velRows, projIds) {
 
   if(canvas._ci) canvas._ci.destroy();
   canvas._ci=new Chart(canvas,{
+    type:'bar',
     data:{
       labels:allPeriods,
       datasets:[
@@ -1951,6 +1993,261 @@ function closeModal() { document.getElementById('modal-overlay').classList.remov
 document.getElementById('modal-overlay').addEventListener('click',function(e){
   if(e.target===this) closeModal();
 });
+
+// ═══════════════════════════════════════
+// SPRINT TRACK (3D)
+// ═══════════════════════════════════════
+let _stRenderer=null,_stAnimId=null,_stClock=null,_stDevObjs=[],_stRO=null,_stCam=null,_stScene=null;
+const _ST_FEMALE=new Set(['shivani','dharani','eejya']);
+const _ST_COLORS={p_orion:0xE91E8C,p_polaris:0x29B6F6,p_cordis:0xFDD835};
+const _ST_LANES=[{a:9.1,b:6.1},{a:9.75,b:6.75},{a:10.4,b:7.35}];
+
+function _stSpeedPct(devId){
+  const arr=(S.sprints||[]).filter(s=>s.completedHours&&s.completedHours[devId]!==undefined)
+    .sort((a,b)=>b.startDate.localeCompare(a.startDate));
+  if(!arr.length)return 0;
+  const s=arr[0];
+  const wd=workDaysInRange(s.startDate,s.endDate);
+  const eff=Math.round(wd*8*.8);
+  return eff?Math.round((s.completedHours[devId]||0)/eff*100):0;
+}
+
+function _stTier(pct){
+  if(pct===0)  return{spd:0,   freq:0,   label:'Standing'};
+  if(pct<=50)  return{spd:.003,freq:2.5, label:'Very Slow'};
+  if(pct<=60)  return{spd:.006,freq:4.0, label:'Slow'};
+  if(pct<=75)  return{spd:.010,freq:6.0, label:'Average'};
+  if(pct<=85)  return{spd:.016,freq:9.0, label:'Fast'};
+  return               {spd:.024,freq:13, label:'Very Fast'};
+}
+
+function _stNameLabel(name){
+  const c=document.createElement('canvas');c.width=256;c.height=72;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle='rgba(0,0,0,.7)';
+  if(ctx.roundRect){ctx.roundRect(4,4,248,64,10);ctx.fill();}else{ctx.fillRect(4,4,248,64);}
+  ctx.fillStyle='#fff';ctx.font='bold 28px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(name,128,36);
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+  sp.scale.set(1.3,.37,1);sp.position.y=1.75;
+  return sp;
+}
+
+function _stMakeDev(name,female,shirtColor){
+  const g=new THREE.Group();
+  const skin =new THREE.MeshLambertMaterial({color:0xF5CBA7});
+  const shirt =new THREE.MeshLambertMaterial({color:shirtColor});
+  const pants =new THREE.MeshLambertMaterial({color:0x1a1a3e});
+  const hair  =new THREE.MeshLambertMaterial({color:female?0x3d1a00:0x1a0a00});
+  const shoe  =new THREE.MeshLambertMaterial({color:0xf0f0f0});
+
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(.16,.14,.44,10),shirt);
+  torso.position.y=.62;g.add(torso);
+
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.155,14,14),skin);
+  head.position.y=.98;g.add(head);
+
+  const hairM=new THREE.Mesh(new THREE.SphereGeometry(.16,14,14,0,Math.PI*2,0,Math.PI*.54),hair);
+  hairM.position.y=1.01;g.add(hairM);
+
+  if(female){
+    const bun=new THREE.Mesh(new THREE.SphereGeometry(.075,10,10),hair);
+    bun.position.set(0,1.2,-.1);g.add(bun);
+  }
+
+  function pivot(px,py,pz,cyl,shoe2){
+    const p=new THREE.Group();p.position.set(px,py,pz);
+    const m=new THREE.Mesh(new THREE.CylinderGeometry(cyl[0],cyl[1],cyl[2],8),cyl[3]);
+    m.position.y=-cyl[2]/2;p.add(m);
+    if(shoe2){const s2=new THREE.Mesh(new THREE.BoxGeometry(.09,.065,.18),shoe);s2.position.set(0,-cyl[2]-.02,.045);p.add(s2);}
+    g.add(p);return p;
+  }
+  const laP=pivot(-.21,.58,0,[.045,.04,.32,shirt],false);
+  const raP=pivot( .21,.58,0,[.045,.04,.32,shirt],false);
+  const llP=pivot(-.08,.44,0,[.055,.05,.38,pants],true);
+  const rlP=pivot( .08,.44,0,[.055,.05,.38,pants],true);
+
+  g.add(_stNameLabel(name));
+  return{g,laP,raP,llP,rlP};
+}
+
+function _stBuildStadium(sc){
+  // Ground
+  const gnd=new THREE.Mesh(new THREE.PlaneGeometry(80,80),new THREE.MeshLambertMaterial({color:0x2d5a27}));
+  gnd.rotation.x=-Math.PI/2;gnd.position.y=-.02;sc.add(gnd);
+
+  const segs=80;
+  function mkEllipse(ax,bx){
+    const sh=new THREE.Shape();
+    for(let i=0;i<=segs;i++){const a=i/segs*Math.PI*2;sh[i===0?'moveTo':'lineTo'](ax*Math.cos(a),bx*Math.sin(a));}
+    return sh;
+  }
+
+  // Track ring
+  const track=mkEllipse(11,8);
+  const hole=new THREE.Path();
+  for(let i=0;i<=segs;i++){const a=i/segs*Math.PI*2;hole[i===0?'moveTo':'lineTo'](8.5*Math.cos(a),5.5*Math.sin(a));}
+  track.holes=[hole];
+  const trackM=new THREE.Mesh(new THREE.ShapeGeometry(track,64),new THREE.MeshLambertMaterial({color:0xC8936A}));
+  trackM.rotation.x=-Math.PI/2;sc.add(trackM);
+
+  // Infield
+  const infM=new THREE.Mesh(new THREE.ShapeGeometry(mkEllipse(8.5,5.5),64),new THREE.MeshLambertMaterial({color:0x3a7a32}));
+  infM.rotation.x=-Math.PI/2;infM.position.y=.01;sc.add(infM);
+
+  // Lane lines (3 white ellipses interpolated between inner/outer)
+  [{a:9.1,b:6.1},{a:9.75,b:6.75},{a:10.4,b:7.35}].forEach(({a,b})=>{
+    const pts=[];
+    for(let i=0;i<=segs;i++){const ang=i/segs*Math.PI*2;pts.push(new THREE.Vector3(a*Math.cos(ang),.015,b*Math.sin(ang)));}
+    sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xffffff})));
+  });
+
+  // Start/finish line
+  const sfPts=[new THREE.Vector3(8.5,.015,0),new THREE.Vector3(11,.015,0)];
+  sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(sfPts),new THREE.LineBasicMaterial({color:0xffff00})));
+
+  // Grandstands (long sides)
+  const sM=new THREE.MeshLambertMaterial({color:0x455A64});
+  const stM=new THREE.MeshLambertMaterial({color:0x1565C0});
+  [-11,11].forEach(z=>{
+    const sign=z<0?-1:1;
+    const base=new THREE.Mesh(new THREE.BoxGeometry(28,2.5,4.5),sM);base.position.set(0,1.25,z+sign*2.5);sc.add(base);
+    const seats=new THREE.Mesh(new THREE.BoxGeometry(26,.5,3.5),stM);seats.position.set(0,2.75,z+sign*2.6);sc.add(seats);
+  });
+  // End stands
+  [-16,16].forEach(x=>{
+    const sign=x<0?-1:1;
+    const base=new THREE.Mesh(new THREE.BoxGeometry(5,2,18),sM);base.position.set(x+sign*2.5,1,0);sc.add(base);
+    const seats=new THREE.Mesh(new THREE.BoxGeometry(4,.5,17),stM);seats.position.set(x+sign*2.5,2.3,0);sc.add(seats);
+  });
+
+  // Light poles (4 corners)
+  const pM=new THREE.MeshLambertMaterial({color:0x78909C});
+  [[14,9],[14,-9],[-14,9],[-14,-9]].forEach(([px,pz])=>{
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,12,8),pM);pole.position.set(px,6,pz);sc.add(pole);
+    const lt=new THREE.Mesh(new THREE.BoxGeometry(1.2,.5,.5),new THREE.MeshLambertMaterial({color:0xFFFDE7,emissive:0xFFF59D,emissiveIntensity:.5}));
+    lt.position.set(px,12.3,pz);sc.add(lt);
+  });
+
+  // Scoreboard at one end
+  const sbBd=new THREE.Mesh(new THREE.BoxGeometry(8,4,0.5),new THREE.MeshLambertMaterial({color:0x212121}));
+  sbBd.position.set(0,5.5,-17);sc.add(sbBd);
+  const sbScreen=new THREE.Mesh(new THREE.PlaneGeometry(7.2,3.4),new THREE.MeshLambertMaterial({color:0x0D1B2A,emissive:0x0D47A1,emissiveIntensity:.3}));
+  sbScreen.position.set(0,5.5,-16.74);sc.add(sbScreen);
+}
+
+function openSprintTrack(){
+  document.getElementById('sprint-track-overlay').classList.add('open');
+  if(!_stRenderer)_stInit();
+}
+
+function closeSprintTrack(){
+  document.getElementById('sprint-track-overlay').classList.remove('open');
+  if(_stAnimId){cancelAnimationFrame(_stAnimId);_stAnimId=null;}
+  if(_stRO){_stRO.disconnect();_stRO=null;}
+  if(_stRenderer){_stRenderer.dispose();_stRenderer=null;_stScene=null;_stCam=null;_stDevObjs=[];}
+}
+
+function _stInit(){
+  if(typeof THREE==='undefined'){alert('Three.js not loaded. Please refresh and try again.');return;}
+  const canvas=document.getElementById('sprint-track-canvas');
+  const W=canvas.clientWidth||900,H=canvas.clientHeight||520;
+
+  _stScene=new THREE.Scene();
+  _stScene.background=new THREE.Color(0x87CEEB);
+  _stScene.fog=new THREE.Fog(0x87CEEB,50,90);
+
+  _stCam=new THREE.PerspectiveCamera(50,W/H,.1,200);
+  _stCam.position.set(0,22,24);_stCam.lookAt(0,0,0);
+
+  _stRenderer=new THREE.WebGLRenderer({canvas,antialias:true});
+  _stRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  _stRenderer.setSize(W,H);
+
+  _stScene.add(new THREE.AmbientLight(0xffffff,.8));
+  const sun=new THREE.DirectionalLight(0xFFF8E1,.85);sun.position.set(8,20,12);_stScene.add(sun);
+  const fill=new THREE.DirectionalLight(0xE3F2FD,.3);fill.position.set(-10,8,-5);_stScene.add(fill);
+
+  _stBuildStadium(_stScene);
+
+  // Build developer figures from live data
+  const today=new Date().toISOString().slice(0,10);
+  const devs=(S.personnel||[]).filter(p=>!p.offboard||(p.offboardDate&&p.offboardDate>=today));
+  _stDevObjs=[];
+  let sbHTML='<div class="st-sb-hdr">Sprint Velocity</div>';
+
+  devs.forEach((per,i)=>{
+    const projId=(per.projectIds||[])[0]||'';
+    const shirtHex=_ST_COLORS[projId]||0xBDBDBD;
+    const female=_ST_FEMALE.has(per.name.toLowerCase());
+    const pct=_stSpeedPct(per.id);
+    const{spd,freq,label}=_stTier(pct);
+    const lane=_ST_LANES[i%3];
+    const angle=(i/devs.length)*Math.PI*2;
+    const dev=_stMakeDev(per.name,female,shirtHex);
+    dev.g.position.set(lane.a*Math.cos(angle),0,lane.b*Math.sin(angle));
+    const tx=-lane.a*Math.sin(angle),tz=lane.b*Math.cos(angle);
+    dev.g.rotation.y=Math.atan2(tx,tz);
+    _stScene.add(dev.g);
+    _stDevObjs.push({...dev,angle,spd,freq,lA:lane.a,lB:lane.b,pct});
+
+    const dot=projId==='p_orion'?'#E91E8C':projId==='p_polaris'?'#29B6F6':projId==='p_cordis'?'#FDD835':'#9E9E9E';
+    sbHTML+=`<div class="st-sb-row">
+      <div class="st-sb-dot" style="background:${dot}"></div>
+      <div class="st-sb-name">${per.name}</div>
+      <div><div class="st-sb-pct">${pct}%</div><div class="st-sb-spd">${label}</div></div>
+    </div>`;
+  });
+  document.getElementById('st-scoreboard').innerHTML=sbHTML;
+
+  // Simple orbit control (mouse drag + scroll)
+  let drag=false,pmx=0,pmy=0,theta=.85,phi=1.05,cr=30;
+  const upCam=()=>{_stCam.position.set(cr*Math.sin(phi)*Math.sin(theta),cr*Math.cos(phi),cr*Math.sin(phi)*Math.cos(theta));_stCam.lookAt(0,0,0);};
+  canvas.addEventListener('mousedown',e=>{drag=true;pmx=e.clientX;pmy=e.clientY;});
+  canvas.addEventListener('mouseup',()=>drag=false,false);
+  canvas.addEventListener('mouseleave',()=>drag=false,false);
+  canvas.addEventListener('mousemove',e=>{if(!drag)return;theta+=(e.clientX-pmx)*.007;phi=Math.max(.1,Math.min(1.38,phi+(e.clientY-pmy)*.007));pmx=e.clientX;pmy=e.clientY;upCam();});
+  canvas.addEventListener('wheel',e=>{cr=Math.max(10,Math.min(60,cr+e.deltaY*.05));upCam();},{passive:true});
+  // Touch support
+  let t0=null;
+  canvas.addEventListener('touchstart',e=>{if(e.touches.length===1){drag=true;pmx=e.touches[0].clientX;pmy=e.touches[0].clientY;}},{passive:true});
+  canvas.addEventListener('touchend',()=>drag=false,false);
+  canvas.addEventListener('touchmove',e=>{if(!drag||e.touches.length!==1)return;theta+=(e.touches[0].clientX-pmx)*.007;phi=Math.max(.1,Math.min(1.38,phi+(e.touches[0].clientY-pmy)*.007));pmx=e.touches[0].clientX;pmy=e.touches[0].clientY;upCam();},{passive:true});
+
+  _stClock=new THREE.Clock();
+  const loop=()=>{
+    _stAnimId=requestAnimationFrame(loop);
+    const t=_stClock.getElapsedTime();
+    _stDevObjs.forEach(d=>{
+      if(d.spd>0){
+        d.angle+=d.spd;
+        d.g.position.x=d.lA*Math.cos(d.angle);
+        d.g.position.z=d.lB*Math.sin(d.angle);
+        d.g.rotation.y=Math.atan2(-d.lA*Math.sin(d.angle),d.lB*Math.cos(d.angle));
+        const ph=t*d.freq;
+        d.llP.rotation.x= .55*Math.sin(ph);
+        d.rlP.rotation.x=-.55*Math.sin(ph);
+        d.laP.rotation.x=-.35*Math.sin(ph);
+        d.raP.rotation.x= .35*Math.sin(ph);
+        d.g.position.y=.04*Math.abs(Math.sin(ph*2));
+      } else {
+        // Idle: gentle sway
+        d.g.rotation.z=.04*Math.sin(t*1.2+d.angle*7);
+        d.g.position.y=.01*Math.sin(t*1.8+d.angle*3);
+      }
+    });
+    _stRenderer.render(_stScene,_stCam);
+  };
+  loop();
+
+  _stRO=new ResizeObserver(()=>{
+    const w=canvas.clientWidth,h=canvas.clientHeight;
+    if(!w||!h||!_stCam)return;
+    _stCam.aspect=w/h;_stCam.updateProjectionMatrix();
+    _stRenderer.setSize(w,h);
+  });
+  _stRO.observe(canvas);
+}
 
 // ═══════════════════════════════════════
 // INIT
