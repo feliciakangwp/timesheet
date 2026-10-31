@@ -4,7 +4,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#121210;font-family:Inter,system-ui,sans-serif}
-canvas{display:block;width:100%!important;height:100%!important}
+canvas{display:block;position:fixed;inset:0}
 #badge{position:fixed;top:0;left:0;display:flex;align-items:center;gap:8px;
   background:rgba(14,14,10,.85);backdrop-filter:blur(10px);
   border:1px solid rgba(255,255,255,.1);border-top:none;border-left:none;
@@ -43,10 +43,13 @@ canvas{display:block;width:100%!important;height:100%!important}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script>
 'use strict';
+window.addEventListener('load', function() {
 // ─── RENDERER ───────────────────────────────────────────────────────────────
-const renderer = new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+const cW = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 375);
+const cH = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 667);
+const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(cW, cH);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -62,7 +65,7 @@ scene.fog = new THREE.Fog(0x7A9FC8, 75, 135);
 
 // ─── CAMERA (fixed angle, pan+zoom only) ────────────────────────────────────
 let panX = 0, panZ = 0, camDist = 36, CAM_EL = 28;
-const camera = new THREE.PerspectiveCamera(52, innerWidth/innerHeight, 0.1, 180);
+const camera = new THREE.PerspectiveCamera(52, cW/cH, 0.1, 180);
 function setCam() {
   camera.position.set(panX, CAM_EL, panZ + camDist);
   camera.lookAt(panX, 0, panZ);
@@ -545,8 +548,10 @@ ljpit.position.set(0, 0.02, 4.0); scene.add(ljpit);
 
 // ─── RESIZE ───────────────────────────────────────────────────────────────────
 window.addEventListener('resize', () => {
-  renderer.setSize(innerWidth, innerHeight);
-  camera.aspect = innerWidth/innerHeight;
+  const rW = Math.max(1, document.documentElement.clientWidth || window.innerWidth);
+  const rH = Math.max(1, document.documentElement.clientHeight || window.innerHeight);
+  renderer.setSize(rW, rH);
+  camera.aspect = rW/rH;
   camera.updateProjectionMatrix();
 });
 
@@ -633,4 +638,5 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+}); // end window load
 </script>
