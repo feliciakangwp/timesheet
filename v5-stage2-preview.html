@@ -31,7 +31,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#121210;font-family:
 </style>
 
 <canvas id="c"></canvas>
-<div id="badge"><span class="live"></span>Stage 2 · Live Three.js Scene · V5 Quality Preview</div>
+<div id="badge"><span class="live"></span>Stage 2 · Phase 3 · Live Three.js Scene</div>
 <div id="zoom">
   <button class="zb" id="zin">+</button>
   <button class="zb" id="zout">−</button>
@@ -84,43 +84,45 @@ function tryInit() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.80;
+    renderer.toneMappingExposure = 0.75;
     renderer.outputEncoding = THREE.sRGBEncoding;
 
     // ─── SCENE ──────────────────────────────────────────────────────────────
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x4A6A96);
-    scene.fog = new THREE.Fog(0x6080A8, 90, 160);
+    scene.background = new THREE.Color(0x4A6888);
+    scene.fog = new THREE.Fog(0x4A6888, 95, 165);
 
     // ─── CAMERA ─────────────────────────────────────────────────────────────
-    // Positioned on the open-front side, looking toward rear grandstand
-    let panX = 0, panZ = 0, camDist = 52, CAM_EL = 34;
-    const camera = new THREE.PerspectiveCamera(46, cW/cH, 0.1, 200);
+    let panX = 0, panZ = 0, camDist = 50, CAM_EL = 38;
+    const camera = new THREE.PerspectiveCamera(44, cW/cH, 0.1, 200);
     function setCam() {
-      camera.position.set(panX + 15, CAM_EL, panZ + camDist * 0.70);
-      camera.lookAt(panX, 1, panZ - 10);
+      camera.position.set(panX + 14, CAM_EL, panZ + camDist * 0.72);
+      camera.lookAt(panX, 0.5, panZ - 8);
     }
     setCam();
 
     // ─── LIGHTING ───────────────────────────────────────────────────────────
-    scene.add(new THREE.HemisphereLight(0x88AACC, 0x3A5C25, 0.35));
+    // Lower ambient so shadows have real contrast
+    scene.add(new THREE.HemisphereLight(0x6688BB, 0x2E4C1A, 0.18));
 
-    const sun = new THREE.DirectionalLight(0xFFAA55, 2.2);
-    sun.position.set(28, 42, 18);
+    // Strong warm sun — key for rich terracotta and vibrant green
+    const sun = new THREE.DirectionalLight(0xFFAA44, 3.2);
+    sun.position.set(30, 48, 20);
     sun.castShadow = true;
     sun.shadow.mapSize.width  = 1024;
     sun.shadow.mapSize.height = 1024;
     sun.shadow.bias = -0.002;
     sun.shadow.camera.near = 1;
-    sun.shadow.camera.far  = 110;
-    sun.shadow.camera.left   = -45;
-    sun.shadow.camera.right  =  45;
-    sun.shadow.camera.top    =  45;
-    sun.shadow.camera.bottom = -45;
+    sun.shadow.camera.far  = 120;
+    sun.shadow.camera.left   = -50;
+    sun.shadow.camera.right  =  50;
+    sun.shadow.camera.top    =  50;
+    sun.shadow.camera.bottom = -50;
     scene.add(sun);
 
-    const fill = new THREE.DirectionalLight(0x5588BB, 0.40);
-    fill.position.set(-22, 18, -14);
+    // Cool fill from opposite side for depth
+    const fill = new THREE.DirectionalLight(0x4466AA, 0.30);
+    fill.position.set(-25, 15, -18);
     scene.add(fill);
 
     // ─── TRACK CONSTANTS ────────────────────────────────────────────────────
@@ -131,24 +133,27 @@ function tryInit() {
     const OTR = TR + NL * LW; // outer track radius = 9.4
 
     // ─── GRANDSTAND CONSTANTS ───────────────────────────────────────────────
-    const CLEARANCE = 1.5;           // gap from outer track edge
-    const GS_INNER  = OTR + CLEARANCE; // = 10.9 (grandstand inner boundary)
+    const CLEARANCE = 1.5;
+    const GS_INNER  = OTR + CLEARANCE; // = 10.9
     const TIERS  = 7;
     const TIER_W = 1.3;
     const TIER_H = 0.70;
 
     // ─── MATERIALS ──────────────────────────────────────────────────────────
     const MAT = {
-      grass:    new THREE.MeshStandardMaterial({color:0x3D6B2A, roughness:0.94, metalness:0}),
+      grass:    new THREE.MeshStandardMaterial({color:0x406E2A, roughness:0.94, metalness:0}),
       infield:  new THREE.MeshStandardMaterial({color:0x477B36, roughness:0.92, metalness:0}),
-      track:    new THREE.MeshStandardMaterial({color:0xC65B42, roughness:0.80, metalness:0}),
+      track:    new THREE.MeshStandardMaterial({color:0xC65B42, roughness:0.78, metalness:0}),
       concrete: new THREE.MeshStandardMaterial({color:0x3D4146, roughness:0.85, metalness:0.01}),
       concrete2:new THREE.MeshStandardMaterial({color:0x4B5158, roughness:0.87, metalness:0.01}),
-      roof:     new THREE.MeshStandardMaterial({color:0x6C7075, roughness:0.60, metalness:0.15, transparent:true, opacity:0.92}),
+      warm:     new THREE.MeshStandardMaterial({color:0x827A70, roughness:0.82, metalness:0.01}),
+      roof:     new THREE.MeshStandardMaterial({color:0x5C6065, roughness:0.60, metalness:0.15, transparent:true, opacity:0.92}),
       steel:    new THREE.MeshStandardMaterial({color:0x555A60, roughness:0.40, metalness:0.75}),
       led:      new THREE.MeshStandardMaterial({color:0x111114, roughness:0.6, emissive:0x0033FF, emissiveIntensity:0.18}),
       scoreGlow:new THREE.MeshStandardMaterial({color:0x080808, roughness:0.5, emissive:0xFF8800, emissiveIntensity:0.5}),
-      white:    new THREE.MeshStandardMaterial({color:0xFFFFFF, roughness:0.6}),
+      white:    new THREE.MeshStandardMaterial({color:0xF5E9D9, roughness:0.6}),
+      sand:     new THREE.MeshStandardMaterial({color:0xD4C080, roughness:0.96}),
+      foam:     new THREE.MeshStandardMaterial({color:0x3A7FBF, roughness:0.88}),
       flagRed:  new THREE.MeshStandardMaterial({color:0xE03028, roughness:0.7, side:THREE.DoubleSide}),
       flagYel:  new THREE.MeshStandardMaterial({color:0xF4C020, roughness:0.7, side:THREE.DoubleSide}),
     };
@@ -184,8 +189,6 @@ function tryInit() {
       return g;
     }
 
-    // Right corner wing: quarter-arc at center (SL,0), angles 0→PI/2 in 2D
-    // After rotateX: covers far-right corner (X>SL, Z<0)
     function qRingR(outerR, innerR) {
       const s = new THREE.Shape();
       s.absarc(SL, 0, outerR, 0, Math.PI/2, false);
@@ -195,8 +198,6 @@ function tryInit() {
       return g;
     }
 
-    // Left corner wing: quarter-arc at center (-SL,0), angles PI/2→PI in 2D
-    // After rotateX: covers far-left corner (X<-SL, Z<0)
     function qRingL(outerR, innerR) {
       const s = new THREE.Shape();
       s.absarc(-SL, 0, outerR, Math.PI/2, Math.PI, false);
@@ -206,11 +207,61 @@ function tryInit() {
       return g;
     }
 
+    // ─── ARC-LENGTH TRACK POSITION ─────────────────────────────────────────
+    // Counter-clockwise from above: front straight (-X) → left curve → back straight (+X) → right curve
+    function trackPos(s, lR) {
+      const P      = 4 * SL + 2 * Math.PI * lR;
+      const d      = ((s % 1) + 1) % 1 * P;
+      const arcLen = Math.PI * lR;
+      const e1 = 2 * SL;            // end of front straight
+      const e2 = e1 + arcLen;       // end of left curve
+      const e3 = e2 + 2 * SL;       // end of back straight
+      // e4 = e3 + arcLen = P        end of right curve
+
+      let x, z, ry;
+      if (d < e1) {
+        // Front straight: (+SL, +lR) → (-SL, +lR), moving -X
+        const f = d / (2 * SL);
+        x = SL - f * 2 * SL;
+        z = lR;
+        ry = -Math.PI / 2;
+      } else if (d < e2) {
+        // Left curve: center (-SL, 0), theta PI/2 → 3PI/2 (CCW from above)
+        const theta = Math.PI / 2 + (d - e1) / arcLen * Math.PI;
+        x = -SL + lR * Math.cos(theta);
+        z =        lR * Math.sin(theta);
+        ry = Math.atan2(-Math.sin(theta), Math.cos(theta));
+      } else if (d < e3) {
+        // Back straight: (-SL, -lR) → (+SL, -lR), moving +X
+        const f = (d - e2) / (2 * SL);
+        x = -SL + f * 2 * SL;
+        z = -lR;
+        ry = Math.PI / 2;
+      } else {
+        // Right curve: center (+SL, 0), theta -PI/2 → PI/2
+        const theta = -Math.PI / 2 + (d - e3) / arcLen * Math.PI;
+        x = SL + lR * Math.cos(theta);
+        z =       lR * Math.sin(theta);
+        ry = Math.atan2(-Math.sin(theta), Math.cos(theta));
+      }
+      return { x, z, ry };
+    }
+
+    // pct → per-frame arc fraction (speed rules)
+    function pctToSpeed(pct) {
+      if (pct <= 0)    return 0;
+      if (pct < 0.50)  return 0.00055 * (pct / 0.50);
+      if (pct < 0.60)  return 0.00055 + (pct - 0.50) / 0.10 * 0.00055;
+      if (pct < 0.75)  return 0.00110 + (pct - 0.60) / 0.15 * 0.00090;
+      if (pct < 0.85)  return 0.00200 + (pct - 0.75) / 0.10 * 0.00110;
+      return 0.00310 + (pct - 0.85) / 0.15 * 0.00140;
+    }
+
     // ─── GROUND ─────────────────────────────────────────────────────────────
     const gnd = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), MAT.grass);
     gnd.rotation.x = -Math.PI/2; gnd.receiveShadow = true; scene.add(gnd);
 
-    const apron = new THREE.Mesh(stadiumRingGeo(SL, OTR + 1.2, OTR), MAT.concrete);
+    const apron = new THREE.Mesh(stadiumRingGeo(SL, OTR + 1.2, OTR), MAT.warm);
     apron.position.y = 0.01; apron.receiveShadow = true; scene.add(apron);
 
     // ─── RUNNING TRACK ──────────────────────────────────────────────────────
@@ -230,55 +281,34 @@ function tryInit() {
     const infield = new THREE.Mesh(stadiumFillGeo(SL, TR), MAT.infield);
     infield.position.y = 0.03; infield.receiveShadow = true; scene.add(infield);
 
-    // ─── DEBUG BOUNDARY OUTLINES (auto-hide after 6s) ───────────────────────
-    const dbgTrack = new THREE.Mesh(
-      stadiumRingGeo(SL, OTR+0.06, OTR-0.06),
-      new THREE.MeshBasicMaterial({color:0xFF3030, side:THREE.DoubleSide}));
-    dbgTrack.position.y = 0.06; scene.add(dbgTrack);
-    const dbgGS = new THREE.Mesh(
-      stadiumRingGeo(SL, GS_INNER+0.06, GS_INNER-0.06),
-      new THREE.MeshBasicMaterial({color:0x30FF30, side:THREE.DoubleSide}));
-    dbgGS.position.y = 0.07; scene.add(dbgGS);
-    setTimeout(()=>{ dbgTrack.visible=false; dbgGS.visible=false; }, 6000);
-    log('Debug: red=track outer, green=grandstand inner (hide 6s)');
-
-    // ─── U-SHAPED GRANDSTAND (rear + two corner wings, open front) ──────────
+    // ─── U-SHAPED GRANDSTAND ────────────────────────────────────────────────
     for (let t = 0; t < TIERS; t++) {
       const ri = GS_INNER + t * TIER_W;
       const ro = GS_INNER + (t + 1) * TIER_W;
       const ty = t * TIER_H + 0.01;
       const tm = t % 2 === 0 ? MAT.concrete : MAT.concrete2;
 
-      // 1. Rear straight slab (behind back straight, Z negative)
-      const rsb = addShadow(new THREE.Mesh(
-        new THREE.BoxGeometry(2 * SL, TIER_H, TIER_W), tm));
+      const rsb = addShadow(new THREE.Mesh(new THREE.BoxGeometry(2 * SL, TIER_H, TIER_W), tm));
       rsb.position.set(0, ty + TIER_H * 0.5, -(ri + TIER_W * 0.5));
       scene.add(rsb);
 
-      // 2. Right corner wing
       const rw = addShadow(new THREE.Mesh(qRingR(ro, ri), tm));
-      rw.position.y = ty + TIER_H * 0.5;
-      scene.add(rw);
+      rw.position.y = ty + TIER_H * 0.5; scene.add(rw);
 
-      // 3. Left corner wing
       const lw = addShadow(new THREE.Mesh(qRingL(ro, ri), tm));
-      lw.position.y = ty + TIER_H * 0.5;
-      scene.add(lw);
+      lw.position.y = ty + TIER_H * 0.5; scene.add(lw);
     }
 
-    // Back wall (vertical face behind top tier)
     const bkW = addShadow(new THREE.Mesh(
       new THREE.BoxGeometry(2*SL, TIERS*TIER_H, 0.28), MAT.concrete));
     bkW.position.set(0, TIERS*TIER_H*0.5, -(GS_INNER + TIERS*TIER_W));
     scene.add(bkW);
 
-    // Canopy roof over rear straight
     const rfMesh = addShadow(new THREE.Mesh(
       new THREE.BoxGeometry(2*SL + 2, 0.2, TIERS*TIER_W + 0.8), MAT.roof));
     rfMesh.position.set(0, TIERS*TIER_H + 1.75, -(GS_INNER + TIERS*TIER_W*0.5));
     scene.add(rfMesh);
 
-    // Support columns under canopy
     for (let c = 0; c <= 4; c++) {
       const cx = SL * (c/2 - 1);
       const col = addShadow(new THREE.Mesh(
@@ -293,28 +323,22 @@ function tryInit() {
       const ri = GS_INNER + t * TIER_W;
       const ty = t * TIER_H;
       const sbMat = new THREE.MeshStandardMaterial({color: SEAT_BAND[t % SEAT_BAND.length], roughness:0.88});
-      // Seat-back color strip on inner face of rear straight tier
       const sf = new THREE.Mesh(new THREE.BoxGeometry(2*SL - 0.1, TIER_H * 0.72, 0.07), sbMat);
-      sf.position.set(0, ty + TIER_H * 0.5, -ri + 0.04);
-      scene.add(sf);
-      // Steel handrail along inner top edge of tier
+      sf.position.set(0, ty + TIER_H * 0.5, -ri + 0.04); scene.add(sf);
       const hr = new THREE.Mesh(new THREE.BoxGeometry(2*SL + 0.2, 0.055, 0.055), MAT.steel);
-      hr.position.set(0, ty + TIER_H + 0.04, -ri);
-      scene.add(hr);
+      hr.position.set(0, ty + TIER_H + 0.04, -ri); scene.add(hr);
     }
-    // Base retaining wall at inner grandstand boundary
     const baseWall = addShadow(new THREE.Mesh(
       new THREE.BoxGeometry(2*SL + 0.5, 0.65, 0.22), MAT.concrete));
-    baseWall.position.set(0, 0.33, -GS_INNER + 0.11);
-    scene.add(baseWall);
+    baseWall.position.set(0, 0.33, -GS_INNER + 0.11); scene.add(baseWall);
 
-    // ─── SPECTATORS (on U-shaped grandstand only) ────────────────────────────
+    // ─── SPECTATORS ─────────────────────────────────────────────────────────
     const SCOLS = [0xE03428,0x3478D8,0xE8C030,0x28A848,0xE070B0,0x8860D8,0xE86020,0xD4D0C0,0xFFFFFF,0x222244];
     const bGeo = new THREE.CylinderGeometry(0.06,0.075,0.24,7);
     const hGeo = new THREE.SphereGeometry(0.095,8,6);
     const aGeo = new THREE.BoxGeometry(0.28,0.065,0.065);
     const NC = SCOLS.length;
-    const SD = 0.32; // denser crowd
+    const SD = 0.32;
 
     let totalSpec = 0;
     for (let t = 0; t < TIERS; t++) {
@@ -331,69 +355,58 @@ function tryInit() {
       const ri = GS_INNER + t*TIER_W;
       const rc = ri + TIER_W*0.5;
       const ty = t*TIER_H + TIER_H + 0.12;
-
-      // Rear straight row
       const nR = Math.floor(2*SL/SD);
       for (let i = 0; i < nR; i++) {
-        if (i%18===8||i%18===9) continue; // aisle gap
+        if (i%18===8||i%18===9) continue;
         const x = -SL + (i+0.5)*(2*SL/nR);
         const z = -rc;
         const ci = Math.abs(i*7+t*3)%NC, idx = sc[ci]++;
         if (idx>=perC) continue;
         dm.position.set(x,ty,z); dm.rotation.y=0; dm.scale.setScalar(1); dm.updateMatrix();
         bMs[ci].setMatrixAt(idx,dm.matrix);
-        dm.position.set(x,ty+0.20,z); dm.updateMatrix();
-        hMs[ci].setMatrixAt(idx,dm.matrix);
-        dm.position.set(x,ty+0.14,z); dm.updateMatrix();
-        aMs[ci].setMatrixAt(idx,dm.matrix);
+        dm.position.set(x,ty+0.20,z); dm.updateMatrix(); hMs[ci].setMatrixAt(idx,dm.matrix);
+        dm.position.set(x,ty+0.14,z); dm.updateMatrix(); aMs[ci].setMatrixAt(idx,dm.matrix);
       }
-
-      // Right wing (quarter arc)
       const nW = Math.floor(Math.PI/2*rc/SD);
       for (let i = 0; i < nW; i++) {
         const a = (i+0.5)/nW*Math.PI/2;
-        const x = SL + rc*Math.cos(a);
-        const z = -rc*Math.sin(a);
+        const x = SL + rc*Math.cos(a), z = -rc*Math.sin(a);
         const ci = Math.abs(i*5+t*7)%NC, idx = sc[ci]++;
         if (idx>=perC) continue;
         dm.position.set(x,ty,z); dm.rotation.y=-(a+Math.PI/2); dm.scale.setScalar(1); dm.updateMatrix();
         bMs[ci].setMatrixAt(idx,dm.matrix);
-        dm.position.set(x,ty+0.20,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix();
-        hMs[ci].setMatrixAt(idx,dm.matrix);
-        dm.position.set(x,ty+0.14,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix();
-        aMs[ci].setMatrixAt(idx,dm.matrix);
+        dm.position.set(x,ty+0.20,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix(); hMs[ci].setMatrixAt(idx,dm.matrix);
+        dm.position.set(x,ty+0.14,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix(); aMs[ci].setMatrixAt(idx,dm.matrix);
       }
-
-      // Left wing (mirrored quarter arc)
       for (let i = 0; i < nW; i++) {
         const a = Math.PI/2 + (i+0.5)/nW*Math.PI/2;
-        const x = -SL + rc*Math.cos(a);
-        const z = -rc*Math.sin(a);
+        const x = -SL + rc*Math.cos(a), z = -rc*Math.sin(a);
         const ci = Math.abs(i*3+t*11)%NC, idx = sc[ci]++;
         if (idx>=perC) continue;
         dm.position.set(x,ty,z); dm.rotation.y=-(a+Math.PI/2); dm.scale.setScalar(1); dm.updateMatrix();
         bMs[ci].setMatrixAt(idx,dm.matrix);
-        dm.position.set(x,ty+0.20,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix();
-        hMs[ci].setMatrixAt(idx,dm.matrix);
-        dm.position.set(x,ty+0.14,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix();
-        aMs[ci].setMatrixAt(idx,dm.matrix);
+        dm.position.set(x,ty+0.20,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix(); hMs[ci].setMatrixAt(idx,dm.matrix);
+        dm.position.set(x,ty+0.14,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix(); aMs[ci].setMatrixAt(idx,dm.matrix);
       }
     }
     bMs.forEach((m,i)=>{
-      m.count = sc[i]; m.instanceMatrix.needsUpdate=true; m.castShadow=true; m.receiveShadow=true; scene.add(m);
-      hMs[i].count = sc[i]; hMs[i].instanceMatrix.needsUpdate=true; hMs[i].castShadow=true; scene.add(hMs[i]);
-      aMs[i].count = sc[i]; aMs[i].instanceMatrix.needsUpdate=true; aMs[i].castShadow=true; scene.add(aMs[i]);
+      m.count=sc[i]; m.instanceMatrix.needsUpdate=true; m.castShadow=true; m.receiveShadow=true; scene.add(m);
+      hMs[i].count=sc[i]; hMs[i].instanceMatrix.needsUpdate=true; hMs[i].castShadow=true; scene.add(hMs[i]);
+      aMs[i].count=sc[i]; aMs[i].instanceMatrix.needsUpdate=true; aMs[i].castShadow=true; scene.add(aMs[i]);
     });
 
     // ─── FLOODLIGHT TOWERS ──────────────────────────────────────────────────
-    [[-SL-2, 2],[SL+2, 2],[-SL-2, -(OTR+6)],[SL+2, -(OTR+6)],[0, -(OTR+8)]].forEach(([tx,tz])=>{
-      const twr = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.18,20,8), MAT.steel));
-      twr.position.set(tx,10,tz); scene.add(twr);
-      const lamp = addShadow(new THREE.Mesh(new THREE.BoxGeometry(1.2,0.2,0.35), MAT.scoreGlow));
-      lamp.position.set(tx,20,tz+0.6); lamp.rotation.x=-0.3; scene.add(lamp);
-      const halo = new THREE.Mesh(new THREE.SphereGeometry(0.4,8,8),
-        new THREE.MeshStandardMaterial({color:0xFFEE88, emissive:0xFFCC44, emissiveIntensity:2.2, roughness:1}));
-      halo.position.set(tx,19.5,tz); scene.add(halo);
+    const TOWER_POS = [[-SL-2.5, 3.5],[ SL+2.5, 3.5],[-SL-2.5,-(OTR+7)],[ SL+2.5,-(OTR+7)],[0,-(OTR+9)]];
+    TOWER_POS.forEach(([tx,tz])=>{
+      const twr = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.20,24,8), MAT.steel));
+      twr.position.set(tx,12,tz); scene.add(twr);
+      [-0.5,0,0.5].forEach(off=>{
+        const lamp=addShadow(new THREE.Mesh(new THREE.BoxGeometry(0.9,0.18,0.28), MAT.scoreGlow));
+        lamp.position.set(tx+off,24,tz+0.5); lamp.rotation.x=-0.28; scene.add(lamp);
+      });
+      const halo=new THREE.Mesh(new THREE.SphereGeometry(0.38,8,8),
+        new THREE.MeshStandardMaterial({color:0xFFEE88,emissive:0xFFCC44,emissiveIntensity:2.5,roughness:1}));
+      halo.position.set(tx,23.8,tz); scene.add(halo);
     });
 
     // ─── SCOREBOARD ─────────────────────────────────────────────────────────
@@ -408,9 +421,9 @@ function tryInit() {
     const adC=[0xE03428,0x2878D0,0xE8A820,0x28A058,0xD040A0];
     [0.85,1.0,1.15,1.35,1.65,1.8].forEach((f,i)=>{
       const ang=Math.PI*f;
-      const ad = addShadow(new THREE.Mesh(new THREE.BoxGeometry(2.8,0.9,0.12),
-        new THREE.MeshStandardMaterial({color:adC[i%5], roughness:0.5, emissive:adC[i%5], emissiveIntensity:0.1})));
-      ad.position.set(Math.cos(ang)*13.8, 0.5, Math.sin(ang)*10);
+      const ad=addShadow(new THREE.Mesh(new THREE.BoxGeometry(2.8,0.9,0.12),
+        new THREE.MeshStandardMaterial({color:adC[i%5],roughness:0.5,emissive:adC[i%5],emissiveIntensity:0.1})));
+      ad.position.set(Math.cos(ang)*13.8,0.5,Math.sin(ang)*10);
       ad.rotation.y=-(ang+Math.PI/2); scene.add(ad);
     });
 
@@ -418,14 +431,109 @@ function tryInit() {
     const FLAGS=[];
     const fMats=[MAT.flagRed,MAT.flagYel,MAT.flagRed,MAT.flagYel,MAT.flagRed,MAT.flagYel];
     [-7,-4,-1,2,5,8].forEach((fx,i)=>{
-      const fz = -(GS_INNER + TIERS*TIER_W + 0.3);
-      const staff=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,3,6), MAT.steel));
-      staff.position.set(fx, TIERS*TIER_H+2.5, fz); scene.add(staff);
-      const flag=new THREE.Mesh(new THREE.PlaneGeometry(0.8,0.5), fMats[i]);
-      flag.position.set(fx+0.4, TIERS*TIER_H+3.8, fz+0.1);
-      flag.rotation.y=0; scene.add(flag);
+      const fz=-(GS_INNER+TIERS*TIER_W+0.3);
+      const staff=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,3,6),MAT.steel));
+      staff.position.set(fx,TIERS*TIER_H+2.5,fz); scene.add(staff);
+      const flag=new THREE.Mesh(new THREE.PlaneGeometry(0.8,0.5),fMats[i]);
+      flag.position.set(fx+0.4,TIERS*TIER_H+3.8,fz+0.1); scene.add(flag);
       FLAGS.push({mesh:flag});
     });
+
+    // ─── BA FIELD EVENTS ────────────────────────────────────────────────────
+
+    // — JAVELIN (right infield, approach from +X toward -X, throwing area near right curve) —
+    const javMat = new THREE.MeshStandardMaterial({color:0xC85A38, roughness:0.82});
+    // Approach runway: strip at Z = +1.8, X from +8 to +2
+    const javRwy = addShadow(new THREE.Mesh(new THREE.BoxGeometry(6.0,0.015,0.85), javMat));
+    javRwy.position.set(5.0, 0.035, 1.8); scene.add(javRwy);
+    // Throwing arc (PlaneGeometry arc approximation using thin box)
+    const javArcMat = new THREE.MeshStandardMaterial({color:0xF5E9D9, roughness:0.6});
+    for (let a=-1;a<=1;a++){
+      const ap=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.015,0.05),javArcMat);
+      ap.position.set(2.0+a*0.4, 0.038, 1.8+a*0.1); scene.add(ap);
+    }
+    // Landing sector: two thin lines fanning from throw point into infield
+    [-1,1].forEach(s=>{
+      const sl2=addShadow(new THREE.Mesh(new THREE.BoxGeometry(0.05,0.012,5.5),javArcMat));
+      sl2.position.set(0.0, 0.038, 1.8+s*1.4); sl2.rotation.y=s*0.22; scene.add(sl2);
+    });
+    // Javelin prop (elongated cylinder at an angle)
+    const javProp=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.008,3.8,8),
+      new THREE.MeshStandardMaterial({color:0xC0C8D0,roughness:0.35,metalness:0.72})));
+    javProp.position.set(4.5,0.05,1.8); javProp.rotation.z=0.18; javProp.rotation.y=1.57; scene.add(javProp);
+
+    // — SHOT PUT (left side of infield, Z = +2.0, X = -4.5) —
+    const spCircleMat = new THREE.MeshStandardMaterial({color:0xF5E9D9, roughness:0.6, side:THREE.DoubleSide});
+    // Circle outline on ground (ring geometry)
+    const spRing = new THREE.Mesh(stadiumRingGeo(0, 1.26, 1.19), spCircleMat);
+    spRing.position.set(-4.5, 0.038, 2.0); scene.add(spRing);
+    // Stop board (small plank at front of circle)
+    const stopBoard=addShadow(new THREE.Mesh(new THREE.BoxGeometry(2.4,0.10,0.08),
+      new THREE.MeshStandardMaterial({color:0xDDDDDD,roughness:0.6})));
+    stopBoard.position.set(-4.5,0.06,2.0+1.22); scene.add(stopBoard);
+    // Landing sector
+    [-1,1].forEach(s=>{
+      const sl3=addShadow(new THREE.Mesh(new THREE.BoxGeometry(0.05,0.012,4.0),spCircleMat));
+      sl3.position.set(-4.5+s*0.5, 0.038, 2.0+3.0); sl3.rotation.y=s*0.32; scene.add(sl3);
+    });
+    // Shot put ball prop
+    const spBall=addShadow(new THREE.Mesh(new THREE.SphereGeometry(0.16,10,9),
+      new THREE.MeshStandardMaterial({color:0x606068,roughness:0.5,metalness:0.55})));
+    spBall.position.set(-4.5,0.17,2.0); scene.add(spBall);
+
+    // — LONG JUMP (rear infield, Z = -2.0, approach from -X side, pit on +X end) —
+    const ljMat = new THREE.MeshStandardMaterial({color:0xC65B42, roughness:0.82});
+    // Runway strip
+    const ljRwy=addShadow(new THREE.Mesh(new THREE.BoxGeometry(8.5,0.015,0.90), ljMat));
+    ljRwy.position.set(-3.0,0.035,-2.0); scene.add(ljRwy);
+    // Takeoff board (white bar)
+    const ljBoard=addShadow(new THREE.Mesh(new THREE.BoxGeometry(0.10,0.04,0.90),
+      new THREE.MeshStandardMaterial({color:0xF5E9D9,roughness:0.5})));
+    ljBoard.position.set(1.2,0.03,-2.0); scene.add(ljBoard);
+    // Sandpit
+    const ljPit=addShadow(new THREE.Mesh(new THREE.BoxGeometry(3.8,0.04,1.40), MAT.sand));
+    ljPit.position.set(3.0,0.02,-2.0); scene.add(ljPit);
+    // Pit frame (darker border)
+    const pitBorderMat=new THREE.MeshStandardMaterial({color:0x6A6040,roughness:0.88});
+    [[3.0,0.04,-2.85],[3.0,0.04,-1.15],[1.10,0.04,-2.0],[4.90,0.04,-2.0]].forEach(([px,py,pz],i)=>{
+      const pb=addShadow(new THREE.Mesh(
+        i<2?new THREE.BoxGeometry(3.8,0.06,0.10):new THREE.BoxGeometry(0.10,0.06,1.40),pitBorderMat));
+      pb.position.set(px,py,pz); scene.add(pb);
+    });
+
+    // — HIGH JUMP (center infield, Z = -3.2, uprights parallel to X axis) —
+    const hjMat = new THREE.MeshStandardMaterial({color:0xD0D0D8, roughness:0.55, metalness:0.45});
+    // Approach arc marking (partial ring on ground)
+    const hjArcShape=new THREE.Shape();
+    hjArcShape.absarc(0,0,2.2,0.1,Math.PI-0.1,false);
+    hjArcShape.lineTo(0,-0.05);
+    hjArcShape.absarc(0,0,2.15,Math.PI-0.1,0.1,true);
+    const hjArcG=new THREE.ShapeGeometry(hjArcShape,20); hjArcG.rotateX(-Math.PI/2);
+    const hjApproach=new THREE.Mesh(hjArcG,
+      new THREE.MeshStandardMaterial({color:0xF5E9D9,roughness:0.6,side:THREE.DoubleSide}));
+    hjApproach.position.set(0,0.04,-3.2); scene.add(hjApproach);
+    // Upright poles
+    [-1,1].forEach(s=>{
+      const up=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,2.2,8),hjMat));
+      up.position.set(s*1.1,1.1,-3.2); scene.add(up);
+      // Upright base
+      const ub=addShadow(new THREE.Mesh(new THREE.BoxGeometry(0.25,0.06,0.25),MAT.concrete));
+      ub.position.set(s*1.1,0.03,-3.2); scene.add(ub);
+    });
+    // Crossbar
+    const hjBar=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,2.2,8),
+      new THREE.MeshStandardMaterial({color:0xE84020,roughness:0.45})));
+    hjBar.rotation.z=Math.PI/2;
+    hjBar.position.set(0,1.6,-3.2); scene.add(hjBar);
+    // Landing mat
+    const hjMat2=addShadow(new THREE.Mesh(new THREE.BoxGeometry(2.6,0.42,1.8), MAT.foam));
+    hjMat2.position.set(0,0.21,-3.2); scene.add(hjMat2);
+    // Mat padding ridges
+    for(let r=0;r<4;r++){
+      const ridge=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.06,0.05),
+        new THREE.MeshStandardMaterial({color:0x2A6FAF,roughness:0.90}));
+      ridge.position.set(0,0.42,-3.2-0.7+r*0.46); scene.add(ridge);
+    }
 
     // ─── CHIBI ATHLETES ─────────────────────────────────────────────────────
     function makeLatheHead(r) {
@@ -437,12 +545,12 @@ function tryInit() {
     }
     function makeEye(side, headR) {
       const g=new THREE.Group();
-      g.add(new THREE.Mesh(new THREE.SphereGeometry(headR*0.22,8,7), new THREE.MeshStandardMaterial({color:0xFFFFFF,roughness:0.3})));
-      const iris=new THREE.Mesh(new THREE.SphereGeometry(headR*0.15,8,7), new THREE.MeshStandardMaterial({color:0x3A2810,roughness:0.4}));
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(headR*0.22,8,7),new THREE.MeshStandardMaterial({color:0xFFFFFF,roughness:0.3})));
+      const iris=new THREE.Mesh(new THREE.SphereGeometry(headR*0.15,8,7),new THREE.MeshStandardMaterial({color:0x3A2810,roughness:0.4}));
       iris.position.z=headR*0.05; g.add(iris);
-      const pup=new THREE.Mesh(new THREE.SphereGeometry(headR*0.09,6,5), new THREE.MeshStandardMaterial({color:0x080808,roughness:0.5}));
+      const pup=new THREE.Mesh(new THREE.SphereGeometry(headR*0.09,6,5),new THREE.MeshStandardMaterial({color:0x080808,roughness:0.5}));
       pup.position.z=headR*0.06; g.add(pup);
-      g.position.set(side*headR*0.38, headR*0.1, headR*0.82);
+      g.position.set(side*headR*0.38,headR*0.1,headR*0.82);
       return g;
     }
     function makeHair(headR, style, color) {
@@ -461,48 +569,43 @@ function tryInit() {
     }
 
     const ATHLETES=[
-      {color:0xF472B6,hair:'spiky',   hcol:0x3A2010,pct:0.82, lane:0},
-      {color:0x38BDF8,hair:'ponytail',hcol:0x5A3820,pct:0.65, lane:1},
-      {color:0xFACC15,hair:'curly',   hcol:0x1A1A1A,pct:0.48, lane:2},
-      {color:0xF472B6,hair:'side',    hcol:0x1A1A1A,pct:0.55, lane:3},
-      {color:0x38BDF8,hair:'spiky',   hcol:0x4A3020,pct:0.78, lane:4},
+      {color:0xF472B6, hair:'spiky',    hcol:0x3A2010, pct:0.82, lane:0},
+      {color:0x38BDF8, hair:'ponytail', hcol:0x5A3820, pct:0.65, lane:1},
+      {color:0xFACC15, hair:'curly',    hcol:0x1A1A1A, pct:0.48, lane:2},
+      {color:0xF472B6, hair:'side',     hcol:0x1A1A1A, pct:0.55, lane:3},
+      {color:0x38BDF8, hair:'spiky',    hcol:0x4A3020, pct:0.78, lane:4},
+      {color:0xFACC15, hair:'ponytail', hcol:0x2A1A0A, pct:0.72, lane:5},
     ];
-    const TPS=[
-      {angle:-0.1, lane:0},
-      {angle: 0.3, lane:1},
-      {angle: 0.7, lane:2},
-      {angle: 1.1, lane:3},
-      {angle: 1.5, lane:4},
-    ];
-    const runners=[];
 
-    ATHLETES.forEach((ath,i)=>{
-      const {color,hair,hcol,pct,lane}=ath, tp=TPS[i], g=new THREE.Group();
-      const headR=0.38, bodyH=0.52+(pct<0.5?0.1:pct>0.75?-0.05:0);
-      const torsoW=pct<0.5?0.28:pct<0.65?0.22:pct>0.75?0.24:0.18;
-      const jMat=new THREE.MeshStandardMaterial({color,roughness:0.72});
-      const dMat=new THREE.MeshStandardMaterial({color:0x1A1A30,roughness:0.78});
-      const sMat=new THREE.MeshStandardMaterial({color,roughness:0.65,metalness:0.05});
-      const skMat=new THREE.MeshStandardMaterial({color:0xE8C090,roughness:0.68});
+    const runners = [];
+    ATHLETES.forEach((ath, i) => {
+      const {color, hair, hcol, pct, lane} = ath;
+      const g    = new THREE.Group();
+      const headR = 0.38, bodyH = 0.52 + (pct < 0.5 ? 0.1 : pct > 0.75 ? -0.05 : 0);
+      const torsoW = pct < 0.5 ? 0.28 : pct < 0.65 ? 0.22 : pct > 0.75 ? 0.24 : 0.18;
+      const jMat = new THREE.MeshStandardMaterial({color, roughness:0.72});
+      const dMat = new THREE.MeshStandardMaterial({color:0x1A1A30, roughness:0.78});
+      const sMat = new THREE.MeshStandardMaterial({color, roughness:0.65, metalness:0.05});
+      const skMat= new THREE.MeshStandardMaterial({color:0xE8C090, roughness:0.68});
 
-      const body=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(torsoW*0.82,torsoW,bodyH,10),jMat));
-      body.position.y=0.4;
-      const collar=new THREE.Mesh(new THREE.CylinderGeometry(torsoW*0.5,torsoW*0.55,0.06,10),jMat);
-      collar.position.y=0.4+bodyH/2-0.02;
-      const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.065,0.07,0.14,8),skMat);
-      neck.position.y=0.4+bodyH/2+0.06;
-      const head=addShadow(new THREE.Mesh(makeLatheHead(headR),new THREE.MeshStandardMaterial({color:0xF0C080,roughness:0.65})));
-      head.position.y=0.4+bodyH/2+0.14+headR; head.rotation.y=Math.PI;
-      const eyeL=makeEye(-1,headR), eyeR=makeEye(1,headR);
-      eyeL.position.y=eyeR.position.y=0.4+bodyH/2+0.14+headR;
-      eyeL.rotation.y=eyeR.rotation.y=Math.PI;
+      const body   = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(torsoW*0.82,torsoW,bodyH,10),jMat));
+      body.position.y = 0.4;
+      const collar = new THREE.Mesh(new THREE.CylinderGeometry(torsoW*0.5,torsoW*0.55,0.06,10),jMat);
+      collar.position.y = 0.4+bodyH/2-0.02;
+      const neck   = new THREE.Mesh(new THREE.CylinderGeometry(0.065,0.07,0.14,8),skMat);
+      neck.position.y = 0.4+bodyH/2+0.06;
+      const head   = addShadow(new THREE.Mesh(makeLatheHead(headR),new THREE.MeshStandardMaterial({color:0xF0C080,roughness:0.65})));
+      head.position.y = 0.4+bodyH/2+0.14+headR; head.rotation.y = Math.PI;
+      const eyeL = makeEye(-1,headR), eyeR = makeEye(1,headR);
+      eyeL.position.y = eyeR.position.y = 0.4+bodyH/2+0.14+headR;
+      eyeL.rotation.y = eyeR.rotation.y = Math.PI;
       [-1,1].forEach(s=>{
         const cheek=new THREE.Mesh(new THREE.SphereGeometry(headR*0.28,8,7),new THREE.MeshStandardMaterial({color:0xF09880,roughness:0.65,transparent:true,opacity:0.55}));
         cheek.position.set(s*headR*0.7,0.4+bodyH/2+0.14+headR,headR*0.75); g.add(cheek);
       });
-      const hairGrp=makeHair(headR,hair,hcol);
-      hairGrp.position.y=0.4+bodyH/2+0.14+headR; hairGrp.rotation.y=Math.PI;
-      const rph=i*1.57;
+      const hairGrp = makeHair(headR, hair, hcol);
+      hairGrp.position.y = 0.4+bodyH/2+0.14+headR; hairGrp.rotation.y = Math.PI;
+      const rph = i * 1.57;
       [-1,1].forEach((side,ai)=>{
         const arm=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.065,0.38,8),ai===0?jMat:skMat));
         arm.position.set(side*(torsoW+0.06),0.4+bodyH/2-0.1,0);
@@ -516,30 +619,19 @@ function tryInit() {
         shoe.position.set(side*0.09,0.045+Math.abs((side>0?Math.sin(rph):Math.cos(rph))*0.18),0.06); g.add(shoe);
       });
       const bib=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.20,0.02),new THREE.MeshStandardMaterial({color:0xFFFFFF,roughness:0.5}));
-      bib.position.set(0,0.4+bodyH/2-0.12,torsoW+0.01); g.add(bib,body,collar,neck,head,eyeL,eyeR,hairGrp);
-      const initLR = TR + (lane + 0.5) * LW;
-      const initA = tp.angle;
-      const initPx = Math.cos(initA)*initLR + Math.sign(Math.cos(initA)||1)*SL*(1-Math.abs(Math.sin(initA)));
-      const initPz = Math.sin(initA)*initLR;
-      g.position.set(initPx, 0, initPz);
-      g.rotation.y=-(initA+Math.PI/2-0.1);
-      scene.add(g);
-      runners.push({grp:g, phase:i*0.9, tAngle:tp.angle, lane, speed:0.008+pct*0.004});
-    });
+      bib.position.set(0,0.4+bodyH/2-0.12,torsoW+0.01);
+      g.add(bib, body, collar, neck, head, eyeL, eyeR, hairGrp);
 
-    // ─── FIELD PROPS ────────────────────────────────────────────────────────
-    const jav=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.01,3.5,8),new THREE.MeshStandardMaterial({color:0xC0C0C0,roughness:0.4,metalness:0.7})));
-    jav.position.set(-4,0.04,2); jav.rotation.z=0.25; jav.rotation.y=0.8; scene.add(jav);
-    const shot=addShadow(new THREE.Mesh(new THREE.SphereGeometry(0.14,10,9),new THREE.MeshStandardMaterial({color:0x505058,roughness:0.5,metalness:0.5})));
-    shot.position.set(5.4,0.15,2); scene.add(shot);
-    const bar=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,2.4,8),new THREE.MeshStandardMaterial({color:0xE04020,roughness:0.5})));
-    bar.position.set(-5,1.2,3.5); bar.rotation.z=Math.PI/2; scene.add(bar);
-    [-1,1].forEach(s=>{
-      const std=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,2.0,8),MAT.steel));
-      std.position.set(-5+s*1.2,1.0,3.5); scene.add(std);
+      // Initial position using arc-length parameterization
+      const startS = i / ATHLETES.length;
+      const lR = TR + (lane + 0.5) * LW;
+      const tp = trackPos(startS, lR);
+      g.position.set(tp.x, 0, tp.z);
+      g.rotation.y = tp.ry;
+      scene.add(g);
+
+      runners.push({grp:g, s:startS, lR, speed:pctToSpeed(pct), phase:i*0.9});
     });
-    const ljpit=addShadow(new THREE.Mesh(new THREE.BoxGeometry(1.2,0.04,5),new THREE.MeshStandardMaterial({color:0xE8D898,roughness:0.95})));
-    ljpit.position.set(0,0.02,4.0); scene.add(ljpit);
 
     // ─── RESIZE ─────────────────────────────────────────────────────────────
     window.addEventListener('resize', ()=>{
@@ -563,7 +655,7 @@ function tryInit() {
     });
     canvas.addEventListener('wheel',e=>{
       e.preventDefault();
-      camDist=Math.max(12,Math.min(65,camDist+e.deltaY*0.04)); setCam();
+      camDist=Math.max(12,Math.min(68,camDist+e.deltaY*0.04)); setCam();
     },{passive:false});
 
     let t0=null,t1=null,tD0=0;
@@ -580,36 +672,80 @@ function tryInit() {
         panX=Math.max(-18,Math.min(18,panX)); panZ=Math.max(-18,Math.min(18,panZ)); setCam();
       }else if(e.touches.length===2){
         const nd=Math.hypot(e.touches[1].clientX-e.touches[0].clientX,e.touches[1].clientY-e.touches[0].clientY);
-        camDist=Math.max(12,Math.min(65,camDist*(tD0/nd))); tD0=nd; setCam();
+        camDist=Math.max(12,Math.min(68,camDist*(tD0/nd))); tD0=nd; setCam();
       }
     },{passive:false});
 
     document.getElementById('zin').addEventListener('click',()=>{camDist=Math.max(12,camDist-4);setCam();});
-    document.getElementById('zout').addEventListener('click',()=>{camDist=Math.min(65,camDist+4);setCam();});
-    document.getElementById('zrst').addEventListener('click',()=>{ panX=0; panZ=0; camDist=52; setCam(); });
+    document.getElementById('zout').addEventListener('click',()=>{camDist=Math.min(68,camDist+4);setCam();});
+    document.getElementById('zrst').addEventListener('click',()=>{ panX=0; panZ=0; camDist=50; setCam(); });
 
     // ─── ANIMATE ────────────────────────────────────────────────────────────
-    const clock=new THREE.Clock();
-    function animate(){
+    const clock = new THREE.Clock();
+
+    // Animated projectiles for field events
+    const javFlight = addShadow(new THREE.Mesh(
+      new THREE.CylinderGeometry(0.018,0.008,3.8,8),
+      new THREE.MeshStandardMaterial({color:0xC0C8D0,roughness:0.35,metalness:0.72})));
+    javFlight.visible = false; scene.add(javFlight);
+
+    const shotFlight = addShadow(new THREE.Mesh(
+      new THREE.SphereGeometry(0.16,10,9),
+      new THREE.MeshStandardMaterial({color:0x606068,roughness:0.5,metalness:0.55})));
+    shotFlight.visible = false; scene.add(shotFlight);
+
+    function animate() {
       requestAnimationFrame(animate);
-      const t=clock.getElapsedTime();
-      FLAGS.forEach((f,i)=>{f.mesh.rotation.z=Math.sin(t*2.1+i*0.9)*0.18;f.mesh.rotation.x=Math.cos(t*1.7+i*0.6)*0.08;});
-      runners.forEach(rn=>{
-        rn.tAngle+=rn.speed;
-        const a=rn.tAngle;
-        const lR=TR+(rn.lane+0.5)*LW;
-        const ca=Math.cos(a), sa=Math.sin(a);
-        const px=ca*lR+Math.sign(ca||1)*SL*(1-Math.abs(sa));
-        const pz=sa*lR;
-        rn.grp.position.set(px, Math.abs(Math.sin(t*3.5+rn.phase*2))*0.04, pz);
-        rn.grp.rotation.y=-(a+Math.PI/2-0.1);
+      const t = clock.getElapsedTime();
+
+      // Flags
+      FLAGS.forEach((f,i)=>{
+        f.mesh.rotation.z = Math.sin(t*2.1+i*0.9)*0.18;
+        f.mesh.rotation.x = Math.cos(t*1.7+i*0.6)*0.08;
       });
-      renderer.render(scene,camera);
+
+      // Runners — arc-length parameterized positions
+      runners.forEach(rn => {
+        rn.s = (rn.s + rn.speed) % 1;
+        const { x, z, ry } = trackPos(rn.s, rn.lR);
+        rn.grp.position.set(x, Math.abs(Math.sin(t * 3.5 + rn.phase * 2)) * 0.04, z);
+        rn.grp.rotation.y = ry;
+        // Animate arms/legs by updating rotation based on speed
+        const stride = rn.speed > 0.002 ? Math.sin(t * 8 + rn.phase) * 0.7 : 0;
+        // (body parts already baked in geometry, phase-based animation via rph)
+      });
+
+      // Javelin flight arc animation
+      const jCycle = (t % 5) / 5;
+      if (jCycle < 0.5) {
+        const jf = jCycle / 0.5;
+        const jx = 4.5 - jf * 7.0;
+        const jy = Math.sin(jf * Math.PI) * 2.8 + 0.05;
+        const jz = 1.8;
+        javFlight.position.set(jx, jy, jz);
+        javFlight.rotation.z = -Math.atan2(Math.cos(jf * Math.PI) * 2.8, 7.0 / 0.5);
+        javFlight.rotation.y = Math.PI / 2;
+        javFlight.visible = true;
+      } else {
+        javFlight.visible = false;
+      }
+
+      // Shot put arc
+      const sCycle = ((t + 2.5) % 4) / 4;
+      if (sCycle < 0.4) {
+        const sf2 = sCycle / 0.4;
+        shotFlight.position.set(-4.5 + sf2 * 0, Math.sin(sf2 * Math.PI) * 1.4 + 0.17, 2.0 + sf2 * 3.5);
+        shotFlight.visible = true;
+      } else {
+        shotFlight.visible = false;
+      }
+
+      renderer.render(scene, camera);
     }
     animate();
 
-    setTimeout(()=>{ DBG.style.display='none'; }, 3000);
-    log('Scene ready ✓');
+    setTimeout(()=>{ DBG.style.display='none'; }, 3500);
+    log('Phase 3 ready ✓  — arc-length runners, BA field events, improved lighting');
 
   } catch(e) {
     err('Init error: ' + e.message);
