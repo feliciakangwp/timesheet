@@ -4,7 +4,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#121210;font-family:Inter,system-ui,sans-serif}
-canvas{display:block;position:fixed;inset:0}
+#c{position:fixed;top:0;left:0;width:100%;height:100%;display:block}
 #badge{position:fixed;top:0;left:0;display:flex;align-items:center;gap:8px;
   background:rgba(14,14,10,.85);backdrop-filter:blur(10px);
   border:1px solid rgba(255,255,255,.1);border-top:none;border-left:none;
@@ -25,8 +25,12 @@ canvas{display:block;position:fixed;inset:0}
   backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.08);
   color:#C0B8A8;font-size:11px;padding:10px 14px;border-radius:8px;pointer-events:none;z-index:10;line-height:1.8}
 .lsw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+#dbg{position:fixed;top:120px;left:14px;right:14px;z-index:99;color:#FFCC44;font-size:11px;
+  background:rgba(0,0,0,.92);padding:10px 14px;border-radius:8px;font-family:monospace;
+  line-height:1.7;display:none;word-break:break-all;border:1px solid rgba(255,204,68,.3)}
 </style>
 
+<canvas id="c"></canvas>
 <div id="badge"><span class="live"></span>Stage 2 · Live Three.js Scene · V5 Quality Preview</div>
 <div id="zoom">
   <button class="zb" id="zin">+</button>
@@ -39,604 +43,457 @@ canvas{display:block;position:fixed;inset:0}
   <div><span class="lsw" style="background:#B8AFA0"></span>Grandstands</div>
   <div><span class="lsw" style="background:#F472B6"></span>ORION · <span class="lsw" style="background:#38BDF8"></span>POLARIS · <span class="lsw" style="background:#FACC15"></span>CORDIS</div>
 </div>
+<div id="dbg"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
 <script>
 'use strict';
-window.addEventListener('load', function() {
-// ─── RENDERER ───────────────────────────────────────────────────────────────
-const cW = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 375);
-const cH = Math.max(1, document.documentElement.clientHeight || window.innerHeight || 667);
-const renderer = new THREE.WebGLRenderer({antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(cW, cH);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.18;
-renderer.outputEncoding = THREE.sRGBEncoding;
-renderer.physicallyCorrectLights = true;
-document.body.appendChild(renderer.domElement);
 
-// ─── SCENE ──────────────────────────────────────────────────────────────────
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x7A9FC8);
-scene.fog = new THREE.Fog(0x7A9FC8, 75, 135);
+const DBG = document.getElementById('dbg');
+function log(msg) { DBG.style.display = 'block'; DBG.innerHTML += msg + '<br>'; }
+function err(msg)  { DBG.style.display = 'block'; DBG.style.color = '#FF6060'; DBG.innerHTML += '⚠ ' + msg + '<br>'; }
 
-// ─── CAMERA (fixed angle, pan+zoom only) ────────────────────────────────────
-let panX = 0, panZ = 0, camDist = 36, CAM_EL = 28;
-const camera = new THREE.PerspectiveCamera(52, cW/cH, 0.1, 180);
-function setCam() {
-  camera.position.set(panX, CAM_EL, panZ + camDist);
-  camera.lookAt(panX, 0, panZ);
-}
-setCam();
+let _inited = false;
+function tryInit() {
+  if (_inited) return;
+  _inited = true;
 
-// ─── LIGHTING ───────────────────────────────────────────────────────────────
-scene.add(new THREE.HemisphereLight(0x88BBDD, 0x4A7A32, 0.70));
+  try {
+    log('readyState: ' + document.readyState);
 
-const sun = new THREE.DirectionalLight(0xFFCC80, 1.35);
-sun.position.set(20, 38, 12);
-sun.castShadow = true;
-Object.assign(sun.shadow, {mapSize: new THREE.Vector2(2048,2048), bias: -0.0008, normalBias: 0.025});
-Object.assign(sun.shadow.camera, {near:1, far:100, left:-40, right:40, top:40, bottom:-40});
-scene.add(sun);
-
-scene.add(Object.assign(new THREE.DirectionalLight(0xC0D8FF, 0.40), {position: new THREE.Vector3(-14, 12, -10)}));
-
-// Floodlights
-[[-17,18,-13],[-17,18,7],[17,18,-13],[17,18,7],[0,18,-19]].forEach(([x,y,z]) => {
-  const pt = new THREE.PointLight(0xFFEE90, 1.0, 42, 1.8);
-  pt.position.set(x,y,z);
-  scene.add(pt);
-});
-
-// ─── MATERIALS ──────────────────────────────────────────────────────────────
-const MAT = {
-  grass:    new THREE.MeshStandardMaterial({color:0x4A7A36, roughness:0.92, metalness:0}),
-  infield:  new THREE.MeshStandardMaterial({color:0x548A42, roughness:0.90, metalness:0}),
-  track:    new THREE.MeshStandardMaterial({color:0xC9654C, roughness:0.82, metalness:0}),
-  concrete: new THREE.MeshStandardMaterial({color:0xB0A898, roughness:0.88, metalness:0.01}),
-  concrete2:new THREE.MeshStandardMaterial({color:0xA09888, roughness:0.90, metalness:0.01}),
-  roof:     new THREE.MeshStandardMaterial({color:0xD8D0C0, roughness:0.60, metalness:0.08, transparent:true, opacity:0.88}),
-  steel:    new THREE.MeshStandardMaterial({color:0x888880, roughness:0.45, metalness:0.65}),
-  led:      new THREE.MeshStandardMaterial({color:0x111114, roughness:0.6, emissive:0x0033FF, emissiveIntensity:0.12}),
-  scoreGlow:new THREE.MeshStandardMaterial({color:0x080808, roughness:0.5, emissive:0xFF8800, emissiveIntensity:0.4}),
-  white:    new THREE.MeshStandardMaterial({color:0xFFFFFF, roughness:0.6}),
-  flagRed:  new THREE.MeshStandardMaterial({color:0xE03028, roughness:0.7}),
-  flagYel:  new THREE.MeshStandardMaterial({color:0xF4C020, roughness:0.7}),
-};
-
-// ─── HELPERS ────────────────────────────────────────────────────────────────
-function addShadow(m) { m.castShadow = true; m.receiveShadow = true; return m; }
-
-function ovalRingGeo(oA,oB,iA,iB,segs=72) {
-  const shape = new THREE.Shape();
-  for(let i=0;i<=segs;i++){
-    const t=i/segs*Math.PI*2, x=Math.cos(t)*oA, z=Math.sin(t)*oB;
-    i===0 ? shape.moveTo(x,z) : shape.lineTo(x,z);
-  }
-  const hole = new THREE.Path();
-  for(let i=0;i<=segs;i++){
-    const t=i/segs*Math.PI*2, x=Math.cos(t)*iA, z=Math.sin(t)*iB;
-    i===0 ? hole.moveTo(x,z) : hole.lineTo(x,z);
-  }
-  shape.holes.push(hole);
-  const g = new THREE.ShapeGeometry(shape,72);
-  g.rotateX(-Math.PI/2);
-  return g;
-}
-
-function ovalFillGeo(a,b,segs=72) {
-  const shape = new THREE.Shape();
-  for(let i=0;i<=segs;i++){
-    const t=i/segs*Math.PI*2;
-    i===0 ? shape.moveTo(Math.cos(t)*a,Math.sin(t)*b) : shape.lineTo(Math.cos(t)*a,Math.sin(t)*b);
-  }
-  const g = new THREE.ShapeGeometry(shape,72);
-  g.rotateX(-Math.PI/2);
-  return g;
-}
-
-// Horseshoe arc extrude: spans from openEnd→openStart going around the back
-const OPEN_S = Math.PI/6;   // 30° — front-right edge of opening
-const OPEN_E = 5*Math.PI/6; // 150° — front-left edge of opening
-const TOTAL_ARC = 2*Math.PI - (OPEN_E - OPEN_S); // 240°
-
-function horseshoeExtrudeGeo(innerR, outerR, depth, segs=64) {
-  const shape = new THREE.Shape();
-  // Outer arc: openEnd → openEnd + TOTAL_ARC (going around back)
-  for(let i=0;i<=segs;i++){
-    const a = OPEN_E + TOTAL_ARC*i/segs;
-    const x = Math.cos(a)*outerR, y = Math.sin(a)*outerR;
-    i===0 ? shape.moveTo(x,y) : shape.lineTo(x,y);
-  }
-  // Inner arc: back to start
-  for(let i=segs;i>=0;i--){
-    const a = OPEN_E + TOTAL_ARC*i/segs;
-    shape.lineTo(Math.cos(a)*innerR, Math.sin(a)*innerR);
-  }
-  const g = new THREE.ExtrudeGeometry(shape, {depth, bevelEnabled:false});
-  g.rotateX(-Math.PI/2); // shape XY → world XZ, extrude → world -Y
-  return g;
-}
-
-// ─── GROUND ─────────────────────────────────────────────────────────────────
-const gnd = new THREE.Mesh(new THREE.PlaneGeometry(120,120), MAT.grass);
-gnd.rotation.x = -Math.PI/2; gnd.receiveShadow = true; scene.add(gnd);
-
-// Concrete apron around stadium
-const apronM = addShadow(new THREE.Mesh(ovalRingGeo(20,16,15,11.5), MAT.concrete));
-apronM.position.y = 0.01; scene.add(apronM);
-
-// ─── INFIELD & TRACK ────────────────────────────────────────────────────────
-const infield = addShadow(new THREE.Mesh(ovalFillGeo(10.2, 7.2), MAT.infield));
-infield.position.y = 0.03; scene.add(infield);
-
-const trackSurf = addShadow(new THREE.Mesh(ovalRingGeo(13.2, 9.5, 10.2, 7.2), MAT.track));
-trackSurf.position.y = 0.02; scene.add(trackSurf);
-
-// Lane markings (white lines)
-const laneCount = 8;
-for(let ln=0;ln<=laneCount;ln++){
-  const frac = ln/laneCount;
-  const a = 10.2 + frac*3.0, b = 7.2 + frac*2.3;
-  const path = new THREE.Shape();
-  const LS = 80;
-  for(let i=0;i<=LS;i++){
-    const t=i/LS*Math.PI*2;
-    i===0 ? path.moveTo(Math.cos(t)*a, Math.sin(t)*b) : path.lineTo(Math.cos(t)*a, Math.sin(t)*b);
-  }
-  const lineGeo = new THREE.ShapeGeometry(path, LS);
-  lineGeo.rotateX(-Math.PI/2);
-  // Draw as thin white overlay
-  const lineM = new THREE.Mesh(ovalRingGeo(a+0.04, b+0.03, a, b, 80), MAT.white);
-  lineM.position.y = 0.025; scene.add(lineM);
-}
-
-// Start/finish line
-const sfGeo = new THREE.BoxGeometry(3.2, 0.01, 0.08);
-const sfMesh = new THREE.Mesh(sfGeo, MAT.white);
-sfMesh.position.set(0, 0.03, -9.8); scene.add(sfMesh);
-
-// ─── HORSESHOE GRANDSTANDS ──────────────────────────────────────────────────
-const TIERS = 7;
-const BASE_R = 14.2;
-const TIER_W = 1.25;  // radial depth per tier
-const TIER_H = 0.72;  // step height
-
-for(let t=0;t<TIERS;t++){
-  const iR = BASE_R + t*TIER_W;
-  const oR = iR + TIER_W;
-  const slab = addShadow(new THREE.Mesh(
-    horseshoeExtrudeGeo(iR, oR, TIER_H, 72),
-    t%2===0 ? MAT.concrete : MAT.concrete2
-  ));
-  slab.position.y = t*TIER_H + TIER_H; // top of slab at this Y
-  scene.add(slab);
-}
-
-// Front edge walls (ends of horseshoe)
-const edgeGeo = new THREE.BoxGeometry(0.3, TIERS*TIER_H+0.8, TIER_W*TIERS+1);
-[-1,1].forEach(side => {
-  const edgeA = Math.PI/6; // 30°
-  const x = Math.cos(OPEN_S * side < 0 ? OPEN_E : OPEN_S) * BASE_R * 0.9;
-  // Actually place on both opening edges
-  const angle = side > 0 ? OPEN_S : OPEN_E;
-  const ex = Math.cos(angle) * (BASE_R + TIERS*TIER_W/2);
-  const ez = Math.sin(angle) * (BASE_R + TIERS*TIER_W/2);
-  const wall = addShadow(new THREE.Mesh(edgeGeo, MAT.concrete));
-  wall.position.set(ex, (TIERS*TIER_H+0.8)/2, ez);
-  wall.rotation.y = -(angle + Math.PI/2);
-  scene.add(wall);
-});
-
-// Roof canopy (partial, over rear+sides) — thinner arch
-const roofInner = BASE_R + TIERS*TIER_W + 0.3;
-const roofOuter = roofInner + 2.8;
-const roofGeo = horseshoeExtrudeGeo(roofInner, roofOuter, 0.18, 72);
-const roofMesh = addShadow(new THREE.Mesh(roofGeo, MAT.roof));
-roofMesh.position.y = TIERS*TIER_H + 1.8;
-scene.add(roofMesh);
-
-// Roof support columns
-const colGeo = new THREE.CylinderGeometry(0.12, 0.15, TIERS*TIER_H+1.85, 8);
-const numCols = 14;
-for(let c=0;c<numCols;c++){
-  const frac=(c+0.5)/numCols;
-  const angle = OPEN_E + TOTAL_ARC*frac;
-  const r = BASE_R + TIERS*TIER_W + 1.5;
-  const col = addShadow(new THREE.Mesh(colGeo, MAT.steel));
-  col.position.set(Math.cos(angle)*r, (TIERS*TIER_H+1.85)/2, Math.sin(angle)*r);
-  scene.add(col);
-}
-
-// ─── SPECTATORS (InstancedMesh) ──────────────────────────────────────────────
-const SPEC_COLORS = [0xE03428,0x3478D8,0xE8C030,0x28A848,0xE070B0,0x8860D8,0xE86020,0xD4D0C0];
-const bodyGeo = new THREE.CylinderGeometry(0.065, 0.075, 0.22, 7);
-const headGeo = new THREE.SphereGeometry(0.085, 8, 7);
-
-// Pre-count
-let totalSpec = 0;
-for(let t=0;t<TIERS;t++){
-  const r = BASE_R + t*TIER_W + TIER_W*0.5;
-  totalSpec += Math.floor(r * TOTAL_ARC / 0.44);
-}
-const NCOLS = SPEC_COLORS.length;
-const perColor = Math.ceil(totalSpec/NCOLS);
-
-const bodyMeshes = SPEC_COLORS.map(c =>
-  new THREE.InstancedMesh(bodyGeo, new THREE.MeshStandardMaterial({color:c, roughness:0.75}), perColor)
-);
-const headMeshes = SPEC_COLORS.map(c =>
-  new THREE.InstancedMesh(headGeo, new THREE.MeshStandardMaterial({
-    color:0xE8C090 + (c&0x000022)*8, roughness:0.65}), perColor)
-);
-const specCounts = new Array(NCOLS).fill(0);
-const dummy = new THREE.Object3D();
-
-for(let t=0;t<TIERS;t++){
-  const r = BASE_R + t*TIER_W + TIER_W*0.5;
-  const y = t*TIER_H + TIER_H + 0.12;
-  const nSpec = Math.floor(r * TOTAL_ARC / 0.44);
-  for(let i=0;i<nSpec;i++){
-    const frac=(i+0.3)/nSpec;
-    const angle = OPEN_E + TOTAL_ARC*frac;
-    const x = Math.cos(angle)*r, z = Math.sin(angle)*r;
-    const ci = Math.abs((i*7+t*3)) % NCOLS;
-    const idx = specCounts[ci]++;
-    if(idx >= perColor) continue;
-    // body
-    dummy.position.set(x, y, z);
-    dummy.rotation.y = -(angle + Math.PI);
-    dummy.scale.setScalar(1);
-    dummy.updateMatrix();
-    bodyMeshes[ci].setMatrixAt(idx, dummy.matrix);
-    // head
-    dummy.position.set(x, y+0.175, z);
-    dummy.updateMatrix();
-    headMeshes[ci].setMatrixAt(idx, dummy.matrix);
-  }
-}
-bodyMeshes.forEach((m,i)=>{
-  m.instanceMatrix.needsUpdate=true; m.castShadow=true; m.receiveShadow=true; scene.add(m);
-  headMeshes[i].instanceMatrix.needsUpdate=true; headMeshes[i].castShadow=true; scene.add(headMeshes[i]);
-});
-
-// ─── FLOODLIGHT TOWERS ──────────────────────────────────────────────────────
-const towerGeo = new THREE.CylinderGeometry(0.14, 0.18, 20, 8);
-const armGeo   = new THREE.BoxGeometry(0.1, 0.1, 2.5);
-const headLGeo = new THREE.BoxGeometry(1.2, 0.2, 0.35);
-[[-17,-13],[17,-13],[-17,8],[17,8],[0,-19]].forEach(([tx,tz],i)=>{
-  const twr = addShadow(new THREE.Mesh(towerGeo, MAT.steel));
-  twr.position.set(tx, 10, tz); scene.add(twr);
-  // lamp head
-  const lamp = addShadow(new THREE.Mesh(headLGeo, MAT.scoreGlow));
-  lamp.position.set(tx, 20, tz + 0.6); lamp.rotation.x = -0.3; scene.add(lamp);
-  // Emissive glow disc
-  const halo = new THREE.Mesh(new THREE.SphereGeometry(0.4,8,8),
-    new THREE.MeshStandardMaterial({color:0xFFEE88, emissive:0xFFCC44, emissiveIntensity:2, roughness:1}));
-  halo.position.set(tx, 19.5, tz); scene.add(halo);
-});
-
-// ─── SCOREBOARD ──────────────────────────────────────────────────────────────
-const sbBase = addShadow(new THREE.Mesh(new THREE.BoxGeometry(8, 0.5, 0.4), MAT.concrete));
-sbBase.position.set(0, TIERS*TIER_H+2.4, Math.sin(Math.PI*1.5)*(BASE_R+TIERS*TIER_W+0.5));
-scene.add(sbBase);
-const sbScreen = addShadow(new THREE.Mesh(new THREE.BoxGeometry(7.2, 2.8, 0.2), MAT.led));
-sbScreen.position.set(0, TIERS*TIER_H+3.6, Math.sin(Math.PI*1.5)*(BASE_R+TIERS*TIER_W+0.35));
-scene.add(sbScreen);
-
-// ─── ADVERTISING BOARDS ─────────────────────────────────────────────────────
-const adColors = [0xE03428, 0x2878D0, 0xE8A820, 0x28A058, 0xD040A0];
-const adGeo = new THREE.BoxGeometry(2.8, 0.9, 0.12);
-const adAngles = [Math.PI*0.85, Math.PI*1.0, Math.PI*1.15, Math.PI*1.35, Math.PI*1.65, Math.PI*1.8];
-adAngles.forEach((ang,i) => {
-  const ad = addShadow(new THREE.Mesh(adGeo,
-    new THREE.MeshStandardMaterial({color:adColors[i%adColors.length], roughness:0.5, emissive:adColors[i%adColors.length], emissiveIntensity:0.08})));
-  ad.position.set(Math.cos(ang)*13.8, 0.5, Math.sin(ang)*10.0);
-  ad.rotation.y = -(ang + Math.PI/2);
-  scene.add(ad);
-});
-
-// ─── FLAGS ───────────────────────────────────────────────────────────────────
-const FLAGS = [];
-const flagStaffGeo = new THREE.CylinderGeometry(0.03, 0.03, 3, 6);
-const flagPanelGeo = new THREE.PlaneGeometry(0.8, 0.5);
-const flagMats = [MAT.flagRed, MAT.flagYel, MAT.flagRed, MAT.flagYel, MAT.flagRed, MAT.flagYel];
-const flagAngles = [Math.PI*0.65, Math.PI*0.90, Math.PI*1.10, Math.PI*1.30, Math.PI*1.55, Math.PI*1.85];
-flagAngles.forEach((ang,i) => {
-  const r = BASE_R + TIERS*TIER_W + 0.5;
-  const x = Math.cos(ang)*r, z = Math.sin(ang)*r;
-  const staff = addShadow(new THREE.Mesh(flagStaffGeo, MAT.steel));
-  staff.position.set(x, TIERS*TIER_H+1+1.5, z); scene.add(staff);
-  const flag = new THREE.Mesh(flagPanelGeo, flagMats[i]);
-  flag.position.set(x+0.4*Math.cos(ang+Math.PI/2), TIERS*TIER_H+1+2.8, z+0.4*Math.sin(ang+Math.PI/2));
-  flag.rotation.y = -(ang + Math.PI/2);
-  scene.add(flag);
-  FLAGS.push({mesh:flag, angle:ang, baseX:x, baseZ:z});
-});
-
-// ─── IMPROVED CHIBI ATHLETES ─────────────────────────────────────────────────
-function makeLatheHead(r) {
-  const pts = [
-    new THREE.Vector2(0.01, -r*0.9),
-    new THREE.Vector2(r*0.55, -r*0.6),
-    new THREE.Vector2(r*0.9,  -r*0.1),
-    new THREE.Vector2(r*0.95,  r*0.25),
-    new THREE.Vector2(r*0.85,  r*0.6),
-    new THREE.Vector2(r*0.55,  r*0.9),
-    new THREE.Vector2(r*0.15,  r*1.0),
-    new THREE.Vector2(0.01,    r*1.0),
-  ];
-  return new THREE.LatheGeometry(pts, 16);
-}
-
-function makeEye(side, headR) {
-  const g = new THREE.Group();
-  const white = new THREE.Mesh(new THREE.SphereGeometry(headR*0.22,8,7),
-    new THREE.MeshStandardMaterial({color:0xFFFFFF, roughness:0.3}));
-  const iris  = new THREE.Mesh(new THREE.SphereGeometry(headR*0.15,8,7),
-    new THREE.MeshStandardMaterial({color:0x3A2810, roughness:0.4}));
-  const pupil = new THREE.Mesh(new THREE.SphereGeometry(headR*0.09,6,5),
-    new THREE.MeshStandardMaterial({color:0x080808, roughness:0.5}));
-  iris.position.z = headR*0.05; pupil.position.z = headR*0.06;
-  g.add(white, iris, pupil);
-  g.position.set(side*headR*0.38, headR*0.1, headR*0.82);
-  return g;
-}
-
-function makeHair(headR, style, color) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({color, roughness:0.7});
-  if(style === 'spiky') {
-    for(let s=0;s<6;s++){
-      const a = (s/6)*Math.PI*2; const h = new THREE.Mesh(new THREE.ConeGeometry(headR*0.18,headR*0.45,6), mat);
-      h.position.set(Math.sin(a)*headR*0.6, headR*0.85+Math.cos(Math.abs(a-Math.PI)*0.5)*0.1, Math.cos(a)*headR*0.35);
-      h.rotation.z = Math.sin(a)*0.6; h.rotation.x = -0.2 + Math.cos(a)*0.3; g.add(h);
+    if (typeof THREE === 'undefined') {
+      err('THREE.js not loaded — CDN may be blocked');
+      return;
     }
-  } else if(style === 'ponytail') {
-    const top = new THREE.Mesh(new THREE.SphereGeometry(headR*0.92,10,9), mat);
-    top.position.y = headR*0.2; top.scale.set(1,0.7,1); g.add(top);
-    const tail = new THREE.Mesh(new THREE.CylinderGeometry(headR*0.14,headR*0.08,headR*1.2,8), mat);
-    tail.position.set(0, -headR*0.5, -headR*0.8); tail.rotation.x = -0.5; g.add(tail);
-  } else if(style === 'curly') {
-    for(let s=0;s<8;s++){
-      const a = (s/8)*Math.PI*2; const curl = new THREE.Mesh(new THREE.SphereGeometry(headR*0.28,7,6), mat);
-      curl.position.set(Math.sin(a)*headR*0.65, headR*0.55+Math.abs(Math.sin(a))*0.15, Math.cos(a)*headR*0.4);
-      g.add(curl);
+    log('THREE r' + THREE.REVISION + ' loaded');
+
+    const canvas = document.getElementById('c');
+    const cW = Math.max(200, canvas.clientWidth  || window.innerWidth  || document.documentElement.clientWidth  || 375);
+    const cH = Math.max(200, canvas.clientHeight || window.innerHeight || document.documentElement.clientHeight || 667);
+    log('canvas: ' + cW + '×' + cH);
+
+    // Test WebGL availability
+    const testGL = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (!testGL) { err('WebGL not available'); return; }
+    log('WebGL OK');
+
+    // ─── RENDERER ───────────────────────────────────────────────────────────
+    const renderer = new THREE.WebGLRenderer({antialias:true, canvas});
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(cW, cH, false); // false = don't override CSS size
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+
+    // ─── SCENE ──────────────────────────────────────────────────────────────
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x7A9FC8);
+    scene.fog = new THREE.Fog(0x7A9FC8, 75, 135);
+
+    // ─── CAMERA ─────────────────────────────────────────────────────────────
+    let panX = 0, panZ = 0, camDist = 36, CAM_EL = 28;
+    const camera = new THREE.PerspectiveCamera(52, cW/cH, 0.1, 180);
+    function setCam() {
+      camera.position.set(panX, CAM_EL, panZ + camDist);
+      camera.lookAt(panX, 0, panZ);
     }
-  } else { // side-part
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(headR*0.93,10,8), mat);
-    cap.position.y = headR*0.18; cap.scale.set(1,0.65,1); g.add(cap);
-  }
-  return g;
-}
-
-const ATHLETES = [
-  {name:'Alex',  team:'ORION',   color:0xF472B6, hair:'spiky',    hcol:0x3A2010, gender:'m', pct:0.82},
-  {name:'Sam',   team:'POLARIS', color:0x38BDF8, hair:'ponytail', hcol:0x5A3820, gender:'f', pct:0.65},
-  {name:'Jordan',team:'CORDIS',  color:0xFACC15, hair:'curly',    hcol:0x1A1A1A, gender:'m', pct:0.48},
-  {name:'Casey', team:'ORION',   color:0xF472B6, hair:'side',     hcol:0x1A1A1A, gender:'m', pct:0.55},
-  {name:'Morgan',team:'POLARIS', color:0x38BDF8, hair:'spiky',    hcol:0x4A3020, gender:'f', pct:0.78},
-];
-
-const runners = [];
-const trackPositions = [
-  {a:-0.15,r:10.85},{a:0.28,r:11.25},{a:0.60,r:11.65},{a:0.90,r:12.05},{a:1.20,r:12.45}
-];
-
-ATHLETES.forEach((ath,i) => {
-  const {color, hair, hcol, pct} = ath;
-  const tp = trackPositions[i];
-  const g = new THREE.Group();
-
-  const headR = 0.38;
-  const bodyH = 0.52 + (pct<0.5 ? 0.1 : pct>0.75 ? -0.05 : 0);
-  const torsoW = pct<0.5 ? 0.28 : pct<0.65 ? 0.22 : pct>0.75 ? 0.24 : 0.18;
-  const jerseyMat = new THREE.MeshStandardMaterial({color, roughness:0.72});
-  const darkMat   = new THREE.MeshStandardMaterial({color:0x1A1A30, roughness:0.78});
-  const shoeMat   = new THREE.MeshStandardMaterial({color:color, roughness:0.65, metalness:0.05});
-  const skinMat   = new THREE.MeshStandardMaterial({color:0xE8C090, roughness:0.68});
-
-  // Body (jersey)
-  const body = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(torsoW*0.82, torsoW, bodyH, 10), jerseyMat));
-  body.position.y = 0.4;
-
-  // Collar
-  const collar = new THREE.Mesh(new THREE.CylinderGeometry(torsoW*0.5,torsoW*0.55,0.06,10), jerseyMat);
-  collar.position.y = 0.4+bodyH/2-0.02;
-
-  // Neck
-  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.065,0.07,0.14,8), skinMat);
-  neck.position.y = 0.4+bodyH/2+0.06;
-
-  // Head (LatheGeometry)
-  const head = addShadow(new THREE.Mesh(makeLatheHead(headR),
-    new THREE.MeshStandardMaterial({color:0xF0C080, roughness:0.65})));
-  head.position.y = 0.4+bodyH/2+0.14+headR;
-  head.rotation.y = Math.PI;
-
-  // Eyes
-  const eyeL = makeEye(-1, headR); const eyeR = makeEye(1, headR);
-  eyeL.position.y = eyeR.position.y = 0.4+bodyH/2+0.14+headR;
-  eyeL.rotation.y = eyeR.rotation.y = Math.PI;
-
-  // Cheeks
-  [-1,1].forEach(side => {
-    const cheek = new THREE.Mesh(new THREE.SphereGeometry(headR*0.28,8,7),
-      new THREE.MeshStandardMaterial({color:0xF09880, roughness:0.65, transparent:true, opacity:0.55}));
-    cheek.position.set(side*headR*0.7, 0.4+bodyH/2+0.14+headR*0.0, headR*0.75);
-    cheek.position.y += headR*0.0;
-    g.add(cheek);
-  });
-
-  // Hair
-  const hairGrp = makeHair(headR, hair, hcol);
-  hairGrp.position.y = 0.4+bodyH/2+0.14+headR;
-  hairGrp.rotation.y = Math.PI;
-
-  // Arms (running pose)
-  const armGeo = new THREE.CylinderGeometry(0.055,0.065,0.38,8);
-  const runPhase = i * 1.57;
-  [-1,1].forEach((side,ai) => {
-    const arm = addShadow(new THREE.Mesh(armGeo, ai===0 ? jerseyMat : skinMat));
-    arm.position.set(side*(torsoW+0.06), 0.4+bodyH/2-0.1, 0);
-    arm.rotation.z = side * 0.55;
-    arm.rotation.x = (side > 0 ? Math.sin(runPhase+1) : Math.cos(runPhase)) * 0.6;
-    g.add(arm);
-  });
-
-  // Legs
-  const legGeo = new THREE.CylinderGeometry(0.075,0.08,0.42,9);
-  [-1,1].forEach((side,li) => {
-    const leg = addShadow(new THREE.Mesh(legGeo, darkMat));
-    leg.position.set(side*0.09, 0.22, 0);
-    leg.rotation.x = (side > 0 ? Math.sin(runPhase) : Math.cos(runPhase)) * 0.55;
-    g.add(leg);
-    // Shoes (oversized)
-    const shoe = addShadow(new THREE.Mesh(new THREE.SphereGeometry(0.115,10,8), shoeMat));
-    shoe.scale.set(1, 0.55, 1.4);
-    shoe.position.set(side*0.09, 0.045 + Math.abs((side>0 ? Math.sin(runPhase) : Math.cos(runPhase))*0.18), 0.06);
-    g.add(shoe);
-  });
-
-  // Bib number
-  const bibMat = new THREE.MeshStandardMaterial({color:0xFFFFFF, roughness:0.5});
-  const bib = new THREE.Mesh(new THREE.BoxGeometry(0.16,0.20,0.02), bibMat);
-  bib.position.set(0, 0.4+bodyH/2-0.12, torsoW+0.01);
-  g.add(bib);
-
-  g.add(body, collar, neck, head, eyeL, eyeR, hairGrp);
-
-  // Position on track
-  const tAngle = tp.a;
-  const tx = Math.cos(tAngle)*tp.r, tz = Math.sin(tAngle)*tp.r;
-  g.position.set(tx, 0.0, tz);
-  g.rotation.y = -(tAngle + Math.PI/2 - 0.1);
-  scene.add(g);
-  runners.push({grp:g, phase:i*0.9, tAngle:tp.a, r:tp.r, speed:0.008+pct*0.004});
-});
-
-// ─── FIELD EVENT PROPS ───────────────────────────────────────────────────────
-// Javelin (in infield)
-const jav = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.01,3.5,8),
-  new THREE.MeshStandardMaterial({color:0xC0C0C0, roughness:0.4, metalness:0.7})));
-jav.position.set(-4, 0.04, 2); jav.rotation.z = 0.25; jav.rotation.y = 0.8; scene.add(jav);
-
-// Shot put circle
-const spc = new THREE.Mesh(ovalFillGeo(1.0,1.0,32),
-  new THREE.MeshStandardMaterial({color:0xD0C8B8, roughness:0.85}));
-spc.position.set(5, 0.035, 2); scene.add(spc);
-const shot = addShadow(new THREE.Mesh(new THREE.SphereGeometry(0.14,10,9),
-  new THREE.MeshStandardMaterial({color:0x505058, roughness:0.5, metalness:0.5})));
-shot.position.set(5.4, 0.15, 2); scene.add(shot);
-
-// High jump bar
-const barMat = new THREE.MeshStandardMaterial({color:0xE04020, roughness:0.5});
-const bar = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,2.4,8), barMat));
-bar.position.set(-5, 1.2, 3.5); bar.rotation.z = Math.PI/2; scene.add(bar);
-[-1,1].forEach(s => {
-  const std = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,2.0,8), MAT.steel));
-  std.position.set(-5+s*1.2, 1.0, 3.5); scene.add(std);
-});
-
-// Long jump pit
-const ljpit = addShadow(new THREE.Mesh(new THREE.BoxGeometry(1.2,0.04,5),
-  new THREE.MeshStandardMaterial({color:0xE8D898, roughness:0.95})));
-ljpit.position.set(0, 0.02, 4.0); scene.add(ljpit);
-
-// ─── RESIZE ───────────────────────────────────────────────────────────────────
-window.addEventListener('resize', () => {
-  const rW = Math.max(1, document.documentElement.clientWidth || window.innerWidth);
-  const rH = Math.max(1, document.documentElement.clientHeight || window.innerHeight);
-  renderer.setSize(rW, rH);
-  camera.aspect = rW/rH;
-  camera.updateProjectionMatrix();
-});
-
-// ─── CONTROLS (pan + zoom only, no rotation) ─────────────────────────────────
-let drag = false, lastMX = 0, lastMY = 0;
-renderer.domElement.addEventListener('mousedown', e => { drag=true; lastMX=e.clientX; lastMY=e.clientY; });
-window.addEventListener('mouseup', () => { drag=false; });
-window.addEventListener('mousemove', e => {
-  if(!drag) return;
-  const dx = e.clientX-lastMX, dy = e.clientY-lastMY;
-  lastMX=e.clientX; lastMY=e.clientY;
-  panX -= dx * camDist * 0.0015;
-  panZ -= dy * camDist * 0.0015;
-  panX = Math.max(-18, Math.min(18, panX));
-  panZ = Math.max(-18, Math.min(18, panZ));
-  setCam();
-});
-renderer.domElement.addEventListener('wheel', e => {
-  e.preventDefault();
-  camDist = Math.max(12, Math.min(65, camDist + e.deltaY * 0.04));
-  setCam();
-}, {passive:false});
-
-// Touch
-let t0 = null, t1 = null, tDist0 = 0;
-renderer.domElement.addEventListener('touchstart', e => {
-  if(e.touches.length===1){ t0={x:e.touches[0].clientX,y:e.touches[0].clientY}; t1=null; }
-  else if(e.touches.length===2){
-    t0={x:e.touches[0].clientX,y:e.touches[0].clientY};
-    t1={x:e.touches[1].clientX,y:e.touches[1].clientY};
-    tDist0=Math.hypot(t1.x-t0.x,t1.y-t0.y);
-  }
-}, {passive:true});
-renderer.domElement.addEventListener('touchmove', e => {
-  e.preventDefault();
-  if(e.touches.length===1 && t0 && !t1){
-    const dx=e.touches[0].clientX-t0.x, dy=e.touches[0].clientY-t0.y;
-    t0={x:e.touches[0].clientX,y:e.touches[0].clientY};
-    panX -= dx*camDist*0.002; panZ -= dy*camDist*0.002;
-    panX=Math.max(-18,Math.min(18,panX)); panZ=Math.max(-18,Math.min(18,panZ));
     setCam();
-  } else if(e.touches.length===2){
-    const nd=Math.hypot(e.touches[1].clientX-e.touches[0].clientX,e.touches[1].clientY-e.touches[0].clientY);
-    camDist=Math.max(12,Math.min(65,camDist*(tDist0/nd)));
-    tDist0=nd; setCam();
+
+    // ─── LIGHTING ───────────────────────────────────────────────────────────
+    scene.add(new THREE.HemisphereLight(0x88BBDD, 0x4A7A32, 0.80));
+
+    const sun = new THREE.DirectionalLight(0xFFCC80, 1.4);
+    sun.position.set(20, 38, 12);
+    sun.castShadow = true;
+    sun.shadow.mapSize.width  = 1024;
+    sun.shadow.mapSize.height = 1024;
+    sun.shadow.bias = -0.001;
+    sun.shadow.camera.near = 1; sun.shadow.camera.far = 100;
+    sun.shadow.camera.left = -40; sun.shadow.camera.right = 40;
+    sun.shadow.camera.top  =  40; sun.shadow.camera.bottom = -40;
+    scene.add(sun);
+
+    const fill = new THREE.DirectionalLight(0xC0D8FF, 0.45);
+    fill.position.set(-14, 12, -10);
+    scene.add(fill);
+
+    [[-17,18,-13],[-17,18,7],[17,18,-13],[17,18,7],[0,18,-19]].forEach(([x,y,z]) => {
+      const pt = new THREE.PointLight(0xFFEE90, 0.8, 44, 2);
+      pt.position.set(x,y,z);
+      scene.add(pt);
+    });
+
+    // ─── MATERIALS ──────────────────────────────────────────────────────────
+    const MAT = {
+      grass:    new THREE.MeshStandardMaterial({color:0x4A7A36, roughness:0.92, metalness:0}),
+      infield:  new THREE.MeshStandardMaterial({color:0x548A42, roughness:0.90, metalness:0}),
+      track:    new THREE.MeshStandardMaterial({color:0xC9654C, roughness:0.82, metalness:0}),
+      concrete: new THREE.MeshStandardMaterial({color:0xB0A898, roughness:0.88, metalness:0.01}),
+      concrete2:new THREE.MeshStandardMaterial({color:0xA09888, roughness:0.90, metalness:0.01}),
+      roof:     new THREE.MeshStandardMaterial({color:0xD8D0C0, roughness:0.60, metalness:0.08, transparent:true, opacity:0.88}),
+      steel:    new THREE.MeshStandardMaterial({color:0x888880, roughness:0.45, metalness:0.65}),
+      led:      new THREE.MeshStandardMaterial({color:0x111114, roughness:0.6, emissive:0x0033FF, emissiveIntensity:0.18}),
+      scoreGlow:new THREE.MeshStandardMaterial({color:0x080808, roughness:0.5, emissive:0xFF8800, emissiveIntensity:0.5}),
+      white:    new THREE.MeshStandardMaterial({color:0xFFFFFF, roughness:0.6}),
+      flagRed:  new THREE.MeshStandardMaterial({color:0xE03028, roughness:0.7, side:THREE.DoubleSide}),
+      flagYel:  new THREE.MeshStandardMaterial({color:0xF4C020, roughness:0.7, side:THREE.DoubleSide}),
+    };
+
+    function addShadow(m) { m.castShadow = true; m.receiveShadow = true; return m; }
+
+    function ovalRingGeo(oA,oB,iA,iB,segs=64) {
+      const shape = new THREE.Shape();
+      for(let i=0;i<=segs;i++){
+        const t=i/segs*Math.PI*2, x=Math.cos(t)*oA, z=Math.sin(t)*oB;
+        i===0 ? shape.moveTo(x,z) : shape.lineTo(x,z);
+      }
+      const hole = new THREE.Path();
+      for(let i=0;i<=segs;i++){
+        const t=i/segs*Math.PI*2, x=Math.cos(t)*iA, z=Math.sin(t)*iB;
+        i===0 ? hole.moveTo(x,z) : hole.lineTo(x,z);
+      }
+      shape.holes.push(hole);
+      const g = new THREE.ShapeGeometry(shape, 64);
+      g.rotateX(-Math.PI/2);
+      return g;
+    }
+
+    function ovalFillGeo(a,b,segs=64) {
+      const shape = new THREE.Shape();
+      for(let i=0;i<=segs;i++){
+        const t=i/segs*Math.PI*2;
+        i===0 ? shape.moveTo(Math.cos(t)*a,Math.sin(t)*b) : shape.lineTo(Math.cos(t)*a,Math.sin(t)*b);
+      }
+      const g = new THREE.ShapeGeometry(shape, 64);
+      g.rotateX(-Math.PI/2);
+      return g;
+    }
+
+    const OPEN_S = Math.PI/6, OPEN_E = 5*Math.PI/6;
+    const TOTAL_ARC = 2*Math.PI - (OPEN_E - OPEN_S);
+
+    function horseshoeExtrudeGeo(innerR, outerR, depth, segs=56) {
+      const shape = new THREE.Shape();
+      for(let i=0;i<=segs;i++){
+        const a = OPEN_E + TOTAL_ARC*i/segs;
+        i===0 ? shape.moveTo(Math.cos(a)*outerR, Math.sin(a)*outerR)
+              : shape.lineTo(Math.cos(a)*outerR, Math.sin(a)*outerR);
+      }
+      for(let i=segs;i>=0;i--){
+        const a = OPEN_E + TOTAL_ARC*i/segs;
+        shape.lineTo(Math.cos(a)*innerR, Math.sin(a)*innerR);
+      }
+      const g = new THREE.ExtrudeGeometry(shape, {depth, bevelEnabled:false});
+      g.rotateX(-Math.PI/2);
+      return g;
+    }
+
+    // ─── GROUND ─────────────────────────────────────────────────────────────
+    const gnd = new THREE.Mesh(new THREE.PlaneGeometry(120,120), MAT.grass);
+    gnd.rotation.x = -Math.PI/2; gnd.receiveShadow = true; scene.add(gnd);
+
+    const apron = addShadow(new THREE.Mesh(ovalRingGeo(20,16,15,11.5), MAT.concrete));
+    apron.position.y = 0.01; scene.add(apron);
+
+    // ─── INFIELD & TRACK ────────────────────────────────────────────────────
+    const infield = addShadow(new THREE.Mesh(ovalFillGeo(10.2, 7.2), MAT.infield));
+    infield.position.y = 0.03; scene.add(infield);
+
+    const track = addShadow(new THREE.Mesh(ovalRingGeo(13.2, 9.5, 10.2, 7.2), MAT.track));
+    track.position.y = 0.02; scene.add(track);
+
+    for(let ln=0;ln<=8;ln++){
+      const f=ln/8, a=10.2+f*3.0, b=7.2+f*2.3;
+      const m = new THREE.Mesh(ovalRingGeo(a+0.04, b+0.03, a, b, 72), MAT.white);
+      m.position.y = 0.025; scene.add(m);
+    }
+    const sf = new THREE.Mesh(new THREE.BoxGeometry(3.2,0.01,0.08), MAT.white);
+    sf.position.set(0,0.03,-9.8); scene.add(sf);
+
+    // ─── HORSESHOE STANDS ───────────────────────────────────────────────────
+    const TIERS=7, BASE_R=14.2, TIER_W=1.25, TIER_H=0.72;
+
+    for(let t=0;t<TIERS;t++){
+      const slab = addShadow(new THREE.Mesh(
+        horseshoeExtrudeGeo(BASE_R+t*TIER_W, BASE_R+(t+1)*TIER_W, TIER_H, 56),
+        t%2===0 ? MAT.concrete : MAT.concrete2
+      ));
+      slab.position.y = t*TIER_H + TIER_H;
+      scene.add(slab);
+    }
+
+    [-1,1].forEach(side => {
+      const angle = side>0 ? OPEN_S : OPEN_E;
+      const ex = Math.cos(angle)*(BASE_R+TIERS*TIER_W/2);
+      const ez = Math.sin(angle)*(BASE_R+TIERS*TIER_W/2);
+      const wall = addShadow(new THREE.Mesh(new THREE.BoxGeometry(0.3, TIERS*TIER_H+0.8, TIER_W*TIERS+1), MAT.concrete));
+      wall.position.set(ex, (TIERS*TIER_H+0.8)/2, ez);
+      wall.rotation.y = -(angle + Math.PI/2);
+      scene.add(wall);
+    });
+
+    const roofInner = BASE_R + TIERS*TIER_W + 0.3;
+    const roofMesh = addShadow(new THREE.Mesh(horseshoeExtrudeGeo(roofInner, roofInner+2.8, 0.18, 56), MAT.roof));
+    roofMesh.position.y = TIERS*TIER_H + 1.8; scene.add(roofMesh);
+
+    for(let c=0;c<14;c++){
+      const angle = OPEN_E + TOTAL_ARC*(c+0.5)/14;
+      const r = BASE_R + TIERS*TIER_W + 1.5;
+      const col = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.15, TIERS*TIER_H+1.85, 8), MAT.steel));
+      col.position.set(Math.cos(angle)*r, (TIERS*TIER_H+1.85)/2, Math.sin(angle)*r);
+      scene.add(col);
+    }
+
+    // ─── SPECTATORS ─────────────────────────────────────────────────────────
+    const SCOLS = [0xE03428,0x3478D8,0xE8C030,0x28A848,0xE070B0,0x8860D8,0xE86020,0xD4D0C0];
+    const bGeo = new THREE.CylinderGeometry(0.065,0.075,0.22,7);
+    const hGeo = new THREE.SphereGeometry(0.085,8,6);
+    let totalSpec = 0;
+    for(let t=0;t<TIERS;t++) totalSpec += Math.floor((BASE_R+t*TIER_W+TIER_W*0.5)*TOTAL_ARC/0.44);
+    const NC = SCOLS.length, perC = Math.ceil(totalSpec/NC);
+    const bMs = SCOLS.map(c=>new THREE.InstancedMesh(bGeo, new THREE.MeshStandardMaterial({color:c, roughness:0.75}), perC));
+    const hMs = SCOLS.map(()=>new THREE.InstancedMesh(hGeo, new THREE.MeshStandardMaterial({color:0xE8C090, roughness:0.65}), perC));
+    const sc = new Array(NC).fill(0), dm = new THREE.Object3D();
+    for(let t=0;t<TIERS;t++){
+      const r=BASE_R+t*TIER_W+TIER_W*0.5, y=t*TIER_H+TIER_H+0.12;
+      const n=Math.floor(r*TOTAL_ARC/0.44);
+      for(let i=0;i<n;i++){
+        const angle=OPEN_E+TOTAL_ARC*(i+0.3)/n;
+        const x=Math.cos(angle)*r, z=Math.sin(angle)*r;
+        const ci=Math.abs(i*7+t*3)%NC, idx=sc[ci]++;
+        if(idx>=perC) continue;
+        dm.position.set(x,y,z); dm.rotation.y=-(angle+Math.PI); dm.scale.setScalar(1); dm.updateMatrix();
+        bMs[ci].setMatrixAt(idx, dm.matrix);
+        dm.position.set(x,y+0.175,z); dm.updateMatrix();
+        hMs[ci].setMatrixAt(idx, dm.matrix);
+      }
+    }
+    bMs.forEach((m,i)=>{
+      m.instanceMatrix.needsUpdate=true; m.castShadow=true; m.receiveShadow=true; scene.add(m);
+      hMs[i].instanceMatrix.needsUpdate=true; hMs[i].castShadow=true; scene.add(hMs[i]);
+    });
+
+    // ─── FLOODLIGHT TOWERS ──────────────────────────────────────────────────
+    [[-17,-13],[17,-13],[-17,8],[17,8],[0,-19]].forEach(([tx,tz])=>{
+      const twr = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.18,20,8), MAT.steel));
+      twr.position.set(tx,10,tz); scene.add(twr);
+      const lamp = addShadow(new THREE.Mesh(new THREE.BoxGeometry(1.2,0.2,0.35), MAT.scoreGlow));
+      lamp.position.set(tx,20,tz+0.6); lamp.rotation.x=-0.3; scene.add(lamp);
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(0.4,8,8),
+        new THREE.MeshStandardMaterial({color:0xFFEE88, emissive:0xFFCC44, emissiveIntensity:2.2, roughness:1}));
+      halo.position.set(tx,19.5,tz); scene.add(halo);
+    });
+
+    // ─── SCOREBOARD ─────────────────────────────────────────────────────────
+    const sbZ = Math.sin(Math.PI*1.5)*(BASE_R+TIERS*TIER_W+0.5);
+    const sbBase = addShadow(new THREE.Mesh(new THREE.BoxGeometry(8,0.5,0.4), MAT.concrete));
+    sbBase.position.set(0, TIERS*TIER_H+2.4, sbZ); scene.add(sbBase);
+    const sbScr = addShadow(new THREE.Mesh(new THREE.BoxGeometry(7.2,2.8,0.2), MAT.led));
+    sbScr.position.set(0, TIERS*TIER_H+3.6, sbZ+0.15); scene.add(sbScr);
+
+    // ─── AD BOARDS ──────────────────────────────────────────────────────────
+    const adC=[0xE03428,0x2878D0,0xE8A820,0x28A058,0xD040A0];
+    [0.85,1.0,1.15,1.35,1.65,1.8].forEach((f,i)=>{
+      const ang=Math.PI*f;
+      const ad = addShadow(new THREE.Mesh(new THREE.BoxGeometry(2.8,0.9,0.12),
+        new THREE.MeshStandardMaterial({color:adC[i%5], roughness:0.5, emissive:adC[i%5], emissiveIntensity:0.1})));
+      ad.position.set(Math.cos(ang)*13.8, 0.5, Math.sin(ang)*10);
+      ad.rotation.y=-(ang+Math.PI/2); scene.add(ad);
+    });
+
+    // ─── FLAGS ──────────────────────────────────────────────────────────────
+    const FLAGS=[];
+    const fMats=[MAT.flagRed,MAT.flagYel,MAT.flagRed,MAT.flagYel,MAT.flagRed,MAT.flagYel];
+    [0.65,0.90,1.10,1.30,1.55,1.85].forEach((f,i)=>{
+      const ang=Math.PI*f, r=BASE_R+TIERS*TIER_W+0.5;
+      const x=Math.cos(ang)*r, z=Math.sin(ang)*r;
+      const staff=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,3,6), MAT.steel));
+      staff.position.set(x, TIERS*TIER_H+2.5, z); scene.add(staff);
+      const flag=new THREE.Mesh(new THREE.PlaneGeometry(0.8,0.5), fMats[i]);
+      flag.position.set(x+0.4*Math.cos(ang+Math.PI/2), TIERS*TIER_H+3.8, z+0.4*Math.sin(ang+Math.PI/2));
+      flag.rotation.y=-(ang+Math.PI/2); scene.add(flag);
+      FLAGS.push({mesh:flag});
+    });
+
+    // ─── CHIBI ATHLETES ─────────────────────────────────────────────────────
+    function makeLatheHead(r) {
+      const pts=[new THREE.Vector2(0.01,-r*0.9),new THREE.Vector2(r*0.55,-r*0.6),
+        new THREE.Vector2(r*0.9,-r*0.1),new THREE.Vector2(r*0.95,r*0.25),
+        new THREE.Vector2(r*0.85,r*0.6),new THREE.Vector2(r*0.55,r*0.9),
+        new THREE.Vector2(r*0.15,r*1.0),new THREE.Vector2(0.01,r*1.0)];
+      return new THREE.LatheGeometry(pts,16);
+    }
+    function makeEye(side, headR) {
+      const g=new THREE.Group();
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(headR*0.22,8,7), new THREE.MeshStandardMaterial({color:0xFFFFFF,roughness:0.3})));
+      const iris=new THREE.Mesh(new THREE.SphereGeometry(headR*0.15,8,7), new THREE.MeshStandardMaterial({color:0x3A2810,roughness:0.4}));
+      iris.position.z=headR*0.05; g.add(iris);
+      const pup=new THREE.Mesh(new THREE.SphereGeometry(headR*0.09,6,5), new THREE.MeshStandardMaterial({color:0x080808,roughness:0.5}));
+      pup.position.z=headR*0.06; g.add(pup);
+      g.position.set(side*headR*0.38, headR*0.1, headR*0.82);
+      return g;
+    }
+    function makeHair(headR, style, color) {
+      const g=new THREE.Group(), mat=new THREE.MeshStandardMaterial({color,roughness:0.7});
+      if(style==='spiky'){
+        for(let s=0;s<6;s++){const a=(s/6)*Math.PI*2;const h=new THREE.Mesh(new THREE.ConeGeometry(headR*0.18,headR*0.45,6),mat);h.position.set(Math.sin(a)*headR*0.6,headR*0.85,Math.cos(a)*headR*0.35);h.rotation.z=Math.sin(a)*0.6;h.rotation.x=-0.2+Math.cos(a)*0.3;g.add(h);}
+      }else if(style==='ponytail'){
+        const top=new THREE.Mesh(new THREE.SphereGeometry(headR*0.92,10,9),mat);top.position.y=headR*0.2;top.scale.set(1,0.7,1);g.add(top);
+        const tail=new THREE.Mesh(new THREE.CylinderGeometry(headR*0.14,headR*0.08,headR*1.2,8),mat);tail.position.set(0,-headR*0.5,-headR*0.8);tail.rotation.x=-0.5;g.add(tail);
+      }else if(style==='curly'){
+        for(let s=0;s<8;s++){const a=(s/8)*Math.PI*2;const curl=new THREE.Mesh(new THREE.SphereGeometry(headR*0.28,7,6),mat);curl.position.set(Math.sin(a)*headR*0.65,headR*0.55+Math.abs(Math.sin(a))*0.15,Math.cos(a)*headR*0.4);g.add(curl);}
+      }else{
+        const cap=new THREE.Mesh(new THREE.SphereGeometry(headR*0.93,10,8),mat);cap.position.y=headR*0.18;cap.scale.set(1,0.65,1);g.add(cap);
+      }
+      return g;
+    }
+
+    const ATHLETES=[
+      {color:0xF472B6,hair:'spiky',   hcol:0x3A2010,pct:0.82},
+      {color:0x38BDF8,hair:'ponytail',hcol:0x5A3820,pct:0.65},
+      {color:0xFACC15,hair:'curly',   hcol:0x1A1A1A,pct:0.48},
+      {color:0xF472B6,hair:'side',    hcol:0x1A1A1A,pct:0.55},
+      {color:0x38BDF8,hair:'spiky',   hcol:0x4A3020,pct:0.78},
+    ];
+    const TPS=[{a:-0.15,r:10.85},{a:0.28,r:11.25},{a:0.60,r:11.65},{a:0.90,r:12.05},{a:1.20,r:12.45}];
+    const runners=[];
+
+    ATHLETES.forEach((ath,i)=>{
+      const {color,hair,hcol,pct}=ath, tp=TPS[i], g=new THREE.Group();
+      const headR=0.38, bodyH=0.52+(pct<0.5?0.1:pct>0.75?-0.05:0);
+      const torsoW=pct<0.5?0.28:pct<0.65?0.22:pct>0.75?0.24:0.18;
+      const jMat=new THREE.MeshStandardMaterial({color,roughness:0.72});
+      const dMat=new THREE.MeshStandardMaterial({color:0x1A1A30,roughness:0.78});
+      const sMat=new THREE.MeshStandardMaterial({color,roughness:0.65,metalness:0.05});
+      const skMat=new THREE.MeshStandardMaterial({color:0xE8C090,roughness:0.68});
+
+      const body=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(torsoW*0.82,torsoW,bodyH,10),jMat));
+      body.position.y=0.4;
+      const collar=new THREE.Mesh(new THREE.CylinderGeometry(torsoW*0.5,torsoW*0.55,0.06,10),jMat);
+      collar.position.y=0.4+bodyH/2-0.02;
+      const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.065,0.07,0.14,8),skMat);
+      neck.position.y=0.4+bodyH/2+0.06;
+      const head=addShadow(new THREE.Mesh(makeLatheHead(headR),new THREE.MeshStandardMaterial({color:0xF0C080,roughness:0.65})));
+      head.position.y=0.4+bodyH/2+0.14+headR; head.rotation.y=Math.PI;
+      const eyeL=makeEye(-1,headR), eyeR=makeEye(1,headR);
+      eyeL.position.y=eyeR.position.y=0.4+bodyH/2+0.14+headR;
+      eyeL.rotation.y=eyeR.rotation.y=Math.PI;
+      [-1,1].forEach(s=>{
+        const cheek=new THREE.Mesh(new THREE.SphereGeometry(headR*0.28,8,7),new THREE.MeshStandardMaterial({color:0xF09880,roughness:0.65,transparent:true,opacity:0.55}));
+        cheek.position.set(s*headR*0.7,0.4+bodyH/2+0.14+headR,headR*0.75); g.add(cheek);
+      });
+      const hairGrp=makeHair(headR,hair,hcol);
+      hairGrp.position.y=0.4+bodyH/2+0.14+headR; hairGrp.rotation.y=Math.PI;
+      const rph=i*1.57;
+      [-1,1].forEach((side,ai)=>{
+        const arm=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.065,0.38,8),ai===0?jMat:skMat));
+        arm.position.set(side*(torsoW+0.06),0.4+bodyH/2-0.1,0);
+        arm.rotation.z=side*0.55; arm.rotation.x=(side>0?Math.sin(rph+1):Math.cos(rph))*0.6; g.add(arm);
+      });
+      [-1,1].forEach((side,li)=>{
+        const leg=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.08,0.42,9),dMat));
+        leg.position.set(side*0.09,0.22,0); leg.rotation.x=(side>0?Math.sin(rph):Math.cos(rph))*0.55; g.add(leg);
+        const shoe=addShadow(new THREE.Mesh(new THREE.SphereGeometry(0.115,10,8),sMat));
+        shoe.scale.set(1,0.55,1.4);
+        shoe.position.set(side*0.09,0.045+Math.abs((side>0?Math.sin(rph):Math.cos(rph))*0.18),0.06); g.add(shoe);
+      });
+      const bib=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.20,0.02),new THREE.MeshStandardMaterial({color:0xFFFFFF,roughness:0.5}));
+      bib.position.set(0,0.4+bodyH/2-0.12,torsoW+0.01); g.add(bib,body,collar,neck,head,eyeL,eyeR,hairGrp);
+      g.position.set(Math.cos(tp.a)*tp.r, 0, Math.sin(tp.a)*tp.r);
+      g.rotation.y=-(tp.a+Math.PI/2-0.1);
+      scene.add(g);
+      runners.push({grp:g,phase:i*0.9,tAngle:tp.a,r:tp.r,speed:0.008+pct*0.004});
+    });
+
+    // ─── FIELD PROPS ────────────────────────────────────────────────────────
+    const jav=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.01,3.5,8),new THREE.MeshStandardMaterial({color:0xC0C0C0,roughness:0.4,metalness:0.7})));
+    jav.position.set(-4,0.04,2); jav.rotation.z=0.25; jav.rotation.y=0.8; scene.add(jav);
+    const shot=addShadow(new THREE.Mesh(new THREE.SphereGeometry(0.14,10,9),new THREE.MeshStandardMaterial({color:0x505058,roughness:0.5,metalness:0.5})));
+    shot.position.set(5.4,0.15,2); scene.add(shot);
+    const bar=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,2.4,8),new THREE.MeshStandardMaterial({color:0xE04020,roughness:0.5})));
+    bar.position.set(-5,1.2,3.5); bar.rotation.z=Math.PI/2; scene.add(bar);
+    [-1,1].forEach(s=>{
+      const std=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.05,2.0,8),MAT.steel));
+      std.position.set(-5+s*1.2,1.0,3.5); scene.add(std);
+    });
+    const ljpit=addShadow(new THREE.Mesh(new THREE.BoxGeometry(1.2,0.04,5),new THREE.MeshStandardMaterial({color:0xE8D898,roughness:0.95})));
+    ljpit.position.set(0,0.02,4.0); scene.add(ljpit);
+
+    // ─── RESIZE ─────────────────────────────────────────────────────────────
+    window.addEventListener('resize', ()=>{
+      const rW=Math.max(1, canvas.clientWidth||window.innerWidth);
+      const rH=Math.max(1, canvas.clientHeight||window.innerHeight);
+      renderer.setSize(rW,rH,false);
+      camera.aspect=rW/rH; camera.updateProjectionMatrix();
+    });
+
+    // ─── CONTROLS ───────────────────────────────────────────────────────────
+    let drag=false, lastMX=0, lastMY=0;
+    canvas.addEventListener('mousedown',e=>{drag=true;lastMX=e.clientX;lastMY=e.clientY;});
+    window.addEventListener('mouseup',()=>{drag=false;});
+    window.addEventListener('mousemove',e=>{
+      if(!drag) return;
+      const dx=e.clientX-lastMX, dy=e.clientY-lastMY;
+      lastMX=e.clientX; lastMY=e.clientY;
+      panX-=dx*camDist*0.0015; panZ-=dy*camDist*0.0015;
+      panX=Math.max(-18,Math.min(18,panX)); panZ=Math.max(-18,Math.min(18,panZ));
+      setCam();
+    });
+    canvas.addEventListener('wheel',e=>{
+      e.preventDefault();
+      camDist=Math.max(12,Math.min(65,camDist+e.deltaY*0.04)); setCam();
+    },{passive:false});
+
+    let t0=null,t1=null,tD0=0;
+    canvas.addEventListener('touchstart',e=>{
+      if(e.touches.length===1){t0={x:e.touches[0].clientX,y:e.touches[0].clientY};t1=null;}
+      else if(e.touches.length===2){t0={x:e.touches[0].clientX,y:e.touches[0].clientY};t1={x:e.touches[1].clientX,y:e.touches[1].clientY};tD0=Math.hypot(t1.x-t0.x,t1.y-t0.y);}
+    },{passive:true});
+    canvas.addEventListener('touchmove',e=>{
+      e.preventDefault();
+      if(e.touches.length===1&&t0&&!t1){
+        const dx=e.touches[0].clientX-t0.x, dy=e.touches[0].clientY-t0.y;
+        t0={x:e.touches[0].clientX,y:e.touches[0].clientY};
+        panX-=dx*camDist*0.002; panZ-=dy*camDist*0.002;
+        panX=Math.max(-18,Math.min(18,panX)); panZ=Math.max(-18,Math.min(18,panZ)); setCam();
+      }else if(e.touches.length===2){
+        const nd=Math.hypot(e.touches[1].clientX-e.touches[0].clientX,e.touches[1].clientY-e.touches[0].clientY);
+        camDist=Math.max(12,Math.min(65,camDist*(tD0/nd))); tD0=nd; setCam();
+      }
+    },{passive:false});
+
+    document.getElementById('zin').addEventListener('click',()=>{camDist=Math.max(12,camDist-4);setCam();});
+    document.getElementById('zout').addEventListener('click',()=>{camDist=Math.min(65,camDist+4);setCam();});
+
+    // ─── ANIMATE ────────────────────────────────────────────────────────────
+    const clock=new THREE.Clock();
+    function animate(){
+      requestAnimationFrame(animate);
+      const t=clock.getElapsedTime();
+      FLAGS.forEach((f,i)=>{f.mesh.rotation.z=Math.sin(t*2.1+i*0.9)*0.18;f.mesh.rotation.x=Math.cos(t*1.7+i*0.6)*0.08;});
+      runners.forEach(r=>{
+        r.tAngle+=r.speed;
+        r.grp.position.set(Math.cos(r.tAngle)*r.r, Math.abs(Math.sin((t*3.5+r.phase)*2))*0.04, Math.sin(r.tAngle)*r.r);
+        r.grp.rotation.y=-(r.tAngle+Math.PI/2-0.1);
+      });
+      renderer.render(scene,camera);
+    }
+    animate();
+
+    // Hide debug after 3s if all OK
+    setTimeout(()=>{ DBG.style.display='none'; }, 3000);
+    log('Scene ready ✓');
+
+  } catch(e) {
+    err('Init error: ' + e.message);
+    console.error(e);
   }
-}, {passive:false});
-
-document.getElementById('zin').addEventListener('click', () => { camDist=Math.max(12,camDist-4); setCam(); });
-document.getElementById('zout').addEventListener('click', () => { camDist=Math.min(65,camDist+4); setCam(); });
-
-// ─── ANIMATION ───────────────────────────────────────────────────────────────
-const clock = new THREE.Clock();
-function animate() {
-  requestAnimationFrame(animate);
-  const t = clock.getElapsedTime();
-
-  // Animate flags
-  FLAGS.forEach((f,i) => {
-    f.mesh.rotation.z = Math.sin(t*2.1+i*0.9)*0.18;
-    f.mesh.rotation.x = Math.cos(t*1.7+i*0.6)*0.08;
-  });
-
-  // Animate runners along track
-  runners.forEach((r,i) => {
-    r.tAngle += r.speed;
-    const x = Math.cos(r.tAngle)*r.r, z = Math.sin(r.tAngle)*r.r;
-    r.grp.position.set(x, 0.0, z);
-    r.grp.rotation.y = -(r.tAngle + Math.PI/2 - 0.1);
-    // Running limb animation
-    const phase = t*3.5 + r.phase;
-    const children = r.grp.children;
-    // Arms (indices 5 and 6 added earlier via forEach)
-    // Legs: positions baked, just oscillate y-bounce
-    r.grp.position.y = Math.abs(Math.sin(phase*2))*0.04;
-  });
-
-  // Floodlight flicker (subtle)
-  const f0 = 1.0 + Math.sin(t*7.3)*0.02;
-  scene.children.forEach(c => {
-    if(c instanceof THREE.PointLight) c.intensity = f0;
-  });
-
-  renderer.render(scene, camera);
 }
-animate();
-}); // end window load
+
+// Triple init strategy: DOMContentLoaded + load + timeout fallback
+document.addEventListener('DOMContentLoaded', tryInit);
+window.addEventListener('load', tryInit);
+setTimeout(function(){ if(!_inited) tryInit(); }, 800);
 </script>
