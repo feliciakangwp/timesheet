@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;overflow:hidden;background:#121210;font-family:Inter,system-ui,sans-serif}
+html,body{width:100%;height:100%;overflow:hidden;background:#08111E;font-family:Inter,system-ui,sans-serif}
 #c{position:fixed;top:0;left:0;width:100%;height:100%;display:block}
 #badge{position:fixed;top:0;left:0;display:flex;align-items:center;gap:8px;
   background:rgba(14,14,10,.85);backdrop-filter:blur(10px);
@@ -28,10 +28,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:#121210;font-family:
 #dbg{position:fixed;top:120px;left:14px;right:14px;z-index:99;color:#FFCC44;font-size:11px;
   background:rgba(0,0,0,.92);padding:10px 14px;border-radius:8px;font-family:monospace;
   line-height:1.7;display:none;word-break:break-all;border:1px solid rgba(255,204,68,.3)}
+#vignette{position:fixed;inset:0;pointer-events:none;z-index:5;
+  background:radial-gradient(ellipse at 50% 60%, transparent 55%, rgba(8,17,30,0.75) 100%)}
 </style>
 
 <canvas id="c"></canvas>
-<div id="badge"><span class="live"></span>Stage 2 · Phase 3 · Live Three.js Scene</div>
+<div id="badge"><span class="live"></span>Stage 2 · Phase 3 · Dusk Diorama Preview</div>
 <div id="zoom">
   <button class="zb" id="zin">+</button>
   <button class="zb" id="zout">−</button>
@@ -44,6 +46,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#121210;font-family:
   <div><span class="lsw" style="background:#3D4146"></span>Grandstands</div>
   <div><span class="lsw" style="background:#F472B6"></span>ORION · <span class="lsw" style="background:#38BDF8"></span>POLARIS · <span class="lsw" style="background:#FACC15"></span>CORDIS</div>
 </div>
+<div id="vignette"></div>
 <div id="dbg"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
@@ -91,12 +94,12 @@ function tryInit() {
 
     // ─── SCENE ──────────────────────────────────────────────────────────────
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1C2A38);
-    scene.fog = new THREE.Fog(0x1C2A38, 90, 160);
+    scene.background = new THREE.Color(0x08111E);
+    scene.fog = new THREE.Fog(0x08111E, 55, 130);
 
     // ─── CAMERA ─────────────────────────────────────────────────────────────
-    const CAM_POS_DEFAULT = new THREE.Vector3(14, 38, 36);
-    const CAM_TGT_DEFAULT = new THREE.Vector3(0, 0.5, -8);
+    const CAM_POS_DEFAULT = new THREE.Vector3(16, 26, 38);
+    const CAM_TGT_DEFAULT = new THREE.Vector3(0, 0, -6);
     const camera = new THREE.PerspectiveCamera(44, cW/cH, 0.1, 200);
     camera.position.copy(CAM_POS_DEFAULT);
 
@@ -123,12 +126,13 @@ function tryInit() {
     controls.update();
 
     // ─── LIGHTING ───────────────────────────────────────────────────────────
-    // Hemisphere: light grey sky, dark earth — minimal colour bias preserves material hex
-    scene.add(new THREE.HemisphereLight(0xCCDDEE, 0x223318, 0.60));
+    // Warm evening dusk atmosphere
+    scene.add(new THREE.AmbientLight(0x111828, 0.20));
+    scene.add(new THREE.HemisphereLight(0xFFCC88, 0x1A2210, 0.48));
 
-    // Sun: pure white — any colour tint shifts material colours away from design intent
-    const sun = new THREE.DirectionalLight(0xFFFFFF, 1.1);
-    sun.position.set(30, 48, 20);
+    // Warm amber late-afternoon sun from stadium side
+    const sun = new THREE.DirectionalLight(0xFFBB55, 1.9);
+    sun.position.set(22, 20, 32);
     sun.castShadow = true;
     sun.shadow.mapSize.width  = 1024;
     sun.shadow.mapSize.height = 1024;
@@ -141,8 +145,8 @@ function tryInit() {
     sun.shadow.camera.bottom = -50;
     scene.add(sun);
 
-    // Cool fill for shadow depth
-    const fill = new THREE.DirectionalLight(0x5577AA, 0.40);
+    // Cool blue fill for dusk shadow depth
+    const fill = new THREE.DirectionalLight(0x4466BB, 0.28);
     fill.position.set(-25, 15, -18);
     scene.add(fill);
 
@@ -278,9 +282,23 @@ function tryInit() {
       return 0.00310 + (pct - 0.85) / 0.15 * 0.00140;
     }
 
-    // ─── GROUND ─────────────────────────────────────────────────────────────
-    const gnd = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), MAT.grass);
-    gnd.rotation.x = -Math.PI/2; gnd.receiveShadow = true; scene.add(gnd);
+    // ─── GROUND + DIORAMA PLATFORM ──────────────────────────────────────────
+    const gnd = new THREE.Mesh(new THREE.PlaneGeometry(62, 38), MAT.grass);
+    gnd.rotation.x = -Math.PI/2; gnd.position.set(0, 0, -4); gnd.receiveShadow = true; scene.add(gnd);
+
+    // Miniature diorama wooden base platform
+    const woodMat = new THREE.MeshStandardMaterial({color:0x4A2E12, roughness:0.78, metalness:0.01});
+    const rimMat  = new THREE.MeshStandardMaterial({color:0x7A4828, roughness:0.72, metalness:0.01});
+    const platform = addShadow(new THREE.Mesh(new THREE.BoxGeometry(62, 2.6, 38), woodMat));
+    platform.position.set(0, -1.3, -4); scene.add(platform);
+    const rimF = addShadow(new THREE.Mesh(new THREE.BoxGeometry(62.4, 0.22, 0.30), rimMat));
+    rimF.position.set(0, 0.04, 15.15); scene.add(rimF);
+    const rimBk = addShadow(new THREE.Mesh(new THREE.BoxGeometry(62.4, 0.22, 0.30), rimMat));
+    rimBk.position.set(0, 0.04, -23.15); scene.add(rimBk);
+    const rimL = addShadow(new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.22, 38.4), rimMat));
+    rimL.position.set(-31.15, 0.04, -4); scene.add(rimL);
+    const rimR = addShadow(new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.22, 38.4), rimMat));
+    rimR.position.set(31.15, 0.04, -4); scene.add(rimR);
 
     const apron = new THREE.Mesh(stadiumRingGeo(SL, OTR + 1.2, OTR), MAT.warm);
     apron.position.y = 0.01; apron.receiveShadow = true; scene.add(apron);
@@ -354,12 +372,13 @@ function tryInit() {
     baseWall.position.set(0, 0.33, -GS_INNER + 0.11); scene.add(baseWall);
 
     // ─── SPECTATORS ─────────────────────────────────────────────────────────
-    const SCOLS = [0xE03428,0x3478D8,0xE8C030,0x28A848,0xE070B0,0x8860D8,0xE86020,0xD4D0C0,0xFFFFFF,0x222244];
+    const SCOLS = [0xE03428,0x3478D8,0xE8C030,0x28A848,0xE070B0,0x8860D8,0xE86020,0xD4D0C0,
+                   0xFFFFFF,0x222244,0xF08020,0x20A090,0xE840A0,0x60B040,0x6040C8,0xC8A020];
     const bGeo = new THREE.CylinderGeometry(0.06,0.075,0.24,7);
     const hGeo = new THREE.SphereGeometry(0.095,8,6);
     const aGeo = new THREE.BoxGeometry(0.28,0.065,0.065);
     const NC = SCOLS.length;
-    const SD = 0.32;
+    const SD = 0.26;
 
     let totalSpec = 0;
     for (let t = 0; t < TIERS; t++) {
@@ -417,17 +436,19 @@ function tryInit() {
     });
 
     // ─── FLOODLIGHT TOWERS ──────────────────────────────────────────────────
-    const TOWER_POS = [[-SL-2.5, 3.5],[ SL+2.5, 3.5],[-SL-2.5,-(OTR+7)],[ SL+2.5,-(OTR+7)],[0,-(OTR+9)]];
+    const TOWER_POS = [[-SL-2.5,-(OTR+5)],[ SL+2.5,-(OTR+5)],[-SL-0.5,-(OTR+8)],[ SL+0.5,-(OTR+8)]];
     TOWER_POS.forEach(([tx,tz])=>{
-      const twr = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.20,24,8), MAT.steel));
-      twr.position.set(tx,12,tz); scene.add(twr);
-      [-0.5,0,0.5].forEach(off=>{
-        const lamp=addShadow(new THREE.Mesh(new THREE.BoxGeometry(0.9,0.18,0.28), MAT.scoreGlow));
-        lamp.position.set(tx+off,24,tz+0.5); lamp.rotation.x=-0.28; scene.add(lamp);
+      const twr = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.20,15,8), MAT.steel));
+      twr.position.set(tx,7.5,tz); scene.add(twr);
+      [-0.4,0,0.4].forEach(off=>{
+        const lamp=addShadow(new THREE.Mesh(new THREE.BoxGeometry(0.8,0.16,0.24), MAT.scoreGlow));
+        lamp.position.set(tx+off,15,tz+0.4); lamp.rotation.x=-0.28; scene.add(lamp);
       });
-      const halo=new THREE.Mesh(new THREE.SphereGeometry(0.38,8,8),
-        new THREE.MeshStandardMaterial({color:0xFFEE88,emissive:0xFFCC44,emissiveIntensity:2.5,roughness:1}));
-      halo.position.set(tx,23.8,tz); scene.add(halo);
+      const halo=new THREE.Mesh(new THREE.SphereGeometry(0.35,8,8),
+        new THREE.MeshStandardMaterial({color:0xFFEE88,emissive:0xFFBB44,emissiveIntensity:3.0,roughness:1}));
+      halo.position.set(tx,14.8,tz); scene.add(halo);
+      const pt = new THREE.PointLight(0xFFCC88, 0.8, 35);
+      pt.position.set(tx, 14.5, tz); scene.add(pt);
     });
 
     // ─── SCOREBOARD ─────────────────────────────────────────────────────────
@@ -877,7 +898,7 @@ function tryInit() {
     animate();
 
     setTimeout(()=>{ DBG.style.display='none'; }, 3500);
-    log('Checkpoint B+C — NoToneMapping, white sun, correct colours, BAs at event locations with animations');
+    log('Workstream A — Evening dusk diorama, 4 rear towers, 16-colour crowd, wooden platform');
 
   } catch(e) {
     err('Init error: ' + e.message);
