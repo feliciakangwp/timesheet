@@ -84,14 +84,14 @@ function tryInit() {
     renderer.setSize(cW, cH, false);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ReinhardToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.toneMappingExposure = 1.0;
     renderer.outputEncoding = THREE.sRGBEncoding;
 
     // ─── SCENE ──────────────────────────────────────────────────────────────
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x263545);
-    scene.fog = new THREE.Fog(0x263545, 90, 160);
+    scene.background = new THREE.Color(0x1C2A38);
+    scene.fog = new THREE.Fog(0x1C2A38, 90, 160);
 
     // ─── CAMERA ─────────────────────────────────────────────────────────────
     const CAM_POS_DEFAULT = new THREE.Vector3(14, 38, 36);
@@ -122,11 +122,11 @@ function tryInit() {
     controls.update();
 
     // ─── LIGHTING ───────────────────────────────────────────────────────────
-    // Hemisphere: neutral sky above, dark earth below — preserves material hues
-    scene.add(new THREE.HemisphereLight(0x7799CC, 0x263520, 0.38));
+    // Hemisphere: light grey sky, dark earth — minimal colour bias preserves material hex
+    scene.add(new THREE.HemisphereLight(0xCCDDEE, 0x223318, 0.60));
 
-    // Sun: neutral daylight (not warm orange) so track/grass hold their designed colours
-    const sun = new THREE.DirectionalLight(0xFFF8F0, 2.0);
+    // Sun: pure white — any colour tint shifts material colours away from design intent
+    const sun = new THREE.DirectionalLight(0xFFFFFF, 1.1);
     sun.position.set(30, 48, 20);
     sun.castShadow = true;
     sun.shadow.mapSize.width  = 1024;
@@ -140,8 +140,8 @@ function tryInit() {
     sun.shadow.camera.bottom = -50;
     scene.add(sun);
 
-    // Cool-blue fill from opposite for depth and shadow colour
-    const fill = new THREE.DirectionalLight(0x3A5A99, 0.55);
+    // Cool fill for shadow depth
+    const fill = new THREE.DirectionalLight(0x5577AA, 0.40);
     fill.position.set(-25, 15, -18);
     scene.add(fill);
 
@@ -589,12 +589,9 @@ function tryInit() {
     }
 
     const ATHLETES=[
-      {color:0xF472B6, hair:'spiky',    hcol:0x3A2010, pct:0.82, lane:0},
-      {color:0x38BDF8, hair:'ponytail', hcol:0x5A3820, pct:0.65, lane:1},
-      {color:0xFACC15, hair:'curly',    hcol:0x1A1A1A, pct:0.48, lane:2},
-      {color:0xF472B6, hair:'side',     hcol:0x1A1A1A, pct:0.55, lane:3},
-      {color:0x38BDF8, hair:'spiky',    hcol:0x4A3020, pct:0.78, lane:4},
-      {color:0xFACC15, hair:'ponytail', hcol:0x2A1A0A, pct:0.72, lane:5},
+      {color:0xF472B6, hair:'spiky',    hcol:0x3A2010, pct:0.82, lane:1}, // ORION on track
+      {color:0x38BDF8, hair:'ponytail', hcol:0x5A3820, pct:0.65, lane:3}, // POLARIS on track
+      {color:0xFACC15, hair:'curly',    hcol:0x1A1A1A, pct:0.72, lane:5}, // CORDIS on track
     ];
 
     const runners = [];
@@ -652,6 +649,65 @@ function tryInit() {
 
       runners.push({grp:g, s:startS, lR, speed:pctToSpeed(pct), phase:i*0.9});
     });
+
+    // ─── BA EVENT ATHLETES ──────────────────────────────────────────────────
+    function buildEventAthlete(color, hair, hcol) {
+      const g = new THREE.Group();
+      const headR = 0.38, bodyH = 0.50, torsoW = 0.22;
+      const jMat  = new THREE.MeshStandardMaterial({color, roughness:0.72});
+      const dMat  = new THREE.MeshStandardMaterial({color:0x1A1A30, roughness:0.78});
+      const sMat  = new THREE.MeshStandardMaterial({color, roughness:0.65, metalness:0.05});
+      const skMat = new THREE.MeshStandardMaterial({color:0xE8C090, roughness:0.68});
+      const body  = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(torsoW*0.82,torsoW,bodyH,10),jMat));
+      body.position.y = 0.4; g.add(body);
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.065,0.07,0.14,8),skMat);
+      neck.position.y = 0.4+bodyH/2+0.06; g.add(neck);
+      const head = addShadow(new THREE.Mesh(makeLatheHead(headR),new THREE.MeshStandardMaterial({color:0xF0C080,roughness:0.65})));
+      head.position.y = 0.4+bodyH/2+0.14+headR; head.rotation.y = Math.PI; g.add(head);
+      const eL = makeEye(-1,headR), eR = makeEye(1,headR);
+      eL.position.y = eR.position.y = 0.4+bodyH/2+0.14+headR;
+      eL.rotation.y = eR.rotation.y = Math.PI; g.add(eL); g.add(eR);
+      const hGrp = makeHair(headR, hair, hcol);
+      hGrp.position.y = 0.4+bodyH/2+0.14+headR; hGrp.rotation.y = Math.PI; g.add(hGrp);
+      [-1,1].forEach(s=>{
+        const cheek=new THREE.Mesh(new THREE.SphereGeometry(headR*0.28,8,7),new THREE.MeshStandardMaterial({color:0xF09880,roughness:0.65,transparent:true,opacity:0.55}));
+        cheek.position.set(s*headR*0.7,0.4+bodyH/2+0.14+headR,headR*0.75); g.add(cheek);
+      });
+      const arms = [];
+      [-1,1].forEach((side,ai)=>{
+        const arm=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.065,0.38,8),ai===0?jMat:skMat));
+        arm.position.set(side*(torsoW+0.06),0.4+bodyH/2-0.1,0);
+        arm.rotation.z=side*0.3; g.add(arm); arms.push(arm);
+      });
+      const legs = [];
+      [-1,1].forEach((side)=>{
+        const leg=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.08,0.42,9),dMat));
+        leg.position.set(side*0.09,0.22,0); g.add(leg); legs.push(leg);
+        const shoe=addShadow(new THREE.Mesh(new THREE.SphereGeometry(0.115,10,8),sMat));
+        shoe.scale.set(1,0.55,1.4); shoe.position.set(side*0.09,0.045,0.06); g.add(shoe);
+      });
+      return {grp:g, arms, legs};
+    }
+
+    const eventAthletes = [];
+
+    // ORION at shot put circle
+    const spBA = buildEventAthlete(0xF472B6, 'side', 0x1A1A1A);
+    spBA.grp.position.set(-4.5, 0, 2.0); spBA.grp.rotation.y = Math.PI * 0.5;
+    scene.add(spBA.grp);
+    eventAthletes.push({...spBA, event:'shotput', offset:0});
+
+    // POLARIS at javelin runway
+    const javBA = buildEventAthlete(0x38BDF8, 'spiky', 0x4A3020);
+    javBA.grp.position.set(7.5, 0, 1.8); javBA.grp.rotation.y = -Math.PI * 0.5;
+    scene.add(javBA.grp);
+    eventAthletes.push({...javBA, event:'javelin', offset:0.33});
+
+    // CORDIS at high jump
+    const hjBA = buildEventAthlete(0xFACC15, 'ponytail', 0x2A1A0A);
+    hjBA.grp.position.set(-2.5, 0, -4.0); hjBA.grp.rotation.y = 0.4;
+    scene.add(hjBA.grp);
+    eventAthletes.push({...hjBA, event:'highjump', offset:0.66});
 
     // ─── RESIZE ─────────────────────────────────────────────────────────────
     window.addEventListener('resize', ()=>{
@@ -739,13 +795,88 @@ function tryInit() {
         shotFlight.visible = false;
       }
 
+      // Event athlete animations
+      eventAthletes.forEach(ea => {
+        const ph = ((t * 0.20 + ea.offset) % 1);
+        if (ea.event === 'shotput') {
+          // Wind-up (0→0.4) → release burst (0.4→0.5) → recover (0.5→1.0)
+          if (ph < 0.4) {
+            const f = ph / 0.4;
+            ea.grp.rotation.y = Math.PI * 0.5 + Math.sin(f * Math.PI) * 0.6;
+            ea.arms[0].rotation.x = f * 1.2;
+            ea.arms[1].rotation.x = -f * 0.4;
+            ea.legs[0].rotation.x = Math.sin(f * Math.PI * 2) * 0.2;
+          } else if (ph < 0.5) {
+            const f = (ph - 0.4) / 0.1;
+            ea.grp.rotation.y = Math.PI * 0.5 + 0.6 - f * 0.8;
+            ea.arms[0].rotation.x = 1.2 - f * 1.2;
+            ea.arms[1].rotation.x = -0.4 + f * 0.4;
+          } else {
+            const f = (ph - 0.5) / 0.5;
+            ea.grp.rotation.y = Math.PI * 0.5 - 0.2 + f * 0.2;
+            ea.arms[0].rotation.x = Math.sin(f * Math.PI) * 0.3;
+            ea.arms[1].rotation.x = 0;
+          }
+        } else if (ea.event === 'javelin') {
+          // Run-up (0→0.45) → throw (0.45→0.6) → follow-through (0.6→1.0)
+          if (ph < 0.45) {
+            const f = ph / 0.45;
+            ea.grp.position.x = 7.5 - f * 4.0;
+            ea.arms[0].rotation.x = Math.sin(f * Math.PI * 6) * 0.8;
+            ea.arms[1].rotation.x = -Math.sin(f * Math.PI * 6) * 0.8;
+            ea.legs[0].rotation.x = Math.sin(f * Math.PI * 6 + 0.5) * 0.7;
+            ea.legs[1].rotation.x = -Math.sin(f * Math.PI * 6 + 0.5) * 0.7;
+          } else if (ph < 0.6) {
+            const f = (ph - 0.45) / 0.15;
+            ea.grp.position.x = 3.5 - f * 1.0;
+            ea.arms[0].rotation.x = 0.8 - f * 1.6;
+            ea.arms[1].rotation.x = -0.8 + f * 0.4;
+          } else {
+            const f = (ph - 0.6) / 0.4;
+            ea.grp.position.x = 2.5 + f * 5.0;
+            ea.arms[0].rotation.x = -0.8 + f * 0.8;
+            ea.arms[1].rotation.x = -0.4 + f * 0.4;
+            ea.legs[0].rotation.x = Math.sin(f * Math.PI) * 0.4;
+            ea.legs[1].rotation.x = -Math.sin(f * Math.PI) * 0.4;
+          }
+        } else if (ea.event === 'highjump') {
+          // Approach (0→0.5) → jump arc (0.5→0.75) → land (0.75→1.0)
+          if (ph < 0.5) {
+            const f = ph / 0.5;
+            ea.grp.position.x = -2.5 + Math.sin(f * Math.PI * 0.5) * 2.0;
+            ea.grp.position.z = -4.0 + f * 1.5;
+            ea.grp.position.y = 0;
+            ea.grp.rotation.y = 0.4 - f * 0.4;
+            ea.arms[0].rotation.x = Math.sin(f * Math.PI * 5) * 0.6;
+            ea.arms[1].rotation.x = -Math.sin(f * Math.PI * 5) * 0.6;
+            ea.legs[0].rotation.x = Math.sin(f * Math.PI * 5) * 0.5;
+            ea.legs[1].rotation.x = -Math.sin(f * Math.PI * 5) * 0.5;
+          } else if (ph < 0.75) {
+            const f = (ph - 0.5) / 0.25;
+            ea.grp.position.y = Math.sin(f * Math.PI) * 1.8;
+            ea.grp.rotation.x = Math.sin(f * Math.PI) * (-0.8);
+            ea.arms[0].rotation.x = -1.0 + f * 0.5;
+            ea.arms[1].rotation.x = 1.0 - f * 0.5;
+          } else {
+            const f = (ph - 0.75) / 0.25;
+            ea.grp.position.y = Math.max(0, (1 - f) * 0.3);
+            ea.grp.rotation.x = (1 - f) * (-0.8);
+            ea.grp.position.x = -2.5;
+            ea.grp.position.z = -4.0;
+            ea.grp.rotation.y = 0.4;
+            ea.arms[0].rotation.x = -0.5 + f * 0.5;
+            ea.arms[1].rotation.x = 0.5 - f * 0.5;
+          }
+        }
+      });
+
       controls.update();
       renderer.render(scene, camera);
     }
     animate();
 
     setTimeout(()=>{ DBG.style.display='none'; }, 3500);
-    log('Checkpoint B ready — ReinhardToneMapping, neutral sun, correct track/grass colours');
+    log('Checkpoint B+C — NoToneMapping, white sun, correct colours, BAs at event locations with animations');
 
   } catch(e) {
     err('Init error: ' + e.message);
