@@ -38,6 +38,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#08111E;font-family:
   <button class="zb" id="zin">+</button>
   <button class="zb" id="zout">−</button>
   <button class="zb" id="zrst" title="Reset" style="font-size:13px;letter-spacing:0">↺</button>
+  <button class="zb" id="cprev" title="Character Preview" style="font-size:10px;font-weight:700;letter-spacing:0">CHAR</button>
 </div>
 <div id="hint">Drag to pan &nbsp;·&nbsp; Scroll or pinch to zoom &nbsp;·&nbsp; ↺ Reset</div>
 <div id="legend">
@@ -124,6 +125,11 @@ function tryInit() {
     controls.panSpeed    = 1.4;
     controls.zoomSpeed   = 1.2;
     controls.update();
+
+    // Character preview mode
+    let charPreview=false;
+    const CAM_CHAR_POS=new THREE.Vector3(0,2.4,7.2);
+    const CAM_CHAR_TGT=new THREE.Vector3(0,1.3,0.5);
 
     // ─── LIGHTING ───────────────────────────────────────────────────────────
     // Warm evening dusk atmosphere
@@ -577,159 +583,222 @@ function tryInit() {
       ridge.position.set(0,0.42,-3.2-0.7+r*0.46); scene.add(ridge);
     }
 
-    // ─── CHIBI ATHLETES ─────────────────────────────────────────────────────
-    function makeLatheHead(r) {
-      const pts=[new THREE.Vector2(0.01,-r*0.9),new THREE.Vector2(r*0.55,-r*0.6),
-        new THREE.Vector2(r*0.9,-r*0.1),new THREE.Vector2(r*0.95,r*0.25),
-        new THREE.Vector2(r*0.85,r*0.6),new THREE.Vector2(r*0.55,r*0.9),
-        new THREE.Vector2(r*0.15,r*1.0),new THREE.Vector2(0.01,r*1.0)];
-      return new THREE.LatheGeometry(pts,16);
-    }
-    function makeEye(side, headR) {
+    // ─── CHIBI V2 PREMIUM CHARACTERS ─────────────────────────────────────────
+    function buildPremiumHair(headR,style,mat){
       const g=new THREE.Group();
-      g.add(new THREE.Mesh(new THREE.SphereGeometry(headR*0.22,8,7),new THREE.MeshStandardMaterial({color:0xFFFFFF,roughness:0.3})));
-      const iris=new THREE.Mesh(new THREE.SphereGeometry(headR*0.15,8,7),new THREE.MeshStandardMaterial({color:0x3A2810,roughness:0.4}));
-      iris.position.z=headR*0.05; g.add(iris);
-      const pup=new THREE.Mesh(new THREE.SphereGeometry(headR*0.09,6,5),new THREE.MeshStandardMaterial({color:0x080808,roughness:0.5}));
-      pup.position.z=headR*0.06; g.add(pup);
-      g.position.set(side*headR*0.38,headR*0.1,headR*0.82);
-      return g;
-    }
-    function makeHair(headR, style, color) {
-      const g=new THREE.Group(), mat=new THREE.MeshStandardMaterial({color,roughness:0.7});
       if(style==='spiky'){
-        for(let s=0;s<6;s++){const a=(s/6)*Math.PI*2;const h=new THREE.Mesh(new THREE.ConeGeometry(headR*0.18,headR*0.45,6),mat);h.position.set(Math.sin(a)*headR*0.6,headR*0.85,Math.cos(a)*headR*0.35);h.rotation.z=Math.sin(a)*0.6;h.rotation.x=-0.2+Math.cos(a)*0.3;g.add(h);}
+        const cap=new THREE.Mesh(new THREE.SphereGeometry(headR*0.96,12,10),mat);
+        cap.position.y=headR*0.22; cap.scale.set(1,0.62,1); g.add(cap);
+        for(let s=0;s<7;s++){const a=(s/7)*Math.PI*2;
+          const sp=new THREE.Mesh(new THREE.ConeGeometry(headR*0.14,headR*0.42,5),mat);
+          sp.position.set(Math.sin(a)*headR*0.58,headR*0.88+Math.abs(Math.cos(a))*0.06,Math.cos(a)*headR*0.32);
+          sp.rotation.z=Math.sin(a)*0.52; sp.rotation.x=-0.16+Math.cos(a)*0.26; g.add(sp);}
       }else if(style==='ponytail'){
-        const top=new THREE.Mesh(new THREE.SphereGeometry(headR*0.92,10,9),mat);top.position.y=headR*0.2;top.scale.set(1,0.7,1);g.add(top);
-        const tail=new THREE.Mesh(new THREE.CylinderGeometry(headR*0.14,headR*0.08,headR*1.2,8),mat);tail.position.set(0,-headR*0.5,-headR*0.8);tail.rotation.x=-0.5;g.add(tail);
+        const cap=new THREE.Mesh(new THREE.SphereGeometry(headR*0.96,12,10),mat);
+        cap.position.y=headR*0.18; cap.scale.set(1,0.65,1); g.add(cap);
+        const bun=new THREE.Mesh(new THREE.SphereGeometry(headR*0.22,8,7),mat);
+        bun.position.set(0,headR*0.85,-headR*0.72); g.add(bun);
+        const tail=new THREE.Mesh(new THREE.CylinderGeometry(headR*0.14,headR*0.06,headR*1.1,8),mat);
+        tail.position.set(0,headR*0.44,-headR*0.90); tail.rotation.x=-0.55; g.add(tail);
       }else if(style==='curly'){
-        for(let s=0;s<8;s++){const a=(s/8)*Math.PI*2;const curl=new THREE.Mesh(new THREE.SphereGeometry(headR*0.28,7,6),mat);curl.position.set(Math.sin(a)*headR*0.65,headR*0.55+Math.abs(Math.sin(a))*0.15,Math.cos(a)*headR*0.4);g.add(curl);}
+        const cap=new THREE.Mesh(new THREE.SphereGeometry(headR*0.97,12,10),mat);
+        cap.position.y=headR*0.25; cap.scale.set(1.05,0.68,1.02); g.add(cap);
+        for(let s=0;s<10;s++){const a=(s/10)*Math.PI*2;
+          const curl=new THREE.Mesh(new THREE.SphereGeometry(headR*0.26,8,7),mat);
+          curl.position.set(Math.sin(a)*headR*0.72,headR*0.62+Math.abs(Math.sin(s))*0.12,Math.cos(a)*headR*0.44);g.add(curl);}
+      }else if(style==='long'){
+        const cap=new THREE.Mesh(new THREE.SphereGeometry(headR*0.97,12,10),mat);
+        cap.position.y=headR*0.18; cap.scale.set(1,0.65,1); g.add(cap);
+        [-1,1].forEach(side=>{
+          const fPts=[new THREE.Vector2(0,0),new THREE.Vector2(headR*0.30,-headR*0.35),
+            new THREE.Vector2(headR*0.40,-headR*0.90),new THREE.Vector2(headR*0.35,-headR*1.50),
+            new THREE.Vector2(headR*0.22,-headR*2.10),new THREE.Vector2(0.01,-headR*2.55)];
+          const flow=new THREE.Mesh(new THREE.LatheGeometry(fPts,8,0,Math.PI*0.42),mat);
+          flow.position.set(side*headR*0.56,headR*0.70,-headR*0.12);
+          flow.rotation.y=side*(-Math.PI*0.5); g.add(flow);
+        });
+        const bkPts=[];
+        for(let i=0;i<=8;i++){const f=i/8;bkPts.push(new THREE.Vector2(headR*(0.85-f*0.58),headR*(0.65-f*3.2)));}
+        const bk=new THREE.Mesh(new THREE.LatheGeometry(bkPts,16,0,Math.PI),mat);
+        bk.rotation.y=Math.PI; bk.position.y=headR*0.1; g.add(bk);
       }else{
-        const cap=new THREE.Mesh(new THREE.SphereGeometry(headR*0.93,10,8),mat);cap.position.y=headR*0.18;cap.scale.set(1,0.65,1);g.add(cap);
+        const cap=new THREE.Mesh(new THREE.SphereGeometry(headR*0.95,12,10),mat);
+        cap.position.y=headR*0.15; cap.scale.set(1,0.60,1); g.add(cap);
       }
       return g;
     }
 
+    function buildChibiV2(cfg){
+      const{color,hairStyle,hairColor,physique='average',skinColor=0xE8C090}=cfg;
+      const root=new THREE.Group();
+      const PH={
+        average: {bx:0.26,bz:0.22,lx:0.108,legLen:0.36},
+        chubby:  {bx:0.35,bz:0.30,lx:0.135,legLen:0.33},
+        muscular:{bx:0.32,bz:0.26,lx:0.128,legLen:0.38},
+        obese:   {bx:0.46,bz:0.40,lx:0.170,legLen:0.30},
+      }[physique];
+      const skinMat =new THREE.MeshStandardMaterial({color:skinColor,roughness:0.65});
+      const jerseyMat=new THREE.MeshStandardMaterial({color,roughness:0.72});
+      const shortsMat=new THREE.MeshStandardMaterial({color:0x1A1A30,roughness:0.78});
+      const hairMat  =new THREE.MeshStandardMaterial({color:hairColor,roughness:0.72});
+      const shoeMat  =new THREE.MeshStandardMaterial({color:0xF8F8F8,roughness:0.55});
+      const soleMat  =new THREE.MeshStandardMaterial({color:0x303030,roughness:0.82});
+      const bibMat   =new THREE.MeshStandardMaterial({color:0xFFFFF0,roughness:0.5});
+      const cheekMat =new THREE.MeshStandardMaterial({color:0xF09880,roughness:0.65,transparent:true,opacity:0.55});
+      const HIP_Y=0.72,BODY_H=0.56,headR=0.365;
+      const SHOULDER_Y=HIP_Y+BODY_H,HEAD_Y=SHOULDER_Y+0.14+headR;
+
+      const hipSep=PH.bx*0.65;
+      const lLegGrp=new THREE.Group(); lLegGrp.position.set(-hipSep,HIP_Y,0);
+      const rLegGrp=new THREE.Group(); rLegGrp.position.set( hipSep,HIP_Y,0);
+      [lLegGrp,rLegGrp].forEach(lg=>{
+        const ul=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(PH.lx*0.90,PH.lx*0.85,PH.legLen,8),shortsMat));
+        ul.position.y=-PH.legLen/2; lg.add(ul);
+        const kGrp=new THREE.Group(); kGrp.position.y=-PH.legLen;
+        const ll=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(PH.lx*0.78,PH.lx*0.72,PH.legLen*0.88,8),skinMat));
+        ll.position.y=-PH.legLen*0.44; kGrp.add(ll);
+        const shoe=addShadow(new THREE.Mesh(new THREE.SphereGeometry(PH.lx*0.92,10,8),shoeMat));
+        shoe.scale.set(1.0,0.50,1.55); shoe.position.set(0,-PH.legLen*0.88,PH.lx*0.35); kGrp.add(shoe);
+        const sole=new THREE.Mesh(new THREE.BoxGeometry(PH.lx*1.9,0.04,PH.lx*3.0),soleMat);
+        sole.position.set(0,-PH.legLen*0.88-PH.lx*0.45,PH.lx*0.35); kGrp.add(sole);
+        lg.add(kGrp); lg.userData.kneeGrp=kGrp;
+      });
+      root.add(lLegGrp); root.add(rLegGrp);
+
+      const bodyGrp=new THREE.Group(); bodyGrp.position.y=HIP_Y+BODY_H*0.42;
+      const bodyMesh=addShadow(new THREE.Mesh(new THREE.SphereGeometry(0.40,16,12),jerseyMat));
+      bodyMesh.scale.set(PH.bx/0.40,BODY_H/0.80,PH.bz/0.40); bodyGrp.add(bodyMesh);
+      const bib=new THREE.Mesh(new THREE.BoxGeometry(PH.bx*0.88,0.22,0.018),bibMat);
+      bib.position.set(0,0.02,PH.bz+0.01); bodyGrp.add(bib);
+      const bibLine=new THREE.Mesh(new THREE.BoxGeometry(PH.bx*0.68,0.055,0.012),jerseyMat);
+      bibLine.position.set(0,-0.045,PH.bz+0.014); bodyGrp.add(bibLine);
+      root.add(bodyGrp);
+
+      const shoulderSep=PH.bx*1.08;
+      const lArmGrp=new THREE.Group(); lArmGrp.position.set(-shoulderSep,SHOULDER_Y,0); lArmGrp.rotation.z=0.15;
+      const rArmGrp=new THREE.Group(); rArmGrp.position.set( shoulderSep,SHOULDER_Y,0); rArmGrp.rotation.z=-0.15;
+      [lArmGrp,rArmGrp].forEach(ag=>{
+        const armLen=0.28;
+        const ua=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.065,0.058,armLen,8),jerseyMat));
+        ua.position.y=-armLen/2; ag.add(ua);
+        const eGrp=new THREE.Group(); eGrp.position.y=-armLen;
+        const la=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.052,0.045,armLen*0.88,8),skinMat));
+        la.position.y=-armLen*0.44; eGrp.add(la);
+        const hand=addShadow(new THREE.Mesh(new THREE.SphereGeometry(0.062,8,7),skinMat));
+        hand.position.y=-armLen*0.88; eGrp.add(hand);
+        ag.add(eGrp); ag.userData.elbowGrp=eGrp;
+      });
+      root.add(lArmGrp); root.add(rArmGrp);
+
+      const neck=new THREE.Mesh(new THREE.CylinderGeometry(0.082,0.092,0.14,8),skinMat);
+      neck.position.set(0,SHOULDER_Y+0.04,0); root.add(neck);
+
+      const headGrp=new THREE.Group(); headGrp.position.set(0,HEAD_Y,0);
+      const hPts=[
+        new THREE.Vector2(0.01,      -headR),
+        new THREE.Vector2(headR*0.44,-headR*0.82),
+        new THREE.Vector2(headR*0.84,-headR*0.42),
+        new THREE.Vector2(headR*0.98, headR*0.04),
+        new THREE.Vector2(headR*0.93, headR*0.48),
+        new THREE.Vector2(headR*0.73, headR*0.82),
+        new THREE.Vector2(headR*0.36, headR*1.01),
+        new THREE.Vector2(0.01,       headR*1.03),
+      ];
+      const headMesh=addShadow(new THREE.Mesh(new THREE.LatheGeometry(hPts,24),skinMat));
+      headMesh.rotation.y=Math.PI; headGrp.add(headMesh);
+      [-1,1].forEach(side=>{
+        const eg=new THREE.Group();
+        eg.position.set(side*headR*0.38,headR*0.14,headR*0.84);
+        eg.add(new THREE.Mesh(new THREE.SphereGeometry(headR*0.23,8,7),new THREE.MeshStandardMaterial({color:0xFFFFFF,roughness:0.2})));
+        const iris=new THREE.Mesh(new THREE.SphereGeometry(headR*0.155,8,7),new THREE.MeshStandardMaterial({color:0x3A2010,roughness:0.35}));
+        iris.position.z=headR*0.07; eg.add(iris);
+        const pup=new THREE.Mesh(new THREE.SphereGeometry(headR*0.09,6,5),new THREE.MeshStandardMaterial({color:0x060606,roughness:0.4}));
+        pup.position.z=headR*0.09; eg.add(pup);
+        const hl=new THREE.Mesh(new THREE.SphereGeometry(headR*0.04,5,4),new THREE.MeshStandardMaterial({color:0xFFFFFF,roughness:0.1}));
+        hl.position.set(headR*0.06,headR*0.05,headR*0.11); eg.add(hl);
+        headGrp.add(eg);
+      });
+      const noseMesh=new THREE.Mesh(new THREE.SphereGeometry(headR*0.09,7,6),skinMat);
+      noseMesh.scale.set(1.1,0.8,1.0); noseMesh.position.set(0,-headR*0.09,headR*0.94); headGrp.add(noseMesh);
+      const smileMesh=new THREE.Mesh(new THREE.TorusGeometry(headR*0.19,headR*0.04,6,12,Math.PI*0.72),
+        new THREE.MeshStandardMaterial({color:0xBB4444,roughness:0.5}));
+      smileMesh.position.set(0,-headR*0.29,headR*0.87);
+      smileMesh.rotation.set(0,0,Math.PI+Math.PI*0.14); headGrp.add(smileMesh);
+      [-1,1].forEach(side=>{
+        const cheek=new THREE.Mesh(new THREE.SphereGeometry(headR*0.24,8,7),cheekMat);
+        cheek.position.set(side*headR*0.67,-headR*0.24,headR*0.78); headGrp.add(cheek);
+      });
+      headGrp.add(buildPremiumHair(headR,hairStyle,hairMat));
+      root.add(headGrp);
+
+      root.userData={headGrp,bodyGrp,lLegGrp,rLegGrp,
+        lKneeGrp:lLegGrp.userData.kneeGrp, rKneeGrp:rLegGrp.userData.kneeGrp,
+        lArmGrp,rArmGrp,
+        lElbowGrp:lArmGrp.userData.elbowGrp, rElbowGrp:rArmGrp.userData.elbowGrp};
+      return root;
+    }
+
+    function animateRun(u,t,phase){
+      const s=Math.sin(t*7.5+phase);
+      u.lLegGrp.rotation.x=-s*0.80; u.rLegGrp.rotation.x= s*0.80;
+      u.lKneeGrp.rotation.x=0.10+Math.max(0, s)*0.85;
+      u.rKneeGrp.rotation.x=0.10+Math.max(0,-s)*0.85;
+      u.lArmGrp.rotation.x= s*0.62; u.rArmGrp.rotation.x=-s*0.62;
+      u.lElbowGrp.rotation.x=0.22+Math.abs(Math.cos(t*7.5+phase))*0.40;
+      u.rElbowGrp.rotation.x=0.22+Math.abs(Math.cos(t*7.5+phase+Math.PI))*0.40;
+      u.bodyGrp.rotation.z=s*0.055; u.headGrp.rotation.z=-s*0.04;
+      return Math.abs(s)*0.045;
+    }
+
     const ATHLETES=[
-      {color:0xF472B6, hair:'spiky',    hcol:0x3A2010, pct:0.82, lane:1}, // ORION on track
-      {color:0x38BDF8, hair:'ponytail', hcol:0x5A3820, pct:0.65, lane:3}, // POLARIS on track
-      {color:0xFACC15, hair:'curly',    hcol:0x1A1A1A, pct:0.72, lane:5}, // CORDIS on track
+      {color:0xF472B6,hairStyle:'spiky',   hairColor:0x2A1808,skinColor:0xE8C090,pct:0.82,lane:1,phase:0.0},
+      {color:0x38BDF8,hairStyle:'ponytail',hairColor:0x5A3820,skinColor:0xDBA870,pct:0.65,lane:3,phase:1.1},
+      {color:0xFACC15,hairStyle:'curly',   hairColor:0x181818,skinColor:0xC88860,pct:0.72,lane:5,phase:2.2},
     ];
-
-    const runners = [];
-    ATHLETES.forEach((ath, i) => {
-      const {color, hair, hcol, pct, lane} = ath;
-      const g    = new THREE.Group();
-      const headR = 0.38, bodyH = 0.52 + (pct < 0.5 ? 0.1 : pct > 0.75 ? -0.05 : 0);
-      const torsoW = pct < 0.5 ? 0.28 : pct < 0.65 ? 0.22 : pct > 0.75 ? 0.24 : 0.18;
-      const jMat = new THREE.MeshStandardMaterial({color, roughness:0.72});
-      const dMat = new THREE.MeshStandardMaterial({color:0x1A1A30, roughness:0.78});
-      const sMat = new THREE.MeshStandardMaterial({color, roughness:0.65, metalness:0.05});
-      const skMat= new THREE.MeshStandardMaterial({color:0xE8C090, roughness:0.68});
-
-      const body   = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(torsoW*0.82,torsoW,bodyH,10),jMat));
-      body.position.y = 0.4;
-      const collar = new THREE.Mesh(new THREE.CylinderGeometry(torsoW*0.5,torsoW*0.55,0.06,10),jMat);
-      collar.position.y = 0.4+bodyH/2-0.02;
-      const neck   = new THREE.Mesh(new THREE.CylinderGeometry(0.065,0.07,0.14,8),skMat);
-      neck.position.y = 0.4+bodyH/2+0.06;
-      const head   = addShadow(new THREE.Mesh(makeLatheHead(headR),new THREE.MeshStandardMaterial({color:0xF0C080,roughness:0.65})));
-      head.position.y = 0.4+bodyH/2+0.14+headR; head.rotation.y = Math.PI;
-      const eyeL = makeEye(-1,headR), eyeR = makeEye(1,headR);
-      eyeL.position.y = eyeR.position.y = 0.4+bodyH/2+0.14+headR;
-      eyeL.rotation.y = eyeR.rotation.y = Math.PI;
-      [-1,1].forEach(s=>{
-        const cheek=new THREE.Mesh(new THREE.SphereGeometry(headR*0.28,8,7),new THREE.MeshStandardMaterial({color:0xF09880,roughness:0.65,transparent:true,opacity:0.55}));
-        cheek.position.set(s*headR*0.7,0.4+bodyH/2+0.14+headR,headR*0.75); g.add(cheek);
-      });
-      const hairGrp = makeHair(headR, hair, hcol);
-      hairGrp.position.y = 0.4+bodyH/2+0.14+headR; hairGrp.rotation.y = Math.PI;
-      const rph = i * 1.57;
-      [-1,1].forEach((side,ai)=>{
-        const arm=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.065,0.38,8),ai===0?jMat:skMat));
-        arm.position.set(side*(torsoW+0.06),0.4+bodyH/2-0.1,0);
-        arm.rotation.z=side*0.55; arm.rotation.x=(side>0?Math.sin(rph+1):Math.cos(rph))*0.6; g.add(arm);
-      });
-      [-1,1].forEach((side,li)=>{
-        const leg=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.08,0.42,9),dMat));
-        leg.position.set(side*0.09,0.22,0); leg.rotation.x=(side>0?Math.sin(rph):Math.cos(rph))*0.55; g.add(leg);
-        const shoe=addShadow(new THREE.Mesh(new THREE.SphereGeometry(0.115,10,8),sMat));
-        shoe.scale.set(1,0.55,1.4);
-        shoe.position.set(side*0.09,0.045+Math.abs((side>0?Math.sin(rph):Math.cos(rph))*0.18),0.06); g.add(shoe);
-      });
-      const bib=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.20,0.02),new THREE.MeshStandardMaterial({color:0xFFFFFF,roughness:0.5}));
-      bib.position.set(0,0.4+bodyH/2-0.12,torsoW+0.01);
-      g.add(bib, body, collar, neck, head, eyeL, eyeR, hairGrp);
-
-      // Initial position using arc-length parameterization
-      const startS = i / ATHLETES.length;
-      const lR = TR + (lane + 0.5) * LW;
-      const tp = trackPos(startS, lR);
-      g.position.set(tp.x, 0, tp.z);
-      g.rotation.y = tp.ry;
+    const runners=[];
+    ATHLETES.forEach((ath,i)=>{
+      const g=buildChibiV2(ath);
+      g.scale.setScalar(0.72);
+      const startS=i/ATHLETES.length;
+      const lR=TR+(ath.lane+0.5)*LW;
+      const tp=trackPos(startS,lR);
+      g.position.set(tp.x,0,tp.z); g.rotation.y=tp.ry;
       scene.add(g);
-
-      runners.push({grp:g, s:startS, lR, speed:pctToSpeed(pct), phase:i*0.9});
+      runners.push({grp:g,u:g.userData,s:startS,lR,speed:pctToSpeed(ath.pct),phase:ath.phase});
     });
 
     // ─── BA EVENT ATHLETES ──────────────────────────────────────────────────
-    function buildEventAthlete(color, hair, hcol) {
-      const g = new THREE.Group();
-      const headR = 0.38, bodyH = 0.50, torsoW = 0.22;
-      const jMat  = new THREE.MeshStandardMaterial({color, roughness:0.72});
-      const dMat  = new THREE.MeshStandardMaterial({color:0x1A1A30, roughness:0.78});
-      const sMat  = new THREE.MeshStandardMaterial({color, roughness:0.65, metalness:0.05});
-      const skMat = new THREE.MeshStandardMaterial({color:0xE8C090, roughness:0.68});
-      const body  = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(torsoW*0.82,torsoW,bodyH,10),jMat));
-      body.position.y = 0.4; g.add(body);
-      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.065,0.07,0.14,8),skMat);
-      neck.position.y = 0.4+bodyH/2+0.06; g.add(neck);
-      const head = addShadow(new THREE.Mesh(makeLatheHead(headR),new THREE.MeshStandardMaterial({color:0xF0C080,roughness:0.65})));
-      head.position.y = 0.4+bodyH/2+0.14+headR; head.rotation.y = Math.PI; g.add(head);
-      const eL = makeEye(-1,headR), eR = makeEye(1,headR);
-      eL.position.y = eR.position.y = 0.4+bodyH/2+0.14+headR;
-      eL.rotation.y = eR.rotation.y = Math.PI; g.add(eL); g.add(eR);
-      const hGrp = makeHair(headR, hair, hcol);
-      hGrp.position.y = 0.4+bodyH/2+0.14+headR; hGrp.rotation.y = Math.PI; g.add(hGrp);
-      [-1,1].forEach(s=>{
-        const cheek=new THREE.Mesh(new THREE.SphereGeometry(headR*0.28,8,7),new THREE.MeshStandardMaterial({color:0xF09880,roughness:0.65,transparent:true,opacity:0.55}));
-        cheek.position.set(s*headR*0.7,0.4+bodyH/2+0.14+headR,headR*0.75); g.add(cheek);
-      });
-      const arms = [];
-      [-1,1].forEach((side,ai)=>{
-        const arm=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.065,0.38,8),ai===0?jMat:skMat));
-        arm.position.set(side*(torsoW+0.06),0.4+bodyH/2-0.1,0);
-        arm.rotation.z=side*0.3; g.add(arm); arms.push(arm);
-      });
-      const legs = [];
-      [-1,1].forEach((side)=>{
-        const leg=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.08,0.42,9),dMat));
-        leg.position.set(side*0.09,0.22,0); g.add(leg); legs.push(leg);
-        const shoe=addShadow(new THREE.Mesh(new THREE.SphereGeometry(0.115,10,8),sMat));
-        shoe.scale.set(1,0.55,1.4); shoe.position.set(side*0.09,0.045,0.06); g.add(shoe);
-      });
-      return {grp:g, arms, legs};
-    }
+    const eventAthletes=[];
+    const spBA_g=buildChibiV2({color:0xF472B6,hairStyle:'spiky',hairColor:0x2A1808,physique:'muscular'});
+    spBA_g.scale.setScalar(0.82); spBA_g.position.set(-4.5,0,2.0); spBA_g.rotation.y=Math.PI*0.5;
+    scene.add(spBA_g);
+    eventAthletes.push({grp:spBA_g,u:spBA_g.userData,arms:[spBA_g.userData.lArmGrp,spBA_g.userData.rArmGrp],legs:[spBA_g.userData.lLegGrp,spBA_g.userData.rLegGrp],event:'shotput',offset:0});
 
-    const eventAthletes = [];
+    const javBA_g=buildChibiV2({color:0x38BDF8,hairStyle:'curly',hairColor:0x4A3020,physique:'average'});
+    javBA_g.scale.setScalar(0.82); javBA_g.position.set(7.5,0,1.8); javBA_g.rotation.y=-Math.PI*0.5;
+    scene.add(javBA_g);
+    eventAthletes.push({grp:javBA_g,u:javBA_g.userData,arms:[javBA_g.userData.lArmGrp,javBA_g.userData.rArmGrp],legs:[javBA_g.userData.lLegGrp,javBA_g.userData.rLegGrp],event:'javelin',offset:0.33});
 
-    // ORION at shot put circle
-    const spBA = buildEventAthlete(0xF472B6, 'side', 0x1A1A1A);
-    spBA.grp.position.set(-4.5, 0, 2.0); spBA.grp.rotation.y = Math.PI * 0.5;
-    scene.add(spBA.grp);
-    eventAthletes.push({...spBA, event:'shotput', offset:0});
+    const hjBA_g=buildChibiV2({color:0xFACC15,hairStyle:'long',hairColor:0x2A1A0A,physique:'average',skinColor:0xD4A070});
+    hjBA_g.scale.setScalar(0.82); hjBA_g.position.set(-2.5,0,-4.0); hjBA_g.rotation.y=0.4;
+    scene.add(hjBA_g);
+    eventAthletes.push({grp:hjBA_g,u:hjBA_g.userData,arms:[hjBA_g.userData.lArmGrp,hjBA_g.userData.rArmGrp],legs:[hjBA_g.userData.lLegGrp,hjBA_g.userData.rLegGrp],event:'highjump',offset:0.66});
 
-    // POLARIS at javelin runway
-    const javBA = buildEventAthlete(0x38BDF8, 'spiky', 0x4A3020);
-    javBA.grp.position.set(7.5, 0, 1.8); javBA.grp.rotation.y = -Math.PI * 0.5;
-    scene.add(javBA.grp);
-    eventAthletes.push({...javBA, event:'javelin', offset:0.33});
+    // ─── CHARACTER SHOWCASE — Workstream B prototype ──────────────────────────
+    const showcaseDefs=[
+      {color:0xF472B6,hairStyle:'spiky',  hairColor:0x2A1808,physique:'average', skinColor:0xE8C090,x:-1.0,rY:Math.PI*1.05},
+      {color:0xA060E8,hairStyle:'long',   hairColor:0x7A3018,physique:'average', skinColor:0xD4A070,x: 1.0,rY:Math.PI*0.95},
+      {color:0x3AD88A,hairStyle:'short',  hairColor:0x181818,physique:'chubby',  skinColor:0xDBA870,x:-2.8,rY:Math.PI*1.05},
+      {color:0xFF7030,hairStyle:'curly',  hairColor:0x181818,physique:'muscular',skinColor:0xC88060,x: 2.8,rY:Math.PI*0.95},
+    ];
+    const showcaseChars=[];
+    showcaseDefs.forEach(def=>{
+      const g=buildChibiV2(def);
+      g.position.set(def.x,0,0.5); g.rotation.y=def.rY;
+      scene.add(g);
+      showcaseChars.push({grp:g,u:g.userData,phase:showcaseChars.length*1.2});
+    });
 
-    // CORDIS at high jump
-    const hjBA = buildEventAthlete(0xFACC15, 'ponytail', 0x2A1A0A);
-    hjBA.grp.position.set(-2.5, 0, -4.0); hjBA.grp.rotation.y = 0.4;
-    scene.add(hjBA.grp);
-    eventAthletes.push({...hjBA, event:'highjump', offset:0.66});
 
     // ─── RESIZE ─────────────────────────────────────────────────────────────
     window.addEventListener('resize', ()=>{
@@ -754,6 +823,25 @@ function tryInit() {
     document.getElementById('zrst').addEventListener('click',()=>{
       camera.position.copy(CAM_POS_DEFAULT);
       controls.target.copy(CAM_TGT_DEFAULT);
+      controls.update();
+    });
+    document.getElementById('cprev').addEventListener('click',()=>{
+      charPreview=!charPreview;
+      if(charPreview){
+        camera.position.copy(CAM_CHAR_POS);
+        controls.target.copy(CAM_CHAR_TGT);
+        controls.enableRotate=true; controls.enablePan=false;
+        document.getElementById('hint').textContent='Drag to orbit · Scroll to zoom · CHAR to return';
+        document.getElementById('badge').innerHTML='<span class="live"></span>Stage 2 · Workstream B · Character Prototype';
+        document.getElementById('cprev').textContent='STAD';
+      }else{
+        camera.position.copy(CAM_POS_DEFAULT);
+        controls.target.copy(CAM_TGT_DEFAULT);
+        controls.enableRotate=false; controls.enablePan=true;
+        document.getElementById('hint').innerHTML='Drag to pan &nbsp;·&nbsp; Scroll or pinch to zoom &nbsp;·&nbsp; ↺ Reset';
+        document.getElementById('badge').innerHTML='<span class="live"></span>Stage 2 · Phase 3 · Dusk Diorama Preview';
+        document.getElementById('cprev').textContent='CHAR';
+      }
       controls.update();
     });
 
@@ -781,15 +869,18 @@ function tryInit() {
         f.mesh.rotation.x = Math.cos(t*1.7+i*0.6)*0.08;
       });
 
-      // Runners — arc-length parameterized positions
-      runners.forEach(rn => {
-        rn.s = (rn.s + rn.speed) % 1;
-        const { x, z, ry } = trackPos(rn.s, rn.lR);
-        rn.grp.position.set(x, Math.abs(Math.sin(t * 3.5 + rn.phase * 2)) * 0.04, z);
-        rn.grp.rotation.y = ry;
-        // Animate arms/legs by updating rotation based on speed
-        const stride = rn.speed > 0.002 ? Math.sin(t * 8 + rn.phase) * 0.7 : 0;
-        // (body parts already baked in geometry, phase-based animation via rph)
+      // Runners — arc-length positions + full limb animation
+      runners.forEach(rn=>{
+        rn.s=(rn.s+rn.speed)%1;
+        const{x,z,ry}=trackPos(rn.s,rn.lR);
+        const bounce=animateRun(rn.u,t,rn.phase);
+        rn.grp.position.set(x,bounce,z);
+        rn.grp.rotation.y=ry;
+      });
+
+      // Showcase characters (always animate)
+      showcaseChars.forEach(sc=>{
+        sc.grp.position.y=animateRun(sc.u,t,sc.phase);
       });
 
       // Javelin flight arc animation
@@ -898,7 +989,7 @@ function tryInit() {
     animate();
 
     setTimeout(()=>{ DBG.style.display='none'; }, 3500);
-    log('Workstream A — Evening dusk diorama, 4 rear towers, 16-colour crowd, wooden platform');
+    log('Workstream B prototype — chibi V2: LatheGeometry head, pivot limbs, 4 physique variants, CHAR button');
 
   } catch(e) {
     err('Init error: ' + e.message);
