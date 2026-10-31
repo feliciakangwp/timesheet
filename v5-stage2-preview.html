@@ -84,14 +84,14 @@ function tryInit() {
     renderer.setSize(cW, cH, false);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 0.75;
+    renderer.toneMapping = THREE.ReinhardToneMapping;
+    renderer.toneMappingExposure = 1.05;
     renderer.outputEncoding = THREE.sRGBEncoding;
 
     // ─── SCENE ──────────────────────────────────────────────────────────────
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x4A6888);
-    scene.fog = new THREE.Fog(0x4A6888, 95, 165);
+    scene.background = new THREE.Color(0x263545);
+    scene.fog = new THREE.Fog(0x263545, 90, 160);
 
     // ─── CAMERA ─────────────────────────────────────────────────────────────
     const CAM_POS_DEFAULT = new THREE.Vector3(14, 38, 36);
@@ -122,11 +122,11 @@ function tryInit() {
     controls.update();
 
     // ─── LIGHTING ───────────────────────────────────────────────────────────
-    // Lower ambient so shadows have real contrast
-    scene.add(new THREE.HemisphereLight(0x6688BB, 0x2E4C1A, 0.18));
+    // Hemisphere: neutral sky above, dark earth below — preserves material hues
+    scene.add(new THREE.HemisphereLight(0x7799CC, 0x263520, 0.38));
 
-    // Strong warm sun — key for rich terracotta and vibrant green
-    const sun = new THREE.DirectionalLight(0xFFAA44, 3.2);
+    // Sun: neutral daylight (not warm orange) so track/grass hold their designed colours
+    const sun = new THREE.DirectionalLight(0xFFF8F0, 2.0);
     sun.position.set(30, 48, 20);
     sun.castShadow = true;
     sun.shadow.mapSize.width  = 1024;
@@ -140,8 +140,8 @@ function tryInit() {
     sun.shadow.camera.bottom = -50;
     scene.add(sun);
 
-    // Cool fill from opposite side for depth
-    const fill = new THREE.DirectionalLight(0x4466AA, 0.30);
+    // Cool-blue fill from opposite for depth and shadow colour
+    const fill = new THREE.DirectionalLight(0x3A5A99, 0.55);
     fill.position.set(-25, 15, -18);
     scene.add(fill);
 
@@ -745,7 +745,7 @@ function tryInit() {
     animate();
 
     setTimeout(()=>{ DBG.style.display='none'; }, 3500);
-    log('Phase 3 ready ✓  — arc-length runners, BA field events, improved lighting');
+    log('Checkpoint B ready — ReinhardToneMapping, neutral sun, correct track/grass colours');
 
   } catch(e) {
     err('Init error: ' + e.message);
