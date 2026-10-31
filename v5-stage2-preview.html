@@ -287,12 +287,34 @@ function tryInit() {
       scene.add(col);
     }
 
+    // ─── GRANDSTAND SEAT DETAILING ──────────────────────────────────────────
+    const SEAT_BAND = [0x4A7AB5, 0xB84840, 0x3A9858, 0xB09030, 0x904AB0, 0x5080C0, 0x409868];
+    for (let t = 0; t < TIERS; t++) {
+      const ri = GS_INNER + t * TIER_W;
+      const ty = t * TIER_H;
+      const sbMat = new THREE.MeshStandardMaterial({color: SEAT_BAND[t % SEAT_BAND.length], roughness:0.88});
+      // Seat-back color strip on inner face of rear straight tier
+      const sf = new THREE.Mesh(new THREE.BoxGeometry(2*SL - 0.1, TIER_H * 0.72, 0.07), sbMat);
+      sf.position.set(0, ty + TIER_H * 0.5, -ri + 0.04);
+      scene.add(sf);
+      // Steel handrail along inner top edge of tier
+      const hr = new THREE.Mesh(new THREE.BoxGeometry(2*SL + 0.2, 0.055, 0.055), MAT.steel);
+      hr.position.set(0, ty + TIER_H + 0.04, -ri);
+      scene.add(hr);
+    }
+    // Base retaining wall at inner grandstand boundary
+    const baseWall = addShadow(new THREE.Mesh(
+      new THREE.BoxGeometry(2*SL + 0.5, 0.65, 0.22), MAT.concrete));
+    baseWall.position.set(0, 0.33, -GS_INNER + 0.11);
+    scene.add(baseWall);
+
     // ─── SPECTATORS (on U-shaped grandstand only) ────────────────────────────
     const SCOLS = [0xE03428,0x3478D8,0xE8C030,0x28A848,0xE070B0,0x8860D8,0xE86020,0xD4D0C0,0xFFFFFF,0x222244];
-    const bGeo = new THREE.CylinderGeometry(0.065,0.075,0.22,7);
-    const hGeo = new THREE.SphereGeometry(0.085,8,6);
+    const bGeo = new THREE.CylinderGeometry(0.06,0.075,0.24,7);
+    const hGeo = new THREE.SphereGeometry(0.095,8,6);
+    const aGeo = new THREE.BoxGeometry(0.28,0.065,0.065);
     const NC = SCOLS.length;
-    const SD = 0.44; // spectator spacing
+    const SD = 0.32; // denser crowd
 
     let totalSpec = 0;
     for (let t = 0; t < TIERS; t++) {
@@ -302,6 +324,7 @@ function tryInit() {
     const perC = Math.ceil(totalSpec/NC);
     const bMs = SCOLS.map(c=>new THREE.InstancedMesh(bGeo, new THREE.MeshStandardMaterial({color:c,roughness:0.75}), perC));
     const hMs = SCOLS.map(()=>new THREE.InstancedMesh(hGeo, new THREE.MeshStandardMaterial({color:0xE8C090,roughness:0.65}), perC));
+    const aMs = SCOLS.map(c=>new THREE.InstancedMesh(aGeo, new THREE.MeshStandardMaterial({color:c,roughness:0.80}), perC));
     const sc = new Array(NC).fill(0), dm = new THREE.Object3D();
 
     for (let t = 0; t < TIERS; t++) {
@@ -312,14 +335,17 @@ function tryInit() {
       // Rear straight row
       const nR = Math.floor(2*SL/SD);
       for (let i = 0; i < nR; i++) {
+        if (i%18===8||i%18===9) continue; // aisle gap
         const x = -SL + (i+0.5)*(2*SL/nR);
         const z = -rc;
         const ci = Math.abs(i*7+t*3)%NC, idx = sc[ci]++;
         if (idx>=perC) continue;
         dm.position.set(x,ty,z); dm.rotation.y=0; dm.scale.setScalar(1); dm.updateMatrix();
         bMs[ci].setMatrixAt(idx,dm.matrix);
-        dm.position.set(x,ty+0.175,z); dm.updateMatrix();
+        dm.position.set(x,ty+0.20,z); dm.updateMatrix();
         hMs[ci].setMatrixAt(idx,dm.matrix);
+        dm.position.set(x,ty+0.14,z); dm.updateMatrix();
+        aMs[ci].setMatrixAt(idx,dm.matrix);
       }
 
       // Right wing (quarter arc)
@@ -332,8 +358,10 @@ function tryInit() {
         if (idx>=perC) continue;
         dm.position.set(x,ty,z); dm.rotation.y=-(a+Math.PI/2); dm.scale.setScalar(1); dm.updateMatrix();
         bMs[ci].setMatrixAt(idx,dm.matrix);
-        dm.position.set(x,ty+0.175,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix();
+        dm.position.set(x,ty+0.20,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix();
         hMs[ci].setMatrixAt(idx,dm.matrix);
+        dm.position.set(x,ty+0.14,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix();
+        aMs[ci].setMatrixAt(idx,dm.matrix);
       }
 
       // Left wing (mirrored quarter arc)
@@ -345,13 +373,16 @@ function tryInit() {
         if (idx>=perC) continue;
         dm.position.set(x,ty,z); dm.rotation.y=-(a+Math.PI/2); dm.scale.setScalar(1); dm.updateMatrix();
         bMs[ci].setMatrixAt(idx,dm.matrix);
-        dm.position.set(x,ty+0.175,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix();
+        dm.position.set(x,ty+0.20,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix();
         hMs[ci].setMatrixAt(idx,dm.matrix);
+        dm.position.set(x,ty+0.14,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix();
+        aMs[ci].setMatrixAt(idx,dm.matrix);
       }
     }
     bMs.forEach((m,i)=>{
-      m.instanceMatrix.needsUpdate=true; m.castShadow=true; m.receiveShadow=true; scene.add(m);
-      hMs[i].instanceMatrix.needsUpdate=true; hMs[i].castShadow=true; scene.add(hMs[i]);
+      m.count = sc[i]; m.instanceMatrix.needsUpdate=true; m.castShadow=true; m.receiveShadow=true; scene.add(m);
+      hMs[i].count = sc[i]; hMs[i].instanceMatrix.needsUpdate=true; hMs[i].castShadow=true; scene.add(hMs[i]);
+      aMs[i].count = sc[i]; aMs[i].instanceMatrix.needsUpdate=true; aMs[i].castShadow=true; scene.add(aMs[i]);
     });
 
     // ─── FLOODLIGHT TOWERS ──────────────────────────────────────────────────
