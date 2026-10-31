@@ -35,8 +35,9 @@ html,body{width:100%;height:100%;overflow:hidden;background:#121210;font-family:
 <div id="zoom">
   <button class="zb" id="zin">+</button>
   <button class="zb" id="zout">−</button>
+  <button class="zb" id="zrst" title="Reset" style="font-size:13px;letter-spacing:0">↺</button>
 </div>
-<div id="hint">Drag to pan &nbsp;·&nbsp; Scroll or pinch to zoom</div>
+<div id="hint">Drag to pan &nbsp;·&nbsp; Scroll or pinch to zoom &nbsp;·&nbsp; ↺ Reset</div>
 <div id="legend">
   <div><span class="lsw" style="background:#C65B42"></span>Running Track</div>
   <div><span class="lsw" style="background:#477B36"></span>Infield Grass</div>
@@ -72,7 +73,6 @@ function tryInit() {
     const cH = Math.max(200, canvas.clientHeight || window.innerHeight || document.documentElement.clientHeight || 667);
     log('canvas: ' + cW + '×' + cH);
 
-    // Test WebGL availability
     const testGL = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
     if (!testGL) { err('WebGL not available'); return; }
     log('WebGL OK');
@@ -80,7 +80,7 @@ function tryInit() {
     // ─── RENDERER ───────────────────────────────────────────────────────────
     const renderer = new THREE.WebGLRenderer({antialias:true, canvas});
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    renderer.setSize(cW, cH, false); // false = don't override CSS size
+    renderer.setSize(cW, cH, false);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -93,20 +93,18 @@ function tryInit() {
     scene.fog = new THREE.Fog(0x6080A8, 90, 160);
 
     // ─── CAMERA ─────────────────────────────────────────────────────────────
-    let panX = 0, panZ = 2, camDist = 50, CAM_EL = 32;
-    const camera = new THREE.PerspectiveCamera(48, cW/cH, 0.1, 200);
+    // Positioned on the open-front side, looking toward rear grandstand
+    let panX = 0, panZ = 0, camDist = 52, CAM_EL = 34;
+    const camera = new THREE.PerspectiveCamera(46, cW/cH, 0.1, 200);
     function setCam() {
-      // 3/4 isometric: offset to show long axis of track
-      camera.position.set(panX + 20, CAM_EL, panZ + camDist * 0.75);
-      camera.lookAt(panX, 2, panZ - 5);
+      camera.position.set(panX + 15, CAM_EL, panZ + camDist * 0.70);
+      camera.lookAt(panX, 1, panZ - 10);
     }
     setCam();
 
     // ─── LIGHTING ───────────────────────────────────────────────────────────
-    // Low ambient sky — enough for shadow fills
     scene.add(new THREE.HemisphereLight(0x88AACC, 0x3A5C25, 0.35));
 
-    // Warm late-afternoon sun — main light source, strong + directional
     const sun = new THREE.DirectionalLight(0xFFAA55, 2.2);
     sun.position.set(28, 42, 18);
     sun.castShadow = true;
@@ -121,7 +119,6 @@ function tryInit() {
     sun.shadow.camera.bottom = -45;
     scene.add(sun);
 
-    // Cool rim fill from opposite side — provides depth contrast
     const fill = new THREE.DirectionalLight(0x5588BB, 0.40);
     fill.position.set(-22, 18, -14);
     scene.add(fill);
@@ -132,6 +129,13 @@ function tryInit() {
     const LW  = 0.55; // lane width
     const NL  = 8;    // number of lanes
     const OTR = TR + NL * LW; // outer track radius = 9.4
+
+    // ─── GRANDSTAND CONSTANTS ───────────────────────────────────────────────
+    const CLEARANCE = 1.5;           // gap from outer track edge
+    const GS_INNER  = OTR + CLEARANCE; // = 10.9 (grandstand inner boundary)
+    const TIERS  = 7;
+    const TIER_W = 1.3;
+    const TIER_H = 0.70;
 
     // ─── MATERIALS ──────────────────────────────────────────────────────────
     const MAT = {
@@ -152,7 +156,6 @@ function tryInit() {
     function addShadow(m) { m.castShadow = true; m.receiveShadow = true; return m; }
 
     // ─── GEOMETRY HELPERS ───────────────────────────────────────────────────
-    // Stadium fill: two straight sections + semicircular ends
     function stadiumFillGeo(sl, r) {
       const s = new THREE.Shape();
       s.absarc( sl, 0, r, -Math.PI/2,  Math.PI/2, false);
@@ -164,7 +167,6 @@ function tryInit() {
       return g;
     }
 
-    // Stadium ring: outer stadium shape with inner hole
     function stadiumRingGeo(sl, outerR, innerR) {
       const outer = new THREE.Shape();
       outer.absarc( sl, 0, outerR, -Math.PI/2,  Math.PI/2, false);
@@ -182,21 +184,24 @@ function tryInit() {
       return g;
     }
 
-    const OPEN_S = Math.PI/6, OPEN_E = 5*Math.PI/6;
-    const TOTAL_ARC = 2*Math.PI - (OPEN_E - OPEN_S);
+    // Right corner wing: quarter-arc at center (SL,0), angles 0→PI/2 in 2D
+    // After rotateX: covers far-right corner (X>SL, Z<0)
+    function qRingR(outerR, innerR) {
+      const s = new THREE.Shape();
+      s.absarc(SL, 0, outerR, 0, Math.PI/2, false);
+      s.absarc(SL, 0, innerR, Math.PI/2, 0, true);
+      const g = new THREE.ShapeGeometry(s, 16);
+      g.rotateX(-Math.PI/2);
+      return g;
+    }
 
-    function horseshoeExtrudeGeo(innerR, outerR, depth, segs=56) {
-      const shape = new THREE.Shape();
-      for(let i=0;i<=segs;i++){
-        const a = OPEN_E + TOTAL_ARC*i/segs;
-        i===0 ? shape.moveTo(Math.cos(a)*outerR, Math.sin(a)*outerR)
-              : shape.lineTo(Math.cos(a)*outerR, Math.sin(a)*outerR);
-      }
-      for(let i=segs;i>=0;i--){
-        const a = OPEN_E + TOTAL_ARC*i/segs;
-        shape.lineTo(Math.cos(a)*innerR, Math.sin(a)*innerR);
-      }
-      const g = new THREE.ExtrudeGeometry(shape, {depth, bevelEnabled:false});
+    // Left corner wing: quarter-arc at center (-SL,0), angles PI/2→PI in 2D
+    // After rotateX: covers far-left corner (X<-SL, Z<0)
+    function qRingL(outerR, innerR) {
+      const s = new THREE.Shape();
+      s.absarc(-SL, 0, outerR, Math.PI/2, Math.PI, false);
+      s.absarc(-SL, 0, innerR, Math.PI, Math.PI/2, true);
+      const g = new THREE.ShapeGeometry(s, 16);
       g.rotateX(-Math.PI/2);
       return g;
     }
@@ -205,7 +210,6 @@ function tryInit() {
     const gnd = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), MAT.grass);
     gnd.rotation.x = -Math.PI/2; gnd.receiveShadow = true; scene.add(gnd);
 
-    // Apron surrounding track
     const apron = new THREE.Mesh(stadiumRingGeo(SL, OTR + 1.2, OTR), MAT.concrete);
     apron.position.y = 0.01; apron.receiveShadow = true; scene.add(apron);
 
@@ -213,15 +217,12 @@ function tryInit() {
     const track = new THREE.Mesh(stadiumRingGeo(SL, OTR, TR), MAT.track);
     track.position.y = 0.02; track.receiveShadow = true; scene.add(track);
 
-    // Lane markings (9 boundary lines)
     for (let ln = 0; ln <= NL; ln++) {
       const r = TR + ln * LW;
-      const lineGeo = stadiumRingGeo(SL, r + 0.025, r);
-      const line = new THREE.Mesh(lineGeo, MAT.white);
+      const line = new THREE.Mesh(stadiumRingGeo(SL, r + 0.025, r), MAT.white);
       line.position.y = 0.035; scene.add(line);
     }
 
-    // Start/finish line across all lanes
     const sfLine = new THREE.Mesh(new THREE.BoxGeometry(NL * LW + 0.1, 0.01, 0.1), MAT.white);
     sfLine.position.set(SL - 0.5, 0.04, 0); scene.add(sfLine);
 
@@ -229,62 +230,123 @@ function tryInit() {
     const infield = new THREE.Mesh(stadiumFillGeo(SL, TR), MAT.infield);
     infield.position.y = 0.03; infield.receiveShadow = true; scene.add(infield);
 
-    // ─── HORSESHOE STANDS ───────────────────────────────────────────────────
-    const TIERS=7, BASE_R=OTR+1.8, TIER_W=1.25, TIER_H=0.72;
+    // ─── DEBUG BOUNDARY OUTLINES (auto-hide after 6s) ───────────────────────
+    const dbgTrack = new THREE.Mesh(
+      stadiumRingGeo(SL, OTR+0.06, OTR-0.06),
+      new THREE.MeshBasicMaterial({color:0xFF3030, side:THREE.DoubleSide}));
+    dbgTrack.position.y = 0.06; scene.add(dbgTrack);
+    const dbgGS = new THREE.Mesh(
+      stadiumRingGeo(SL, GS_INNER+0.06, GS_INNER-0.06),
+      new THREE.MeshBasicMaterial({color:0x30FF30, side:THREE.DoubleSide}));
+    dbgGS.position.y = 0.07; scene.add(dbgGS);
+    setTimeout(()=>{ dbgTrack.visible=false; dbgGS.visible=false; }, 6000);
+    log('Debug: red=track outer, green=grandstand inner (hide 6s)');
 
-    for(let t=0;t<TIERS;t++){
-      const slab = addShadow(new THREE.Mesh(
-        horseshoeExtrudeGeo(BASE_R+t*TIER_W, BASE_R+(t+1)*TIER_W, TIER_H, 56),
-        t%2===0 ? MAT.concrete : MAT.concrete2
-      ));
-      slab.position.y = t*TIER_H + TIER_H;
-      scene.add(slab);
+    // ─── U-SHAPED GRANDSTAND (rear + two corner wings, open front) ──────────
+    for (let t = 0; t < TIERS; t++) {
+      const ri = GS_INNER + t * TIER_W;
+      const ro = GS_INNER + (t + 1) * TIER_W;
+      const ty = t * TIER_H + 0.01;
+      const tm = t % 2 === 0 ? MAT.concrete : MAT.concrete2;
+
+      // 1. Rear straight slab (behind back straight, Z negative)
+      const rsb = addShadow(new THREE.Mesh(
+        new THREE.BoxGeometry(2 * SL, TIER_H, TIER_W), tm));
+      rsb.position.set(0, ty + TIER_H * 0.5, -(ri + TIER_W * 0.5));
+      scene.add(rsb);
+
+      // 2. Right corner wing
+      const rw = addShadow(new THREE.Mesh(qRingR(ro, ri), tm));
+      rw.position.y = ty + TIER_H * 0.5;
+      scene.add(rw);
+
+      // 3. Left corner wing
+      const lw = addShadow(new THREE.Mesh(qRingL(ro, ri), tm));
+      lw.position.y = ty + TIER_H * 0.5;
+      scene.add(lw);
     }
 
-    [-1,1].forEach(side => {
-      const angle = side>0 ? OPEN_S : OPEN_E;
-      const ex = Math.cos(angle)*(BASE_R+TIERS*TIER_W/2);
-      const ez = Math.sin(angle)*(BASE_R+TIERS*TIER_W/2);
-      const wall = addShadow(new THREE.Mesh(new THREE.BoxGeometry(0.3, TIERS*TIER_H+0.8, TIER_W*TIERS+1), MAT.concrete));
-      wall.position.set(ex, (TIERS*TIER_H+0.8)/2, ez);
-      wall.rotation.y = -(angle + Math.PI/2);
-      scene.add(wall);
-    });
+    // Back wall (vertical face behind top tier)
+    const bkW = addShadow(new THREE.Mesh(
+      new THREE.BoxGeometry(2*SL, TIERS*TIER_H, 0.28), MAT.concrete));
+    bkW.position.set(0, TIERS*TIER_H*0.5, -(GS_INNER + TIERS*TIER_W));
+    scene.add(bkW);
 
-    const roofInner = BASE_R + TIERS*TIER_W + 0.3;
-    const roofMesh = addShadow(new THREE.Mesh(horseshoeExtrudeGeo(roofInner, roofInner+2.8, 0.18, 56), MAT.roof));
-    roofMesh.position.y = TIERS*TIER_H + 1.8; scene.add(roofMesh);
+    // Canopy roof over rear straight
+    const rfMesh = addShadow(new THREE.Mesh(
+      new THREE.BoxGeometry(2*SL + 2, 0.2, TIERS*TIER_W + 0.8), MAT.roof));
+    rfMesh.position.set(0, TIERS*TIER_H + 1.75, -(GS_INNER + TIERS*TIER_W*0.5));
+    scene.add(rfMesh);
 
-    for(let c=0;c<14;c++){
-      const angle = OPEN_E + TOTAL_ARC*(c+0.5)/14;
-      const r = BASE_R + TIERS*TIER_W + 1.5;
-      const col = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.15, TIERS*TIER_H+1.85, 8), MAT.steel));
-      col.position.set(Math.cos(angle)*r, (TIERS*TIER_H+1.85)/2, Math.sin(angle)*r);
+    // Support columns under canopy
+    for (let c = 0; c <= 4; c++) {
+      const cx = SL * (c/2 - 1);
+      const col = addShadow(new THREE.Mesh(
+        new THREE.CylinderGeometry(0.13, 0.17, TIERS*TIER_H + 1.9, 8), MAT.steel));
+      col.position.set(cx, (TIERS*TIER_H + 1.9)*0.5, -(GS_INNER + TIERS*TIER_W + 0.4));
       scene.add(col);
     }
 
-    // ─── SPECTATORS ─────────────────────────────────────────────────────────
-    const SCOLS = [0xE03428,0x3478D8,0xE8C030,0x28A848,0xE070B0,0x8860D8,0xE86020,0xD4D0C0];
+    // ─── SPECTATORS (on U-shaped grandstand only) ────────────────────────────
+    const SCOLS = [0xE03428,0x3478D8,0xE8C030,0x28A848,0xE070B0,0x8860D8,0xE86020,0xD4D0C0,0xFFFFFF,0x222244];
     const bGeo = new THREE.CylinderGeometry(0.065,0.075,0.22,7);
     const hGeo = new THREE.SphereGeometry(0.085,8,6);
+    const NC = SCOLS.length;
+    const SD = 0.44; // spectator spacing
+
     let totalSpec = 0;
-    for(let t=0;t<TIERS;t++) totalSpec += Math.floor((BASE_R+t*TIER_W+TIER_W*0.5)*TOTAL_ARC/0.44);
-    const NC = SCOLS.length, perC = Math.ceil(totalSpec/NC);
-    const bMs = SCOLS.map(c=>new THREE.InstancedMesh(bGeo, new THREE.MeshStandardMaterial({color:c, roughness:0.75}), perC));
-    const hMs = SCOLS.map(()=>new THREE.InstancedMesh(hGeo, new THREE.MeshStandardMaterial({color:0xE8C090, roughness:0.65}), perC));
+    for (let t = 0; t < TIERS; t++) {
+      const rc = GS_INNER + t*TIER_W + TIER_W*0.5;
+      totalSpec += Math.floor(2*SL/SD) + 2*Math.floor(Math.PI/2*rc/SD);
+    }
+    const perC = Math.ceil(totalSpec/NC);
+    const bMs = SCOLS.map(c=>new THREE.InstancedMesh(bGeo, new THREE.MeshStandardMaterial({color:c,roughness:0.75}), perC));
+    const hMs = SCOLS.map(()=>new THREE.InstancedMesh(hGeo, new THREE.MeshStandardMaterial({color:0xE8C090,roughness:0.65}), perC));
     const sc = new Array(NC).fill(0), dm = new THREE.Object3D();
-    for(let t=0;t<TIERS;t++){
-      const r=BASE_R+t*TIER_W+TIER_W*0.5, y=t*TIER_H+TIER_H+0.12;
-      const n=Math.floor(r*TOTAL_ARC/0.44);
-      for(let i=0;i<n;i++){
-        const angle=OPEN_E+TOTAL_ARC*(i+0.3)/n;
-        const x=Math.cos(angle)*r, z=Math.sin(angle)*r;
-        const ci=Math.abs(i*7+t*3)%NC, idx=sc[ci]++;
-        if(idx>=perC) continue;
-        dm.position.set(x,y,z); dm.rotation.y=-(angle+Math.PI); dm.scale.setScalar(1); dm.updateMatrix();
-        bMs[ci].setMatrixAt(idx, dm.matrix);
-        dm.position.set(x,y+0.175,z); dm.updateMatrix();
-        hMs[ci].setMatrixAt(idx, dm.matrix);
+
+    for (let t = 0; t < TIERS; t++) {
+      const ri = GS_INNER + t*TIER_W;
+      const rc = ri + TIER_W*0.5;
+      const ty = t*TIER_H + TIER_H + 0.12;
+
+      // Rear straight row
+      const nR = Math.floor(2*SL/SD);
+      for (let i = 0; i < nR; i++) {
+        const x = -SL + (i+0.5)*(2*SL/nR);
+        const z = -rc;
+        const ci = Math.abs(i*7+t*3)%NC, idx = sc[ci]++;
+        if (idx>=perC) continue;
+        dm.position.set(x,ty,z); dm.rotation.y=0; dm.scale.setScalar(1); dm.updateMatrix();
+        bMs[ci].setMatrixAt(idx,dm.matrix);
+        dm.position.set(x,ty+0.175,z); dm.updateMatrix();
+        hMs[ci].setMatrixAt(idx,dm.matrix);
+      }
+
+      // Right wing (quarter arc)
+      const nW = Math.floor(Math.PI/2*rc/SD);
+      for (let i = 0; i < nW; i++) {
+        const a = (i+0.5)/nW*Math.PI/2;
+        const x = SL + rc*Math.cos(a);
+        const z = -rc*Math.sin(a);
+        const ci = Math.abs(i*5+t*7)%NC, idx = sc[ci]++;
+        if (idx>=perC) continue;
+        dm.position.set(x,ty,z); dm.rotation.y=-(a+Math.PI/2); dm.scale.setScalar(1); dm.updateMatrix();
+        bMs[ci].setMatrixAt(idx,dm.matrix);
+        dm.position.set(x,ty+0.175,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix();
+        hMs[ci].setMatrixAt(idx,dm.matrix);
+      }
+
+      // Left wing (mirrored quarter arc)
+      for (let i = 0; i < nW; i++) {
+        const a = Math.PI/2 + (i+0.5)/nW*Math.PI/2;
+        const x = -SL + rc*Math.cos(a);
+        const z = -rc*Math.sin(a);
+        const ci = Math.abs(i*3+t*11)%NC, idx = sc[ci]++;
+        if (idx>=perC) continue;
+        dm.position.set(x,ty,z); dm.rotation.y=-(a+Math.PI/2); dm.scale.setScalar(1); dm.updateMatrix();
+        bMs[ci].setMatrixAt(idx,dm.matrix);
+        dm.position.set(x,ty+0.175,z); dm.rotation.y=-(a+Math.PI/2); dm.updateMatrix();
+        hMs[ci].setMatrixAt(idx,dm.matrix);
       }
     }
     bMs.forEach((m,i)=>{
@@ -293,7 +355,7 @@ function tryInit() {
     });
 
     // ─── FLOODLIGHT TOWERS ──────────────────────────────────────────────────
-    [[-17,-13],[17,-13],[-17,8],[17,8],[0,-19]].forEach(([tx,tz])=>{
+    [[-SL-2, 2],[SL+2, 2],[-SL-2, -(OTR+6)],[SL+2, -(OTR+6)],[0, -(OTR+8)]].forEach(([tx,tz])=>{
       const twr = addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.18,20,8), MAT.steel));
       twr.position.set(tx,10,tz); scene.add(twr);
       const lamp = addShadow(new THREE.Mesh(new THREE.BoxGeometry(1.2,0.2,0.35), MAT.scoreGlow));
@@ -304,11 +366,12 @@ function tryInit() {
     });
 
     // ─── SCOREBOARD ─────────────────────────────────────────────────────────
-    const sbZ = Math.sin(Math.PI*1.5)*(BASE_R+TIERS*TIER_W+0.5);
+    const sbZ = -(GS_INNER + TIERS*TIER_W + 0.9);
+    const sbY = TIERS*TIER_H;
     const sbBase = addShadow(new THREE.Mesh(new THREE.BoxGeometry(8,0.5,0.4), MAT.concrete));
-    sbBase.position.set(0, TIERS*TIER_H+2.4, sbZ); scene.add(sbBase);
+    sbBase.position.set(0, sbY + 2.4, sbZ); scene.add(sbBase);
     const sbScr = addShadow(new THREE.Mesh(new THREE.BoxGeometry(7.2,2.8,0.2), MAT.led));
-    sbScr.position.set(0, TIERS*TIER_H+3.6, sbZ+0.15); scene.add(sbScr);
+    sbScr.position.set(0, sbY + 3.6, sbZ+0.15); scene.add(sbScr);
 
     // ─── AD BOARDS ──────────────────────────────────────────────────────────
     const adC=[0xE03428,0x2878D0,0xE8A820,0x28A058,0xD040A0];
@@ -323,14 +386,13 @@ function tryInit() {
     // ─── FLAGS ──────────────────────────────────────────────────────────────
     const FLAGS=[];
     const fMats=[MAT.flagRed,MAT.flagYel,MAT.flagRed,MAT.flagYel,MAT.flagRed,MAT.flagYel];
-    [0.65,0.90,1.10,1.30,1.55,1.85].forEach((f,i)=>{
-      const ang=Math.PI*f, r=BASE_R+TIERS*TIER_W+0.5;
-      const x=Math.cos(ang)*r, z=Math.sin(ang)*r;
+    [-7,-4,-1,2,5,8].forEach((fx,i)=>{
+      const fz = -(GS_INNER + TIERS*TIER_W + 0.3);
       const staff=addShadow(new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,3,6), MAT.steel));
-      staff.position.set(x, TIERS*TIER_H+2.5, z); scene.add(staff);
+      staff.position.set(fx, TIERS*TIER_H+2.5, fz); scene.add(staff);
       const flag=new THREE.Mesh(new THREE.PlaneGeometry(0.8,0.5), fMats[i]);
-      flag.position.set(x+0.4*Math.cos(ang+Math.PI/2), TIERS*TIER_H+3.8, z+0.4*Math.sin(ang+Math.PI/2));
-      flag.rotation.y=-(ang+Math.PI/2); scene.add(flag);
+      flag.position.set(fx+0.4, TIERS*TIER_H+3.8, fz+0.1);
+      flag.rotation.y=0; scene.add(flag);
       FLAGS.push({mesh:flag});
     });
 
@@ -374,7 +436,6 @@ function tryInit() {
       {color:0xF472B6,hair:'side',    hcol:0x1A1A1A,pct:0.55, lane:3},
       {color:0x38BDF8,hair:'spiky',   hcol:0x4A3020,pct:0.78, lane:4},
     ];
-    // Staggered start angles for each runner
     const TPS=[
       {angle:-0.1, lane:0},
       {angle: 0.3, lane:1},
@@ -425,11 +486,10 @@ function tryInit() {
       });
       const bib=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.20,0.02),new THREE.MeshStandardMaterial({color:0xFFFFFF,roughness:0.5}));
       bib.position.set(0,0.4+bodyH/2-0.12,torsoW+0.01); g.add(bib,body,collar,neck,head,eyeL,eyeR,hairGrp);
-      // Initial position on elongated oval
       const initLR = TR + (lane + 0.5) * LW;
       const initA = tp.angle;
-      const initPx = Math.cos(initA) * initLR + Math.sign(Math.cos(initA)||1) * SL * (1 - Math.abs(Math.sin(initA)));
-      const initPz = Math.sin(initA) * initLR;
+      const initPx = Math.cos(initA)*initLR + Math.sign(Math.cos(initA)||1)*SL*(1-Math.abs(Math.sin(initA)));
+      const initPz = Math.sin(initA)*initLR;
       g.position.set(initPx, 0, initPz);
       g.rotation.y=-(initA+Math.PI/2-0.1);
       scene.add(g);
@@ -495,6 +555,7 @@ function tryInit() {
 
     document.getElementById('zin').addEventListener('click',()=>{camDist=Math.max(12,camDist-4);setCam();});
     document.getElementById('zout').addEventListener('click',()=>{camDist=Math.min(65,camDist+4);setCam();});
+    document.getElementById('zrst').addEventListener('click',()=>{ panX=0; panZ=0; camDist=52; setCam(); });
 
     // ─── ANIMATE ────────────────────────────────────────────────────────────
     const clock=new THREE.Clock();
@@ -507,7 +568,6 @@ function tryInit() {
         const a=rn.tAngle;
         const lR=TR+(rn.lane+0.5)*LW;
         const ca=Math.cos(a), sa=Math.sin(a);
-        // Stadium path: straights on X axis, curves offset by ±SL
         const px=ca*lR+Math.sign(ca||1)*SL*(1-Math.abs(sa));
         const pz=sa*lR;
         rn.grp.position.set(px, Math.abs(Math.sin(t*3.5+rn.phase*2))*0.04, pz);
@@ -517,7 +577,6 @@ function tryInit() {
     }
     animate();
 
-    // Hide debug after 3s if all OK
     setTimeout(()=>{ DBG.style.display='none'; }, 3000);
     log('Scene ready ✓');
 
@@ -527,7 +586,6 @@ function tryInit() {
   }
 }
 
-// Triple init strategy: DOMContentLoaded + load + timeout fallback
 document.addEventListener('DOMContentLoaded', tryInit);
 window.addEventListener('load', tryInit);
 setTimeout(function(){ if(!_inited) tryInit(); }, 800);
