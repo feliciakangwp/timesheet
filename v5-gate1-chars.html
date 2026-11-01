@@ -166,7 +166,7 @@ function _init(){
     g.position.set(x,0.003,0); scene.add(g);
   });
 
-  // ── EYE TEXTURE ───────────────────────────────────────────────────────────
+  // ── EYE TEXTURE — cute anime style ───────────────────────────────────────
   const _eyeCache={};
   function makeEyeTex(irisColor){
     const k=irisColor.toString(16);
@@ -174,24 +174,30 @@ function _init(){
     const sz=256,cv=document.createElement('canvas');cv.width=cv.height=sz;
     const g=cv.getContext('2d'),cx=sz>>1,cy=sz>>1;
     g.clearRect(0,0,sz,sz);
-    g.beginPath();g.ellipse(cx,cy+8,cx*0.88,cy*0.76,0,0,Math.PI*2);
-    g.fillStyle='#F7F5EE';g.fill();
-    g.strokeStyle='rgba(20,10,10,0.20)';g.lineWidth=3;g.stroke();
+    // white sclera oval
+    g.beginPath();g.ellipse(cx,cy,cx*0.92,cy*0.80,0,0,Math.PI*2);
+    g.fillStyle='#FFFFFF';g.fill();
+    // soft outline
+    g.strokeStyle='rgba(20,10,5,0.18)';g.lineWidth=4;g.stroke();
+    // thick top eyelid line — the defining cute feature
+    g.beginPath();g.ellipse(cx,cy-cy*0.10,cx*0.84,cy*0.68,0,Math.PI*1.08,Math.PI*1.92);
+    g.strokeStyle='#18080A';g.lineWidth=26;g.stroke();
+    // iris (solid colour, large)
     const ic=new THREE.Color(irisColor).getHexString();
-    const ig=g.createRadialGradient(cx-10,cy-8,3,cx,cy,cx*0.48);
-    ig.addColorStop(0,'#'+ic);ig.addColorStop(0.55,'#'+ic);ig.addColorStop(1,'#040108');
-    g.beginPath();g.ellipse(cx,cy+4,cx*0.44,cy*0.43,0,0,Math.PI*2);
-    g.fillStyle=ig;g.fill();
-    g.beginPath();g.arc(cx,cy+4,cx*0.22,0,Math.PI*2);
-    g.fillStyle='#030106';g.fill();
-    g.beginPath();g.ellipse(cx+22,cy-10,15,11,-0.3,0,Math.PI*2);
-    g.fillStyle='rgba(255,255,255,0.95)';g.fill();
-    g.beginPath();g.ellipse(cx-17,cy+18,7,5,0.2,0,Math.PI*2);
-    g.fillStyle='rgba(255,255,255,0.48)';g.fill();
-    g.beginPath();g.ellipse(cx,cy-26,cx*0.85,cy*0.37,0,Math.PI,Math.PI*2);
-    g.fillStyle='rgba(12,5,5,0.88)';g.fill();
-    g.beginPath();g.ellipse(cx,cy+46,cx*0.76,cy*0.28,0,0,Math.PI);
-    g.strokeStyle='rgba(12,5,5,0.35)';g.lineWidth=4;g.stroke();
+    g.beginPath();g.arc(cx,cy+12,cx*0.50,0,Math.PI*2);
+    g.fillStyle='#'+ic;g.fill();
+    // iris shade ring
+    g.beginPath();g.arc(cx,cy+12,cx*0.50,0,Math.PI*2);
+    g.strokeStyle='rgba(0,0,0,0.22)';g.lineWidth=8;g.stroke();
+    // pupil
+    g.beginPath();g.arc(cx,cy+12,cx*0.24,0,Math.PI*2);
+    g.fillStyle='#06030A';g.fill();
+    // big main highlight (top-right)
+    g.beginPath();g.ellipse(cx+30,cy-4,24,18,-0.35,0,Math.PI*2);
+    g.fillStyle='rgba(255,255,255,0.94)';g.fill();
+    // small secondary highlight (bottom-left)
+    g.beginPath();g.arc(cx-22,cy+28,10,0,Math.PI*2);
+    g.fillStyle='rgba(255,255,255,0.58)';g.fill();
     const tex=new THREE.CanvasTexture(cv);
     _eyeCache[k]=tex;
     return tex;
@@ -296,7 +302,7 @@ function _init(){
 
     const HIP_Y=0.70, BODY_H=0.58;
     const SHOULDER_Y=HIP_Y+BODY_H;
-    const headR=0.42*PH.hs;
+    const headR=0.50*PH.hs;
     const HEAD_Y=SHOULDER_Y+0.16+headR;
     const hipSep=PH.bx*0.60*hipMult;
     const shoulderSep=PH.bx*1.10*shoulderMult;
@@ -380,10 +386,10 @@ function _init(){
     const eyeTex=makeEyeTex(irisColor);
     [-1,1].forEach(side=>{
       const eyePlane=new THREE.Mesh(
-        new THREE.PlaneGeometry(headR*0.64,headR*0.52),
+        new THREE.PlaneGeometry(headR*0.72,headR*0.58),
         new THREE.MeshBasicMaterial({map:eyeTex,transparent:true,depthWrite:false})
       );
-      eyePlane.position.set(side*headR*0.36,headR*0.08,headR*0.96);
+      eyePlane.position.set(side*headR*0.34,headR*0.10,headR*0.96);
       headGrp.add(eyePlane);
     });
 
@@ -397,15 +403,23 @@ function _init(){
       brow.rotation.z=side*0.16; headGrp.add(brow);
     });
 
-    const nose=new THREE.Mesh(new THREE.SphereGeometry(headR*0.08,7,6),skinMat);
-    nose.scale.set(1.2,0.85,1.1); nose.position.set(0,-headR*0.10,headR*0.95); headGrp.add(nose);
+    // tiny button nose — barely visible, keeps face clean
+    const nose=new THREE.Mesh(new THREE.SphereGeometry(headR*0.055,6,5),skinMat);
+    nose.scale.set(1.1,0.70,0.90); nose.position.set(0,-headR*0.12,headR*0.97); headGrp.add(nose);
 
+    // smile — wide arc
     const smile=new THREE.Mesh(
-      new THREE.TorusGeometry(headR*0.18,headR*0.040,6,12,Math.PI*0.72),
-      new THREE.MeshStandardMaterial({color:0xC04444,roughness:0.5})
+      new THREE.TorusGeometry(headR*0.22,headR*0.038,6,14,Math.PI*0.80),
+      new THREE.MeshStandardMaterial({color:0x8A1818,roughness:0.5})
     );
-    smile.position.set(0,-headR*0.30,headR*0.88);
-    smile.rotation.set(0,0,Math.PI+Math.PI*0.14); headGrp.add(smile);
+    smile.position.set(0,-headR*0.34,headR*0.88);
+    smile.rotation.set(0,0,Math.PI+Math.PI*0.10); headGrp.add(smile);
+    // teeth bar inside smile
+    const teeth=new THREE.Mesh(
+      new THREE.BoxGeometry(headR*0.34,headR*0.10,0.01),
+      new THREE.MeshStandardMaterial({color:0xF8F5EE,roughness:0.4})
+    );
+    teeth.position.set(0,-headR*0.32,headR*0.895); headGrp.add(teeth);
 
     [-1,1].forEach(side=>{
       const cheek=new THREE.Mesh(new THREE.SphereGeometry(headR*0.22,8,7),cheekMat);
