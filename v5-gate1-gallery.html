@@ -1,0 +1,756 @@
+<title>Gate 1 — 8-Variant Anime Character Gallery</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{
+  --bg:#0d0f14;--panel:#161b24;--border:#252d3d;--fg:#e8ecf4;--muted:#7a8599;
+  --acc:#f54a72;--acc2:#4af5c6;color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--fg);
+  font-family:'Inter','Segoe UI',system-ui,sans-serif;font-size:13px;
+  min-height:100dvh;display:flex;flex-direction:column;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:max(10px,env(safe-area-inset-top,0px)) 10px;
+}
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:9px;border-bottom:1px solid var(--border);margin-bottom:9px;flex-shrink:0;
+}
+.topbar h1{font-size:14px;font-weight:700}
+.topbar h1 em{color:var(--acc);font-style:normal}
+.badge{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  background:var(--acc);color:#fff;padding:3px 8px;border-radius:3px}
+.main{display:flex;gap:10px;flex:1;min-height:0}
+.canvas-wrap{
+  flex:1;min-width:0;position:relative;
+  background:linear-gradient(180deg,#181f2e 0%,#0c1018 100%);
+  border-radius:10px;overflow:hidden;border:1px solid var(--border);
+}
+#c{width:100%;height:100%;display:block}
+.hint{
+  position:absolute;top:9px;left:50%;transform:translateX(-50%);
+  font-size:10px;color:var(--muted);background:rgba(10,12,18,.8);
+  padding:3px 9px;border-radius:3px;pointer-events:none;
+}
+/* Grid headers */
+.grid-overlay{
+  position:absolute;inset:0;pointer-events:none;
+  display:grid;grid-template-columns:1fr 1fr 1fr 1fr;
+  align-items:start;padding:28px 2% 0;
+}
+.col-hdr{
+  text-align:center;font-size:10px;font-weight:700;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);padding:3px 0;
+}
+/* Row labels */
+.row-labels{
+  position:absolute;left:6px;top:0;bottom:0;
+  display:flex;flex-direction:column;justify-content:space-around;
+  pointer-events:none;align-items:center;
+}
+.row-lbl{
+  writing-mode:vertical-rl;text-orientation:mixed;transform:rotate(180deg);
+  font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted);
+}
+/* Right panel */
+.panel{width:196px;flex-shrink:0;display:flex;flex-direction:column;gap:9px;overflow-y:auto}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:11px}
+.card-title{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:8px}
+.vbtn{
+  display:inline-block;background:var(--panel);color:var(--fg);
+  border:1px solid var(--border);border-radius:5px;
+  font-size:11px;font-weight:600;padding:5px 10px;cursor:pointer;
+  transition:.15s;font-family:inherit;
+}
+.vbtn:hover,.vbtn.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn-row{display:flex;gap:5px;flex-wrap:wrap}
+table.map{width:100%;border-collapse:collapse;font-size:11px}
+table.map td,table.map th{padding:4px 5px;border-bottom:1px solid var(--border)}
+table.map th{color:var(--muted);font-weight:600;font-size:10px;text-align:left}
+table.map tr:last-child td{border-bottom:none}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle;margin-right:4px}
+.note{font-size:11px;line-height:1.6;color:var(--muted);border-left:2px solid var(--acc);padding-left:8px}
+.note strong{color:var(--fg)}
+@media(max-width:600px){
+  .main{flex-direction:column}
+  .panel{width:100%;flex-direction:row;flex-wrap:wrap}
+  .panel .card{flex:1;min-width:140px}
+  .canvas-wrap{height:62vw;min-height:250px}
+}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+
+<div class="topbar">
+  <h1>GATE 1 — <em>Anime Character Gallery</em> · 8 Physique Variants</h1>
+  <span class="badge">Gate 1 / Phase 3</span>
+</div>
+<div class="main">
+  <div class="canvas-wrap">
+    <canvas id="c"></canvas>
+    <div class="hint">Drag · Scroll</div>
+    <div class="grid-overlay">
+      <div class="col-hdr">Obese</div>
+      <div class="col-hdr">Chubby</div>
+      <div class="col-hdr">Average</div>
+      <div class="col-hdr">Muscular</div>
+    </div>
+    <div class="row-labels">
+      <div class="row-lbl">Female</div>
+      <div class="row-lbl">Male</div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <div class="card-title">Camera</div>
+      <div class="btn-row">
+        <button class="vbtn on" data-v="front">Front</button>
+        <button class="vbtn" data-v="three-q">3Q</button>
+        <button class="vbtn" data-v="top">Top</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Sprint → Physique Map</div>
+      <table class="map">
+        <tr><th>Velocity</th><th>Physique</th></tr>
+        <tr><td>0–50%</td><td><span class="dot" style="background:#e06040"></span>Obese</td></tr>
+        <tr><td>50–60%</td><td><span class="dot" style="background:#d09040"></span>Chubby</td></tr>
+        <tr><td>60–75%</td><td><span class="dot" style="background:#60b080"></span>Average</td></tr>
+        <tr><td>75–100%</td><td><span class="dot" style="background:#4080e0"></span>Muscular</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <div class="card-title">Colour Schemes</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Female (ORION)</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+        <span style="background:#e84060;color:#fff;font-size:10px;padding:2px 7px;border-radius:3px">Pink tank</span>
+        <span style="background:#f5a020;color:#fff;font-size:10px;padding:2px 7px;border-radius:3px">Orange acc</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">Male (POLARIS)</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span style="background:#3a3a4a;color:#fff;font-size:10px;padding:2px 7px;border-radius:3px">Grey tank</span>
+        <span style="background:#5ab8ff;color:#111;font-size:10px;padding:2px 7px;border-radius:3px">Blue acc</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Technical Notes</div>
+      <div class="note">
+        <strong>Physique</strong> set per sprint velocity band — configurable mapping, not hardcoded.<br><br>
+        <strong>Running pose</strong>: joint-hierarchy system — arms, legs at mid-stride positions.<br><br>
+        <strong>Face</strong>: canvas anime eyes on front of head; ponytail at back.<br><br>
+        Labels are UI-neutral: "Obese" shown here for gate review only.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Renderer ────────────────────────────────────────────────────────────────
+var canvas = document.getElementById('c');
+var renderer = new THREE.WebGLRenderer({canvas:canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.setClearColor(0x0c1018);
+
+var scene = new THREE.Scene();
+var camera = new THREE.PerspectiveCamera(42,1,0.01,200);
+
+// ── Toon gradient ──────────────────────────────────────────────────────────
+var _gd = new Uint8Array([72,72,72,255, 148,148,148,255, 220,220,220,255, 255,255,255,255]);
+var GRAD = new THREE.DataTexture(_gd,4,1,THREE.RGBAFormat);
+GRAD.needsUpdate=true; GRAD.minFilter=THREE.NearestFilter; GRAD.magFilter=THREE.NearestFilter;
+
+function toon(hex,opts){ return new THREE.MeshToonMaterial(Object.assign({color:hex,gradientMap:GRAD},opts||{})); }
+function basic(hex,opts){ return new THREE.MeshBasicMaterial(Object.assign({color:hex},opts||{})); }
+
+// Add black outline to a mesh
+function outline(mesh, thick){
+  thick = thick===undefined ? 0.022 : thick;
+  var o = new THREE.Mesh(mesh.geometry, basic(0x0a0a0a,{side:THREE.BackSide}));
+  o.scale.setScalar(1+thick); mesh.add(o); return mesh;
+}
+function seg(geo,mat,thick){ var m=new THREE.Mesh(geo,mat); m.castShadow=true; return outline(m,thick); }
+
+// ── Face canvas texture ─────────────────────────────────────────────────────
+function makeFaceTex(eyeHex, expression, cheekScale) {
+  cheekScale = cheekScale||1.0;
+  var S=512, c=document.createElement('canvas'); c.width=c.height=S;
+  var ctx=c.getContext('2d'), CX=S/2, CY=S*0.50;
+  ctx.clearRect(0,0,S,S);
+
+  // Eye sizing
+  var EW=66, EH=56, ESep=88;
+
+  // Blush (larger cheeks for chubbier)
+  ctx.fillStyle='rgba(255,130,130,'+(.38+cheekScale*0.12)+')';
+  var bS=cheekScale;
+  ctx.beginPath(); ctx.ellipse(CX-ESep*1.55,CY+EH*0.85,EW*0.78*bS,EH*0.46*bS,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(CX+ESep*1.55,CY+EH*0.85,EW*0.78*bS,EH*0.46*bS,0,0,Math.PI*2); ctx.fill();
+
+  // Eye whites + iris + pupil + shine
+  function eye(ex,ey,brow) {
+    // White
+    ctx.fillStyle='#fff'; ctx.strokeStyle='#111'; ctx.lineWidth=Math.round(EW*0.095);
+    ctx.beginPath(); ctx.ellipse(ex,ey,EW,EH,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    // Iris
+    ctx.fillStyle=eyeHex;
+    ctx.beginPath(); ctx.ellipse(ex,ey+EH*0.10,EW*0.66,EH*0.74,0,0,Math.PI*2); ctx.fill();
+    // Pupil
+    ctx.fillStyle='#0d0d0d';
+    ctx.beginPath(); ctx.ellipse(ex,ey+EH*0.14,EW*0.36,EH*0.46,0,0,Math.PI*2); ctx.fill();
+    // Main shine
+    ctx.fillStyle='#ffffff';
+    ctx.beginPath(); ctx.ellipse(ex+EW*0.24,ey-EH*0.20,EW*0.19,EH*0.22,0,0,Math.PI*2); ctx.fill();
+    // Small shine
+    ctx.beginPath(); ctx.ellipse(ex-EW*0.10,ey+EH*0.10,EW*0.09,EH*0.10,0,0,Math.PI*2); ctx.fill();
+    // Upper lash arc (thicker)
+    ctx.strokeStyle='#111'; ctx.lineWidth=Math.round(EW*0.14);
+    ctx.beginPath(); ctx.arc(ex,ey,EW+EW*0.06,Math.PI*1.07,Math.PI*1.93); ctx.stroke();
+    // Eyebrow
+    var BY=ey-EH*1.38;
+    ctx.strokeStyle='#1a1a1a'; ctx.lineWidth=Math.round(EW*0.19); ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(ex-EW*0.72, BY+brow*EH*0.45);
+    ctx.quadraticCurveTo(ex, BY-EH*0.12, ex+EW*0.72, BY-brow*EH*0.45);
+    ctx.stroke();
+  }
+
+  var browAng = (expression==='determined') ? 0.38 : 0.04;
+  eye(CX-ESep, CY-12, browAng);
+  eye(CX+ESep, CY-12, browAng);
+
+  // Nose (two dots)
+  ctx.fillStyle='rgba(165,110,78,0.60)';
+  ctx.beginPath(); ctx.ellipse(CX-10,CY+EH*0.98,9,6.5,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(CX+10,CY+EH*0.98,9,6.5,0,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(140,85,55,0.42)';
+  ctx.beginPath(); ctx.ellipse(CX,CY+EH*1.18,4.5,3.2,0,0,Math.PI*2); ctx.fill();
+
+  // Mouth
+  var MX=CX, MY=CY+EH*2.30;
+  if(expression==='happy'){
+    ctx.fillStyle='#c83344';
+    ctx.beginPath(); ctx.ellipse(MX,MY,EW*0.74,EH*0.60,0,0,Math.PI); ctx.fill();
+    ctx.fillStyle='#f4f4f4';
+    ctx.fillRect(MX-EW*0.56,MY-EH*0.07,EW*1.12,EH*0.30);
+    ctx.strokeStyle='#111'; ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.arc(MX,MY,EW*0.74,0,Math.PI); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(MX-EW*0.74,MY); ctx.lineTo(MX+EW*0.74,MY); ctx.stroke();
+  } else {
+    ctx.fillStyle='#c83344';
+    ctx.beginPath(); ctx.ellipse(MX,MY,EW*0.50,EH*0.56,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#111'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.ellipse(MX,MY,EW*0.50,EH*0.56,0,0,Math.PI*2); ctx.stroke();
+  }
+
+  return new THREE.CanvasTexture(c);
+}
+
+// ── Hair: Male spiky ────────────────────────────────────────────────────────
+function maleHair(HR, HY, hairHex, accHex) {
+  var g=new THREE.Group();
+  var m=toon(hairHex), ma=toon(accHex);
+  // Base cap
+  var cap=seg(new THREE.SphereGeometry(HR*1.02,16,12,0,Math.PI*2,0,Math.PI*0.55),m,0.014);
+  cap.position.set(0,HY+HR*0.04,0); g.add(cap);
+  // Back volume
+  var bk=seg(new THREE.SphereGeometry(HR*0.96,12,10,0,Math.PI*2,0,Math.PI*0.72),m,0.010);
+  bk.position.set(0,HY-HR*0.10,-HR*0.08); bk.rotation.x=-0.22; g.add(bk);
+  // Spikes
+  var spks=[
+    {x:0,     rz:0,     h:0.096,w:0.048,d:0.053,mat:m},
+    {x:-HR*.54,rz:-.42, h:0.082,w:0.042,d:0.047,mat:m},
+    {x: HR*.54,rz: .42, h:0.082,w:0.042,d:0.047,mat:m},
+    {x:-HR*.28,rz:-.18, h:0.100,w:0.040,d:0.045,mat:ma},
+    {x: HR*.22,rz: .14, h:0.090,w:0.038,d:0.042,mat:ma},
+    {x:-HR*.72,rz:-.62, h:0.062,w:0.036,d:0.038,mat:ma},
+    {x: HR*.70,rz: .58, h:0.062,w:0.036,d:0.038,mat:m},
+  ];
+  spks.forEach(function(s){
+    var sp=seg(new THREE.BoxGeometry(s.w,s.h,s.d),s.mat,0.012);
+    sp.position.set(s.x, HY+HR*0.88+s.h*0.40, HR*0.04);
+    sp.rotation.z=s.rz*0.28; g.add(sp);
+  });
+  // Front bangs (over forehead, in +Z direction = front)
+  [{x:-HR*.50,z:HR*.82,rz:-.22},{x:-HR*.14,z:HR*.92,rz:-.04},{x:HR*.18,z:HR*.89,rz:.10}].forEach(function(b){
+    var bg=seg(new THREE.BoxGeometry(0.042,0.070,0.036),m,0.009);
+    bg.position.set(b.x,HY+HR*0.22,b.z); bg.rotation.z=b.rz; bg.rotation.x=-0.28; g.add(bg);
+  });
+  return g;
+}
+
+// ── Hair: Female ponytail ────────────────────────────────────────────────────
+function femaleHair(HR, HY, hairHex, accHex) {
+  var g=new THREE.Group();
+  var m=toon(hairHex), ma=toon(accHex);
+  // Main cap
+  var cap=seg(new THREE.SphereGeometry(HR*1.01,16,12,0,Math.PI*2,0,Math.PI*0.58),m,0.014);
+  cap.position.set(0,HY+HR*0.02,0); g.add(cap);
+  // Head back coverage
+  var bk=seg(new THREE.SphereGeometry(HR*0.97,12,10,0,Math.PI*2,0,Math.PI*0.72),m,0.010);
+  bk.position.set(0,HY-HR*0.09,-HR*0.04); g.add(bk);
+  // Swept volume going toward BACK (-Z)
+  var vol=seg(new THREE.SphereGeometry(1,14,10),m,0.010);
+  vol.scale.set(HR*0.78,HR*0.54,HR*1.08);
+  vol.position.set(0,HY-HR*0.08,-HR*0.58); vol.rotation.x=-0.32; g.add(vol);
+  // Ponytail (-Z = back of head)
+  var tail=seg(new THREE.SphereGeometry(1,12,10),m,0.018);
+  tail.scale.set(HR*0.58,HR*1.30,HR*0.50);
+  tail.position.set(0,HY-HR*0.62,-HR*0.72); tail.rotation.x=-0.58; g.add(tail);
+  // Tip
+  var tip=seg(new THREE.SphereGeometry(1,10,8),ma,0.014);
+  tip.scale.set(HR*0.36,HR*0.78,HR*0.30);
+  tip.position.set(0,HY-HR*1.52,-HR*0.58); tip.rotation.x=-0.38; g.add(tip);
+  // Side locks
+  [{x:-HR*.76,rz:-0.14},{x:HR*.74,rz:0.14}].forEach(function(l){
+    var lk=seg(new THREE.SphereGeometry(1,10,8),m,0.010);
+    lk.scale.set(HR*0.21,HR*0.60,HR*0.17);
+    lk.position.set(l.x,HY-HR*0.54,HR*0.62); lk.rotation.z=l.rz; g.add(lk);
+  });
+  // Front bangs (in +Z = front)
+  [{x:-HR*.42,z:HR*.86,rz:-.20},{x:HR*.30,z:HR*.88,rz:.12}].forEach(function(b){
+    var bg=seg(new THREE.BoxGeometry(0.050,0.062,0.033),m,0.009);
+    bg.position.set(b.x,HY+HR*0.18,b.z); bg.rotation.z=b.rz; bg.rotation.x=-0.28; g.add(bg);
+  });
+  // Accent streak
+  var st=seg(new THREE.BoxGeometry(0.022,0.075,0.026),ma,0.007);
+  st.position.set(-HR*0.27,HY+HR*0.74,HR*0.55); st.rotation.z=0.10; g.add(st);
+  return g;
+}
+
+// ── Physique parameter sets ──────────────────────────────────────────────────
+var PHYSIQUES = {
+  obese:    {tW:1.70,tD:1.82,tH:1.08,belly:1.0,hipW:1.62,thighR:1.52,shinR:1.44,armR:1.52,foreR:1.42,legX:1.40,shoulderW:1.20,cheekS:1.28,neckR:1.35,headS:1.12},
+  chubby:   {tW:1.30,tD:1.38,tH:1.04,belly:0.38,hipW:1.28,thighR:1.25,shinR:1.18,armR:1.22,foreR:1.14,legX:1.15,shoulderW:1.05,cheekS:1.10,neckR:1.12,headS:1.05},
+  average:  {tW:1.00,tD:1.00,tH:1.00,belly:0.0, hipW:1.00,thighR:1.00,shinR:1.00,armR:1.00,foreR:1.00,legX:1.00,shoulderW:1.00,cheekS:1.00,neckR:1.00,headS:1.00},
+  muscular: {tW:1.22,tD:0.98,tH:1.00,belly:0.0, hipW:0.90,thighR:1.22,shinR:1.14,armR:1.34,foreR:1.25,legX:1.00,shoulderW:1.28,cheekS:1.00,neckR:1.14,headS:1.00,vshape:true},
+};
+
+// ── Character builder (with joint pivots for running pose) ──────────────────
+function buildCharacter(cfg) {
+  // cfg: {physique:'obese'|'chubby'|'average'|'muscular', gender:'male'|'female',
+  //       shirtHex, accentHex, shortHex, hairHex, hairAccHex, eyeHex, expression}
+  var g = new THREE.Group();
+  var P = PHYSIQUES[cfg.physique];
+  var female = cfg.gender === 'female';
+  var SKIN = 0xf5d2b0;
+
+  // ── Base proportions (average, 1.0 unit tall) ────────────────────────────
+  var HR     = 0.163 * P.headS;     // head radius
+  var TW_B   = 0.110;               // torso base half-width
+  var TD_B   = 0.078;               // torso base half-depth
+  var TH_B   = 0.230;               // torso base height
+  var TW     = TW_B * P.tW;
+  var TD     = TD_B * P.tD;
+  var TH     = TH_B * P.tH;
+  var HIP_W  = 0.128 * P.hipW;
+  var LEGX   = 0.075 * P.legX;
+  var ARM_R  = 0.050 * P.armR;
+  var FORE_R = 0.042 * P.foreR;
+  var TH_R   = 0.060 * P.thighR;   // thigh radius
+  var SH_R   = 0.048 * P.shinR;    // shin radius
+  var NK_R   = 0.056 * P.neckR;    // neck radius
+  var SW     = P.shoulderW;         // shoulder width multiplier
+
+  // Y positions
+  var YST   = 0.086;               // shoe top
+  var YKNE  = 0.235;
+  var YHIP  = 0.385;
+  var YBOT  = 0.390;               // torso bottom
+  var YTOP  = YBOT + TH;           // torso top
+  var YSHO  = YTOP - 0.018;        // shoulder level
+  var YNKB  = YTOP + 0.010;
+  var YHC   = YNKB + 0.056 + HR;  // head center
+
+  // Materials
+  var mSkin  = toon(SKIN);
+  var mShirt = toon(cfg.shirtHex);
+  var mAcc   = toon(cfg.accentHex);
+  var mShort = toon(cfg.shortHex);
+  var mShoe  = toon(female ? 0x3090e8 : 0xe8e8e8);
+  var mSole  = toon(female ? 0x1a2f50 : 0x222230);
+
+  // ── LEGS with knee pivot ────────────────────────────────────────────────
+  // Helper: build one leg, returns [hipPivot, kneePivot]
+  function makeLeg(sx) {
+    var hipPivot = new THREE.Group();
+    hipPivot.position.set(sx*LEGX, YHIP, 0);
+    g.add(hipPivot);
+
+    var thH = YHIP - YKNE;
+    var thigh = seg(new THREE.CylinderGeometry(TH_R, TH_R*0.90, thH, 12), mSkin);
+    thigh.position.set(0, -thH/2, 0);
+    hipPivot.add(thigh);
+    // Thigh top round
+    var thTop = new THREE.Mesh(new THREE.SphereGeometry(TH_R, 10,8), mSkin);
+    thTop.position.set(0,0,0); hipPivot.add(thTop);
+
+    var kneePivot = new THREE.Group();
+    kneePivot.position.set(0, -thH, 0);
+    hipPivot.add(kneePivot);
+
+    // Knee bump
+    var kneeB = seg(new THREE.SphereGeometry(SH_R*1.10, 10,8), mSkin, 0.012);
+    kneeB.position.set(0,0,0); kneePivot.add(kneeB);
+
+    var shH = YKNE - YST;
+    var shin = seg(new THREE.CylinderGeometry(SH_R*0.88, SH_R, shH, 12), mSkin);
+    shin.position.set(0, -shH/2, 0);
+    kneePivot.add(shin);
+
+    // Ankle sock
+    var sock = seg(new THREE.CylinderGeometry(SH_R+0.005, SH_R+0.005, 0.036, 12), toon(0xffffff), 0.007);
+    sock.position.set(0, -shH + 0.018, 0);
+    kneePivot.add(sock);
+
+    // Shoe
+    var sW=female?0.060:0.058, sL=female?0.138:0.130, sHt=0.074;
+    // shoe pivot at bottom of shin
+    var shoePivot = new THREE.Group();
+    shoePivot.position.set(0, -shH, 0);
+    kneePivot.add(shoePivot);
+
+    var shoe = seg(new THREE.BoxGeometry(sW*2, sHt, sL), mShoe);
+    shoe.position.set(0, sHt*0.5 - sHt, -0.012);
+    shoePivot.add(shoe);
+    // Toe cap
+    var toeCap = seg(new THREE.BoxGeometry(sW*2+0.003, sHt*0.66, sL*0.28), mAcc, 0.007);
+    toeCap.position.set(0, sHt*0.5 - sHt + sHt*0.33*0.5 - sHt*0.33, -sL*0.33);
+    shoePivot.add(toeCap);
+    // Sole
+    var sole = new THREE.Mesh(new THREE.BoxGeometry(sW*2+0.009, 0.026, sL+0.012), mSole);
+    sole.position.set(0, -sHt + 0.013, -0.012);
+    shoePivot.add(sole);
+
+    return [hipPivot, kneePivot, shoePivot];
+  }
+
+  var [LHP, LKP, LSH] = makeLeg(-1);
+  var [RHP, RKP, RSH] = makeLeg(+1);
+
+  // Shorts (below torso)
+  var shortH = female ? 0.172 : 0.168;
+  var shorts = seg(new THREE.CylinderGeometry(HIP_W+0.010, HIP_W*0.82, shortH, 16), mShort);
+  shorts.position.set(0, YKNE + shortH*0.52, 0);
+  g.add(shorts);
+  // Accent stripe
+  [-1,1].forEach(function(sx){
+    var st=seg(new THREE.BoxGeometry(0.016,shortH*0.82,0.014),mAcc,0.005);
+    st.position.set(sx*(HIP_W+0.004),YKNE+shortH*0.52,0); g.add(st);
+  });
+
+  // ── BODY PIVOT (leans forward for running pose) ─────────────────────────
+  var bodyPivot = new THREE.Group();
+  bodyPivot.position.set(0, YHIP, 0); // pivot at hip height
+  g.add(bodyPivot);
+
+  // Torso
+  var torso = seg(new THREE.BoxGeometry(TW*2, TH, TD*2), mShirt);
+  torso.position.set(0, YBOT - YHIP + TH/2, 0);
+  bodyPivot.add(torso);
+
+  // Belly bulge for obese/chubby
+  if(P.belly > 0) {
+    var belly = seg(new THREE.SphereGeometry(1, 14, 10), mShirt, 0.010);
+    belly.scale.set(TW*1.32, TH*0.58*P.belly, TD*1.62*P.belly);
+    belly.position.set(0, YBOT - YHIP + TH*0.36, TD*0.38);
+    bodyPivot.add(belly);
+  }
+
+  // Muscular abs suggestion (barely visible indent line)
+  if(P.vshape) {
+    var vL = seg(new THREE.BoxGeometry(TW*2.08, 0.010, 0.010), toon(cfg.shirtHex), 0.0);
+    vL.position.set(0, YBOT - YHIP + TH*0.36, -TD-0.001); bodyPivot.add(vL);
+    var vL2 = vL.clone(); vL2.position.y = YBOT - YHIP + TH*0.52; bodyPivot.add(vL2);
+  }
+
+  // V-neck trim
+  var vt = seg(new THREE.BoxGeometry(TW*2, 0.022, TD*2+0.005), mAcc, 0.005);
+  vt.position.set(0, YBOT - YHIP + TH - 0.010, 0);
+  bodyPivot.add(vt);
+
+  // ── ARMS with shoulder + elbow pivots ─────────────────────────────────
+  var UA_LEN = 0.148, FA_LEN = 0.128;
+
+  function makeArm(sx) {
+    var SHOX = (TW + ARM_R*0.7) * SW;
+    var shoulderPivot = new THREE.Group();
+    shoulderPivot.position.set(sx*SHOX, YBOT - YHIP + TH - 0.020, 0);
+    bodyPivot.add(shoulderPivot);
+
+    // Shoulder cap
+    var shCap = seg(new THREE.SphereGeometry(ARM_R*1.15, 10, 8), mShirt, 0.010);
+    shoulderPivot.add(shCap);
+
+    var uArm = seg(new THREE.CylinderGeometry(ARM_R, ARM_R*0.88, UA_LEN, 12), mSkin);
+    uArm.position.set(0, -UA_LEN/2, 0);
+    shoulderPivot.add(uArm);
+
+    var elbowPivot = new THREE.Group();
+    elbowPivot.position.set(0, -UA_LEN, 0);
+    shoulderPivot.add(elbowPivot);
+
+    var fArm = seg(new THREE.CylinderGeometry(FORE_R, FORE_R*0.85, FA_LEN, 12), mSkin);
+    fArm.position.set(0, -FA_LEN/2, 0);
+    elbowPivot.add(fArm);
+
+    // Wristband
+    var wb = seg(new THREE.CylinderGeometry(FORE_R+0.009, FORE_R+0.009, 0.038, 12), mAcc, 0.007);
+    wb.position.set(0, -FA_LEN*0.38, 0);
+    elbowPivot.add(wb);
+
+    // Fist
+    var fist = seg(new THREE.SphereGeometry(FORE_R*1.12, 10, 8), mSkin);
+    fist.position.set(0, -FA_LEN, 0);
+    elbowPivot.add(fist);
+
+    return [shoulderPivot, elbowPivot];
+  }
+
+  var [LSP, LEP] = makeArm(-1);
+  var [RSP, REP] = makeArm(+1);
+
+  // ── NECK ─────────────────────────────────────────────────────────────
+  var neck = seg(new THREE.CylinderGeometry(NK_R*0.88, NK_R, 0.054, 12), mSkin);
+  neck.position.set(0, YBOT - YHIP + TH + 0.028, 0);
+  bodyPivot.add(neck);
+
+  // ── HEAD group ────────────────────────────────────────────────────────
+  var headGroup = new THREE.Group();
+  headGroup.position.set(0, YHC - YHIP, 0);
+  bodyPivot.add(headGroup);
+
+  // Head sphere
+  var headMesh = seg(new THREE.SphereGeometry(HR, 24, 20), toon(SKIN), 0.026);
+  headGroup.add(headMesh);
+
+  // Cheek puff for chubby/obese (wider face)
+  if(P.cheekS > 1.06) {
+    [-1,1].forEach(function(sx){
+      var cheek = seg(new THREE.SphereGeometry(HR*(P.cheekS-0.88), 10, 8), toon(SKIN), 0.010);
+      cheek.scale.z = 0.70;
+      cheek.position.set(sx*HR*0.90, -HR*0.10, HR*0.20);
+      headGroup.add(cheek);
+    });
+  }
+
+  // Ears
+  [-1,1].forEach(function(sx){
+    var ear = seg(new THREE.SphereGeometry(HR*0.262, 10, 8), toon(SKIN), 0.014);
+    ear.scale.z = 0.70;
+    ear.position.set(sx*HR*0.97, -HR*0.06, 0);
+    headGroup.add(ear);
+  });
+
+  // FACE PLANE — +Z = front (towards camera)
+  var faceSize = HR * 1.52;
+  var faceTex = makeFaceTex(cfg.eyeHex, cfg.expression, P.cheekS - 1.0);
+  var facePlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(faceSize, faceSize),
+    new THREE.MeshBasicMaterial({map:faceTex, transparent:true, depthWrite:false, depthTest:true})
+  );
+  facePlane.position.set(0, 0, HR*0.88);  // +Z = front of head
+  headGroup.add(facePlane);
+
+  // ── HAIR ──────────────────────────────────────────────────────────────
+  var hair = female
+    ? femaleHair(HR, YHC - YHIP, cfg.hairHex, cfg.hairAccHex)
+    : maleHair(HR, YHC - YHIP, cfg.hairHex, cfg.hairAccHex);
+  headGroup.add(hair);
+
+  // Headband (looped around head)
+  var hbMat = toon(cfg.accentHex);
+  var hb = new THREE.Mesh(new THREE.TorusGeometry(HR*1.01, 0.017, 8, 30, Math.PI*1.02), hbMat);
+  hb.rotation.x = Math.PI/2;
+  hb.position.set(0, HR*0.20, HR*0.02);
+  headGroup.add(hb);
+  var hb2 = new THREE.Mesh(new THREE.TorusGeometry(HR*1.01, 0.017, 8, 20, Math.PI*1.06), hbMat);
+  hb2.rotation.x = Math.PI/2; hb2.rotation.y = Math.PI;
+  hb2.position.copy(hb.position);
+  headGroup.add(hb2);
+
+  // ── RUNNING POSE ──────────────────────────────────────────────────────
+  // Body lean forward
+  bodyPivot.rotation.x = -0.13;
+
+  // Arms: left drives forward, right swings back
+  LSP.rotation.x = -0.88;  // left shoulder fwd
+  LEP.rotation.x =  0.52;  // left elbow bend
+  RSP.rotation.x =  0.60;  // right shoulder back
+  REP.rotation.x =  0.38;
+
+  // Legs: right foot lifted forward, left planted back
+  RHP.rotation.x = -0.52;  // right hip fwd
+  RKP.rotation.x =  0.85;  // right knee bent
+  RSH.rotation.x = -0.20;  // ankle angle
+
+  LHP.rotation.x =  0.38;  // left hip back
+  LKP.rotation.x =  0.12;  // slight knee bend (planted)
+
+  // Ground shadow
+  var shadow = new THREE.Mesh(
+    new THREE.CircleGeometry(0.28, 20),
+    new THREE.MeshBasicMaterial({color:0x080c14, transparent:true, opacity:0.40})
+  );
+  shadow.rotation.x = -Math.PI/2;
+  shadow.position.set(0, 0.002, 0);
+  g.add(shadow);
+
+  return g;
+}
+
+// ── Character configs ───────────────────────────────────────────────────────
+var FEMALE_CFG = {
+  shirtHex:0x38bce0, accentHex:0xf5a020, shortHex:0x1a3060,
+  hairHex:0xe04060, hairAccHex:0xf5a840,
+  eyeHex:'#c06820', expression:'happy', gender:'female',
+};
+var MALE_CFG = {
+  shirtHex:0x3a3a4a, accentHex:0x5ab8ff, shortHex:0x1e1e2e,
+  hairHex:0x282c3a, hairAccHex:0x80c8ff,
+  eyeHex:'#4090ff', expression:'determined', gender:'male',
+};
+
+// ── Build 8 characters in 4×2 grid ─────────────────────────────────────────
+var physiques = ['obese','chubby','average','muscular'];
+var SPACING_X = 1.82;
+var SPACING_Z = 2.20;
+
+physiques.forEach(function(physique, pi) {
+  var x = (pi - 1.5) * SPACING_X;
+
+  // Female row (front, +Z)
+  var f = buildCharacter(Object.assign({physique:physique}, FEMALE_CFG));
+  f.position.set(x, 0, SPACING_Z*0.5);
+  f.rotation.y = -0.30;   // slight 3/4 angle facing right
+  scene.add(f);
+
+  // Male row (back, -Z)
+  var m = buildCharacter(Object.assign({physique:physique}, MALE_CFG));
+  m.position.set(x, 0, -SPACING_Z*0.5);
+  m.rotation.y = -0.30;
+  scene.add(m);
+});
+
+// ── Lighting ────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x90a0cc, 0.50));
+
+var key = new THREE.DirectionalLight(0xfff0e0, 3.0);
+key.position.set(3, 7, 4);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 0.5; key.shadow.camera.far = 25;
+key.shadow.camera.left = -6; key.shadow.camera.right = 6;
+key.shadow.camera.top = 5; key.shadow.camera.bottom = -1;
+scene.add(key);
+
+var fill = new THREE.DirectionalLight(0xc0d4ff, 0.9);
+fill.position.set(-3, 3, -2);
+scene.add(fill);
+
+var rim = new THREE.DirectionalLight(0xffe080, 1.1);
+rim.position.set(0, 4, -5);
+scene.add(rim);
+
+// Ground
+var ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(16, 10),
+  new THREE.MeshLambertMaterial({color:0x141a28})
+);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+var grid = new THREE.GridHelper(16, 24, 0x1e2840, 0x161e30);
+grid.position.y = 0.001;
+scene.add(grid);
+
+// ── Orbit camera ────────────────────────────────────────────────────────────
+var VIEWS = {
+  'front':   {theta:0,           phi:Math.PI*0.25, r:7.0, cy:0.65},
+  'three-q': {theta:-Math.PI*0.20, phi:Math.PI*0.22, r:7.2, cy:0.65},
+  'top':     {theta:0,           phi:Math.PI*0.06, r:7.0, cy:0.40},
+};
+var orb  = {theta:0, phi:Math.PI*0.25, r:7.0, cy:0.65};
+var orbT = Object.assign({},orb);
+
+document.querySelectorAll('.vbtn[data-v]').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('.vbtn[data-v]').forEach(function(x){x.classList.remove('on');});
+    b.classList.add('on');
+    var v = VIEWS[b.dataset.v];
+    orbT.theta=v.theta; orbT.phi=v.phi; orbT.r=v.r; orbT.cy=v.cy;
+  });
+});
+
+var drag=false,px=0,py=0;
+canvas.addEventListener('mousedown',function(e){drag=true;px=e.clientX;py=e.clientY;});
+window.addEventListener('mouseup',function(){drag=false;});
+window.addEventListener('mousemove',function(e){
+  if(!drag)return;
+  orbT.theta-=(e.clientX-px)*0.009; px=e.clientX;
+  orbT.phi=Math.max(0.03,Math.min(Math.PI*0.44,orbT.phi+(e.clientY-py)*0.007)); py=e.clientY;
+  document.querySelectorAll('.vbtn[data-v]').forEach(function(b){b.classList.remove('on');});
+});
+canvas.addEventListener('wheel',function(e){
+  e.preventDefault();
+  orbT.r=Math.max(2,Math.min(14,orbT.r+e.deltaY*0.007));
+},{passive:false});
+
+var tc={};
+canvas.addEventListener('touchstart',function(e){
+  e.preventDefault();
+  Array.from(e.changedTouches).forEach(function(t){tc[t.identifier]={x:t.clientX,y:t.clientY};});
+},{passive:false});
+canvas.addEventListener('touchend',function(e){
+  Array.from(e.changedTouches).forEach(function(t){delete tc[t.identifier];});
+  delete tc._pd;
+});
+canvas.addEventListener('touchmove',function(e){
+  e.preventDefault();
+  var ids=Object.keys(tc).filter(function(k){return k!=='_pd';});
+  if(ids.length===1){
+    var t=e.changedTouches[0];
+    orbT.theta-=(t.clientX-tc[ids[0]].x)*0.009;
+    orbT.phi=Math.max(0.03,Math.min(Math.PI*0.44,orbT.phi+(t.clientY-tc[ids[0]].y)*0.007));
+    tc[ids[0]]={x:t.clientX,y:t.clientY};
+  } else if(e.touches.length>=2){
+    var d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    if(tc._pd) orbT.r=Math.max(2,Math.min(14,orbT.r-(d-tc._pd)*0.012));
+    tc._pd=d;
+  }
+},{passive:false});
+
+function resize(){
+  var W=canvas.clientWidth,H=canvas.clientHeight;
+  if(renderer.domElement.width!==W||renderer.domElement.height!==H){
+    renderer.setSize(W,H,false);
+    camera.aspect=W/H; camera.updateProjectionMatrix();
+  }
+}
+
+function render(){
+  requestAnimationFrame(render);
+  resize();
+  orb.theta+=(orbT.theta-orb.theta)*0.10;
+  orb.phi  +=(orbT.phi  -orb.phi  )*0.10;
+  orb.r    +=(orbT.r    -orb.r    )*0.10;
+  orb.cy   +=(orbT.cy   -orb.cy   )*0.10;
+  var x=orb.r*Math.sin(orb.phi)*Math.sin(orb.theta);
+  var y=orb.r*Math.cos(orb.phi)+orb.cy;
+  var z=orb.r*Math.sin(orb.phi)*Math.cos(orb.theta);
+  camera.position.set(x,y,z);
+  camera.lookAt(0,orb.cy,0);
+  renderer.render(scene,camera);
+}
+render();
+</script>
