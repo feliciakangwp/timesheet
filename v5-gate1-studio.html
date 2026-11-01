@@ -1441,6 +1441,64 @@ async function loadBundledModel() {
   }
 }
 
+async function loadChubbyModel() {
+  if (autoLoadCancelled) return;
+  showLoading(true);
+  document.getElementById('loadText').textContent = 'Loading character data…';
+  document.getElementById('loadSub').textContent = 'Fetching parts 1, 2 & 3 (≈40 MB total)';
+  document.getElementById('loadBar').style.width = '5%';
+
+  try {
+    const [j1, j2, j3] = await Promise.all([
+      fetch('./chars/chibi-chubby-p1.json').then(r => {
+        if (!r.ok) throw new Error('Part 1 fetch failed: ' + r.status);
+        document.getElementById('loadBar').style.width = '25%';
+        return r.json();
+      }),
+      fetch('./chars/chibi-chubby-p2.json').then(r => {
+        if (!r.ok) throw new Error('Part 2 fetch failed: ' + r.status);
+        document.getElementById('loadBar').style.width = '50%';
+        return r.json();
+      }),
+      fetch('./chars/chibi-chubby-p3.json').then(r => {
+        if (!r.ok) throw new Error('Part 3 fetch failed: ' + r.status);
+        document.getElementById('loadBar').style.width = '65%';
+        return r.json();
+      })
+    ]);
+
+    if (autoLoadCancelled) { showLoading(false); return; }
+    document.getElementById('loadText').textContent = 'Decoding model…';
+    document.getElementById('loadBar').style.width = '72%';
+    document.getElementById('loadSub').textContent = 'Decoding base64 → binary (one moment)';
+
+    const b64 = j1.d + j2.d + j3.d;
+    const binStr = atob(b64);
+    const bytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+
+    document.getElementById('loadText').textContent = 'Parsing 3D model…';
+    document.getElementById('loadBar').style.width = '85%';
+    document.getElementById('loadSub').textContent = '';
+
+    loader.parse(
+      bytes.buffer,
+      './',
+      (gltf) => {
+        showLoading(false);
+        if (!autoLoadCancelled) installModel(gltf, 'Chibi Runner — Female Chubby (Meshy AI)', false);
+      },
+      (err) => { showLoading(false); showError('Model parse error: ' + err.message); }
+    );
+  } catch(e) {
+    showLoading(false);
+    if (!autoLoadCancelled) {
+      showError('Could not load chubby model. Try importing a VRM/GLB manually.');
+      console.error('[Studio] loadChubbyModel error:', e);
+    }
+  }
+}
+
 /* Allow importing a model from a URL (for sample switcher) */
 function loadModelFromURL(url, displayName) {
   if (autoLoadCancelled) return;
@@ -1465,16 +1523,27 @@ function loadModelFromURL(url, displayName) {
   const sec = document.createElement('div');
   sec.className = 'panel-sec';
   sec.innerHTML = `
-    <div class="sec-head">Sample Character</div>
-    <div class="btn-row">
-      <button class="btn active" onclick="reloadBundled(this)">Chibi Runner (Female)</button>
+    <div class="sec-head">Sample Characters</div>
+    <div class="btn-row" style="flex-wrap:wrap;gap:6px">
+      <button class="btn active" data-loader="base" onclick="switchSample(this)">Female — Base</button>
+      <button class="btn" data-loader="chubby" onclick="switchSample(this)">Female — Chubby</button>
     </div>
     <p style="font-size:10px;color:var(--fg-dim);opacity:.6;margin-top:8px;line-height:1.6">
-      Custom chibi runner generated from reference illustration via Meshy AI — Gate 1 visual approval candidate.
+      Chibi runners generated via Meshy AI — Gate 1 physique variants.
     </p>`;
   const physSec = document.querySelector('.panel-right .panel-sec:nth-child(3)');
   if (physSec) physSec.parentNode.insertBefore(sec, physSec);
 })();
+
+function switchSample(btn) {
+  document.querySelectorAll('[data-loader]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  autoLoadCancelled = false;
+  if (currentModel) { scene.remove(currentModel); currentModel = null; mixer = null; }
+  document.getElementById('emptyState').classList.remove('hidden');
+  if (btn.dataset.loader === 'chubby') loadChubbyModel();
+  else loadBundledModel();
+}
 
 function reloadBundled(btn) {
   autoLoadCancelled = false;
