@@ -1499,6 +1499,60 @@ async function loadChubbyModel() {
   }
 }
 
+async function loadObeseModel() {
+  if (autoLoadCancelled) return;
+  showLoading(true);
+  document.getElementById('loadText').textContent = 'Loading character data…';
+  document.getElementById('loadSub').textContent = 'Fetching parts 1, 2 & 3 (≈33 MB total)';
+  document.getElementById('loadBar').style.width = '5%';
+  try {
+    const [j1, j2, j3] = await Promise.all([
+      fetch('./chars/chibi-obese-p1.json').then(r => { if (!r.ok) throw new Error('Part 1 failed: ' + r.status); document.getElementById('loadBar').style.width = '25%'; return r.json(); }),
+      fetch('./chars/chibi-obese-p2.json').then(r => { if (!r.ok) throw new Error('Part 2 failed: ' + r.status); document.getElementById('loadBar').style.width = '50%'; return r.json(); }),
+      fetch('./chars/chibi-obese-p3.json').then(r => { if (!r.ok) throw new Error('Part 3 failed: ' + r.status); document.getElementById('loadBar').style.width = '65%'; return r.json(); })
+    ]);
+    if (autoLoadCancelled) { showLoading(false); return; }
+    document.getElementById('loadText').textContent = 'Decoding model…';
+    document.getElementById('loadBar').style.width = '72%';
+    document.getElementById('loadSub').textContent = 'Decoding base64 → binary (one moment)';
+    const b64 = j1.d + j2.d + j3.d;
+    const binStr = atob(b64);
+    const bytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+    document.getElementById('loadText').textContent = 'Parsing 3D model…';
+    document.getElementById('loadBar').style.width = '85%';
+    document.getElementById('loadSub').textContent = '';
+    loader.parse(bytes.buffer, './', (gltf) => { showLoading(false); if (!autoLoadCancelled) installModel(gltf, 'Chibi Runner — Female Obese (Meshy AI)', false); }, (err) => { showLoading(false); showError('Model parse error: ' + err.message); });
+  } catch(e) { showLoading(false); if (!autoLoadCancelled) { showError('Could not load obese model.'); console.error('[Studio] loadObeseModel error:', e); } }
+}
+
+async function loadMuscularModel() {
+  if (autoLoadCancelled) return;
+  showLoading(true);
+  document.getElementById('loadText').textContent = 'Loading character data…';
+  document.getElementById('loadSub').textContent = 'Fetching parts 1, 2 & 3 (≈43 MB total)';
+  document.getElementById('loadBar').style.width = '5%';
+  try {
+    const [j1, j2, j3] = await Promise.all([
+      fetch('./chars/chibi-muscular-p1.json').then(r => { if (!r.ok) throw new Error('Part 1 failed: ' + r.status); document.getElementById('loadBar').style.width = '25%'; return r.json(); }),
+      fetch('./chars/chibi-muscular-p2.json').then(r => { if (!r.ok) throw new Error('Part 2 failed: ' + r.status); document.getElementById('loadBar').style.width = '50%'; return r.json(); }),
+      fetch('./chars/chibi-muscular-p3.json').then(r => { if (!r.ok) throw new Error('Part 3 failed: ' + r.status); document.getElementById('loadBar').style.width = '65%'; return r.json(); })
+    ]);
+    if (autoLoadCancelled) { showLoading(false); return; }
+    document.getElementById('loadText').textContent = 'Decoding model…';
+    document.getElementById('loadBar').style.width = '72%';
+    document.getElementById('loadSub').textContent = 'Decoding base64 → binary (one moment)';
+    const b64 = j1.d + j2.d + j3.d;
+    const binStr = atob(b64);
+    const bytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+    document.getElementById('loadText').textContent = 'Parsing 3D model…';
+    document.getElementById('loadBar').style.width = '85%';
+    document.getElementById('loadSub').textContent = '';
+    loader.parse(bytes.buffer, './', (gltf) => { showLoading(false); if (!autoLoadCancelled) installModel(gltf, 'Chibi Runner — Female Muscular (Meshy AI)', false); }, (err) => { showLoading(false); showError('Model parse error: ' + err.message); });
+  } catch(e) { showLoading(false); if (!autoLoadCancelled) { showError('Could not load muscular model.'); console.error('[Studio] loadMuscularModel error:', e); } }
+}
+
 /* Allow importing a model from a URL (for sample switcher) */
 function loadModelFromURL(url, displayName) {
   if (autoLoadCancelled) return;
@@ -1527,6 +1581,8 @@ function loadModelFromURL(url, displayName) {
     <div class="btn-row" style="flex-wrap:wrap;gap:6px">
       <button class="btn active" data-loader="base" onclick="switchSample(this)">Female — Base</button>
       <button class="btn" data-loader="chubby" onclick="switchSample(this)">Female — Chubby</button>
+      <button class="btn" data-loader="obese" onclick="switchSample(this)">Female — Obese</button>
+      <button class="btn" data-loader="muscular" onclick="switchSample(this)">Female — Muscular</button>
     </div>
     <p style="font-size:10px;color:var(--fg-dim);opacity:.6;margin-top:8px;line-height:1.6">
       Chibi runners generated via Meshy AI — Gate 1 physique variants.
@@ -1542,6 +1598,8 @@ function switchSample(btn) {
   if (currentModel) { scene.remove(currentModel); currentModel = null; mixer = null; }
   document.getElementById('emptyState').classList.remove('hidden');
   if (btn.dataset.loader === 'chubby') loadChubbyModel();
+  else if (btn.dataset.loader === 'obese') loadObeseModel();
+  else if (btn.dataset.loader === 'muscular') loadMuscularModel();
   else loadBundledModel();
 }
 
