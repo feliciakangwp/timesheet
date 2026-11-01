@@ -1380,31 +1380,36 @@ async function loadBundledModel() {
   if (autoLoadCancelled) return;
   showLoading(true);
   document.getElementById('loadText').textContent = 'Loading character data…';
-  document.getElementById('loadSub').textContent = 'Fetching parts 1 & 2 (≈19 MB total)';
+  document.getElementById('loadSub').textContent = 'Fetching parts 1, 2 & 3 (≈38 MB total)';
   document.getElementById('loadBar').style.width = '5%';
 
   try {
-    // Fetch both JSON chunks in parallel
-    const [j1, j2] = await Promise.all([
-      fetch('./chars/model-p1.json').then(r => {
+    // Fetch all three JSON chunks in parallel
+    const [j1, j2, j3] = await Promise.all([
+      fetch('./chars/chibi-p1.json').then(r => {
         if (!r.ok) throw new Error('Part 1 fetch failed: ' + r.status);
-        document.getElementById('loadBar').style.width = '30%';
+        document.getElementById('loadBar').style.width = '25%';
         return r.json();
       }),
-      fetch('./chars/model-p2.json').then(r => {
+      fetch('./chars/chibi-p2.json').then(r => {
         if (!r.ok) throw new Error('Part 2 fetch failed: ' + r.status);
-        document.getElementById('loadBar').style.width = '60%';
+        document.getElementById('loadBar').style.width = '50%';
+        return r.json();
+      }),
+      fetch('./chars/chibi-p3.json').then(r => {
+        if (!r.ok) throw new Error('Part 3 fetch failed: ' + r.status);
+        document.getElementById('loadBar').style.width = '65%';
         return r.json();
       })
     ]);
 
     if (autoLoadCancelled) { showLoading(false); return; }
     document.getElementById('loadText').textContent = 'Decoding model…';
-    document.getElementById('loadBar').style.width = '70%';
+    document.getElementById('loadBar').style.width = '72%';
     document.getElementById('loadSub').textContent = 'Decoding base64 → binary (one moment)';
 
     // Concatenate and decode base64 → Uint8Array
-    const b64 = j1.d + j2.d;
+    const b64 = j1.d + j2.d + j3.d;
     const binStr = atob(b64);
     const bytes = new Uint8Array(binStr.length);
     for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
@@ -1419,7 +1424,7 @@ async function loadBundledModel() {
       './',
       (gltf) => {
         showLoading(false);
-        if (!autoLoadCancelled) installModel(gltf, 'AvatarSample A (VRoid female)', true);
+        if (!autoLoadCancelled) installModel(gltf, 'Chibi Runner — Female Base (Meshy AI)', false);
       },
       (err) => {
         showLoading(false);
@@ -1462,10 +1467,10 @@ function loadModelFromURL(url, displayName) {
   sec.innerHTML = `
     <div class="sec-head">Sample Character</div>
     <div class="btn-row">
-      <button class="btn active" onclick="reloadBundled(this)">AvatarSample A</button>
+      <button class="btn active" onclick="reloadBundled(this)">Chibi Runner (Female)</button>
     </div>
     <p style="font-size:10px;color:var(--fg-dim);opacity:.6;margin-top:8px;line-height:1.6">
-      Official VRoid sample model — bundled for Gate 1 preview only. Production characters will be custom-designed assets approved at Gate 5.
+      Custom chibi runner generated from reference illustration via Meshy AI — Gate 1 visual approval candidate.
     </p>`;
   const physSec = document.querySelector('.panel-right .panel-sec:nth-child(3)');
   if (physSec) physSec.parentNode.insertBefore(sec, physSec);
