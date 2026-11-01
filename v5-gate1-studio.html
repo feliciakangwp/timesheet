@@ -1327,6 +1327,28 @@ function setChecked(id, ok, iconOverride, noteText) {
   }
 }
 
+/* ── Auto-load reference images from bundled assets ── */
+(function preloadRefs() {
+  function setRef(slotId, src, targetKey) {
+    const slot = document.getElementById(slotId);
+    if (!slot) return;
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = targetKey + ' reference';
+    img.onerror = () => {}; // silent — user can upload manually
+    img.onload = () => {
+      const old = slot.querySelector('img');
+      if (old) old.remove();
+      slot.insertBefore(img, slot.firstChild);
+      slot.classList.add('has-img');
+      refState[targetKey] = true;
+      updateRefCheck();
+    };
+  }
+  setRef('refFemale', './refs/female-runner.jpg', 'female');
+  setRef('refMale',   './refs/male-runner.jpg',   'male');
+})();
+
 /* Drag-and-drop on viewport for model files */
 vp.addEventListener('dragover', e => { e.preventDefault(); });
 vp.addEventListener('drop', e => {
@@ -1343,18 +1365,18 @@ vp.addEventListener('drop', e => {
 ================================================================ */
 const SAMPLE_MODELS = [
   {
-    url: 'https://raw.githubusercontent.com/madjin/vrm-samples/master/vroid/stable/AvatarSample_A.vrm',
+    url: './chars/AvatarSample_A.vrm',  // bundled — loads instantly, no external fetch
     name: 'AvatarSample A (VRoid female)',
     label: 'VRoid sample · preview only'
   },
   {
     url: 'https://raw.githubusercontent.com/madjin/vrm-samples/master/vroid/stable/AvatarSample_B.vrm',
-    name: 'AvatarSample B (VRoid female alt)',
+    name: 'AvatarSample B (fallback)',
     label: 'VRoid sample · preview only'
   },
   {
     url: 'https://raw.githubusercontent.com/madjin/vrm-samples/master/vroid/fem_vroid.vrm',
-    name: 'fem_vroid (VRoid female)',
+    name: 'fem_vroid (fallback)',
     label: 'VRoid sample · preview only'
   }
 ];
