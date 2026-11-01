@@ -1363,105 +1363,119 @@ vp.addEventListener('drop', e => {
    License: VRoid conditions of use — display / preview permitted.
    These models are fetched at runtime; not bundled in this project.
 ================================================================ */
-const SAMPLE_MODELS = [
-  {
-    url: './chars/AvatarSample_A.vrm',  // bundled — loads instantly, no external fetch
-    name: 'AvatarSample A (VRoid female)',
-    label: 'VRoid sample · preview only'
-  },
-  {
-    url: 'https://raw.githubusercontent.com/madjin/vrm-samples/master/vroid/stable/AvatarSample_B.vrm',
-    name: 'AvatarSample B (fallback)',
-    label: 'VRoid sample · preview only'
-  },
-  {
-    url: 'https://raw.githubusercontent.com/madjin/vrm-samples/master/vroid/fem_vroid.vrm',
-    name: 'fem_vroid (fallback)',
-    label: 'VRoid sample · preview only'
-  }
-];
-
 let autoLoadCancelled = false;
-let currentSampleIdx = 0;
 
 function cancelAutoLoad() {
   autoLoadCancelled = true;
   showLoading(false);
 }
 
+/* ── Chunked GLB loader ──────────────────────────────────────────
+   The 14 MB VRoid model is stored as two JSON files (each ~9.6 MB)
+   containing base64-encoded halves of the binary.  They are fetched,
+   concatenated, decoded to Uint8Array, and parsed by GLTFLoader
+   in-memory — no external host, no unsupported file extension.
+─────────────────────────────────────────────────────────────────*/
+async function loadBundledModel() {
+  if (autoLoadCancelled) return;
+  showLoading(true);
+  document.getElementById('loadText').textContent = 'Loading character data…';
+  document.getElementById('loadSub').textContent = 'Fetching parts 1 & 2 (≈19 MB total)';
+  document.getElementById('loadBar').style.width = '5%';
+
+  try {
+    // Fetch both JSON chunks in parallel
+    const [j1, j2] = await Promise.all([
+      fetch('./chars/model-p1.json').then(r => {
+        if (!r.ok) throw new Error('Part 1 fetch failed: ' + r.status);
+        document.getElementById('loadBar').style.width = '30%';
+        return r.json();
+      }),
+      fetch('./chars/model-p2.json').then(r => {
+        if (!r.ok) throw new Error('Part 2 fetch failed: ' + r.status);
+        document.getElementById('loadBar').style.width = '60%';
+        return r.json();
+      })
+    ]);
+
+    if (autoLoadCancelled) { showLoading(false); return; }
+    document.getElementById('loadText').textContent = 'Decoding model…';
+    document.getElementById('loadBar').style.width = '70%';
+    document.getElementById('loadSub').textContent = 'Decoding base64 → binary (one moment)';
+
+    // Concatenate and decode base64 → Uint8Array
+    const b64 = j1.d + j2.d;
+    const binStr = atob(b64);
+    const bytes = new Uint8Array(binStr.length);
+    for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
+
+    document.getElementById('loadText').textContent = 'Parsing 3D model…';
+    document.getElementById('loadBar').style.width = '85%';
+    document.getElementById('loadSub').textContent = '';
+
+    // Parse from ArrayBuffer — GLTFLoader.parse() accepts binary directly
+    loader.parse(
+      bytes.buffer,
+      './',
+      (gltf) => {
+        showLoading(false);
+        if (!autoLoadCancelled) installModel(gltf, 'AvatarSample A (VRoid female)', true);
+      },
+      (err) => {
+        showLoading(false);
+        showError('Model parse error: ' + (err.message || err));
+        console.error('[Studio] parse error:', err);
+      }
+    );
+  } catch(e) {
+    showLoading(false);
+    if (!autoLoadCancelled) {
+      showError('Could not load bundled model. Try importing a VRM/GLB manually.');
+      console.error('[Studio] loadBundledModel error:', e);
+    }
+  }
+}
+
+/* Allow importing a model from a URL (for sample switcher) */
 function loadModelFromURL(url, displayName) {
+  if (autoLoadCancelled) return;
   showLoading(true);
   document.getElementById('loadText').textContent = 'Fetching ' + (displayName || 'character') + '…';
   document.getElementById('loadSub').textContent = url.split('/').pop();
   document.getElementById('loadBar').style.width = '0%';
 
-  loader.load(
-    url,
-    (gltf) => {
-      showLoading(false);
-      if (!autoLoadCancelled) {
-        installModel(gltf, displayName || url.split('/').pop(), url.toLowerCase().endsWith('.vrm'));
-      }
-    },
+  loader.load(url,
+    (gltf) => { showLoading(false); installModel(gltf, displayName || url.split('/').pop(), true); },
     (xhr) => {
-      if (autoLoadCancelled) return;
-      const loadedMB = (xhr.loaded / 1048576).toFixed(1);
-      if (xhr.total > 0) {
-        const totalMB = (xhr.total / 1048576).toFixed(1);
-        const pct = (xhr.loaded / xhr.total * 100) | 0;
-        document.getElementById('loadText').textContent = `Fetching character… ${pct}%`;
-        document.getElementById('loadSub').textContent = `${loadedMB} / ${totalMB} MB`;
-        document.getElementById('loadBar').style.width = pct + '%';
-      } else {
-        document.getElementById('loadText').textContent = `Fetching character… ${loadedMB} MB`;
-      }
+      const pct = xhr.total > 0 ? ((xhr.loaded / xhr.total * 100) | 0) : null;
+      document.getElementById('loadText').textContent = pct != null ? `Fetching… ${pct}%` : 'Fetching…';
+      if (pct) document.getElementById('loadBar').style.width = pct + '%';
     },
-    (err) => {
-      showLoading(false);
-      if (autoLoadCancelled) return;
-      // Try next sample if available
-      currentSampleIdx++;
-      if (currentSampleIdx < SAMPLE_MODELS.length) {
-        console.warn('[Studio] Trying next sample model…');
-        const next = SAMPLE_MODELS[currentSampleIdx];
-        loadModelFromURL(next.url, next.name);
-      } else {
-        showError('Could not auto-load sample. Please import a VRM/GLB file manually.');
-        console.warn('[Studio] All sample models failed:', err);
-      }
-    }
+    (err) => { showLoading(false); showError('Fetch failed. Import file manually.'); }
   );
 }
 
-/* Add gender/character switcher buttons to controls panel */
+/* Add reload button to controls panel */
 (function buildSampleSwitcher() {
   const sec = document.createElement('div');
   sec.className = 'panel-sec';
   sec.innerHTML = `
-    <div class="sec-head">Sample Characters</div>
+    <div class="sec-head">Sample Character</div>
     <div class="btn-row">
-      <button class="btn active" onclick="switchSample(0,this)">Female A</button>
-      <button class="btn" onclick="switchSample(1,this)">Female B</button>
-      <button class="btn" onclick="switchSample(2,this)">Alt</button>
+      <button class="btn active" onclick="reloadBundled(this)">AvatarSample A</button>
     </div>
     <p style="font-size:10px;color:var(--fg-dim);opacity:.6;margin-top:8px;line-height:1.6">
-      Official VRoid sample models. Fetched from GitHub at runtime for preview only. Replace with your own approved asset at Gate 5.
+      Official VRoid sample model — bundled for Gate 1 preview only. Production characters will be custom-designed assets approved at Gate 5.
     </p>`;
   const physSec = document.querySelector('.panel-right .panel-sec:nth-child(3)');
   if (physSec) physSec.parentNode.insertBefore(sec, physSec);
 })();
 
-function switchSample(idx, btn) {
+function reloadBundled(btn) {
   autoLoadCancelled = false;
-  currentSampleIdx = idx;
-  document.querySelectorAll('.panel-right .btn').forEach(b => {
-    if (b.getAttribute('onclick') && b.getAttribute('onclick').startsWith('switchSample')) {
-      b.classList.remove('active');
-    }
-  });
-  if (btn) btn.classList.add('active');
-  const m = SAMPLE_MODELS[idx];
-  if (m) loadModelFromURL(m.url, m.name);
+  if (currentModel) { scene.remove(currentModel); currentModel = null; mixer = null; }
+  document.getElementById('emptyState').classList.remove('hidden');
+  loadBundledModel();
 }
 
 /* Subtle idle sway for models with no animation clips */
@@ -1490,11 +1504,8 @@ const _origClock = clock;
 /* Trigger auto-load after scene is ready */
 window.addEventListener('load', () => {
   setTimeout(() => {
-    if (!currentModel) {
-      const m = SAMPLE_MODELS[currentSampleIdx];
-      loadModelFromURL(m.url, m.name);
-    }
-  }, 500);
+    if (!currentModel) loadBundledModel();
+  }, 400);
 });
 </script>
 </body>
