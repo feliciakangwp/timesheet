@@ -702,8 +702,12 @@ body {
 
     <!-- Loading overlay -->
     <div class="load-overlay" id="loadOverlay">
-      <div class="load-text" id="loadText">Loading model…</div>
+      <div class="load-text" id="loadText">Fetching character…</div>
       <div class="load-bar-wrap"><div class="load-bar" id="loadBar"></div></div>
+      <div id="loadSub" style="font-size:10px;color:var(--fg-dim);opacity:.6;margin-top:2px"></div>
+      <button onclick="cancelAutoLoad()" style="margin-top:10px;pointer-events:all;background:transparent;border:1px solid var(--border2);color:var(--fg-dim);border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer">
+        Skip — import my own file
+      </button>
     </div>
 
     <!-- Error toast -->
@@ -1114,6 +1118,7 @@ function installModel(gltf, filename, isVRM) {
 
   scene.add(model);
   currentModel = model;
+  idleBaseY = model.position.y;
 
   // VRM specifics
   currentVRM = gltf.userData.vrm || null;
@@ -1328,6 +1333,146 @@ vp.addEventListener('drop', e => {
   e.preventDefault();
   const file = e.dataTransfer.files && e.dataTransfer.files[0];
   if (file) handleModelFile(file);
+});
+
+/* ================================================================
+   Auto-load: VRoid official sample models
+   Source: github.com/madjin/vrm-samples  (public repo, raw CORS open)
+   License: VRoid conditions of use — display / preview permitted.
+   These models are fetched at runtime; not bundled in this project.
+================================================================ */
+const SAMPLE_MODELS = [
+  {
+    url: 'https://raw.githubusercontent.com/madjin/vrm-samples/master/vroid/stable/AvatarSample_A.vrm',
+    name: 'AvatarSample A (VRoid female)',
+    label: 'VRoid sample · preview only'
+  },
+  {
+    url: 'https://raw.githubusercontent.com/madjin/vrm-samples/master/vroid/stable/AvatarSample_B.vrm',
+    name: 'AvatarSample B (VRoid female alt)',
+    label: 'VRoid sample · preview only'
+  },
+  {
+    url: 'https://raw.githubusercontent.com/madjin/vrm-samples/master/vroid/fem_vroid.vrm',
+    name: 'fem_vroid (VRoid female)',
+    label: 'VRoid sample · preview only'
+  }
+];
+
+let autoLoadCancelled = false;
+let currentSampleIdx = 0;
+
+function cancelAutoLoad() {
+  autoLoadCancelled = true;
+  showLoading(false);
+}
+
+function loadModelFromURL(url, displayName) {
+  showLoading(true);
+  document.getElementById('loadText').textContent = 'Fetching ' + (displayName || 'character') + '…';
+  document.getElementById('loadSub').textContent = url.split('/').pop();
+  document.getElementById('loadBar').style.width = '0%';
+
+  loader.load(
+    url,
+    (gltf) => {
+      showLoading(false);
+      if (!autoLoadCancelled) {
+        installModel(gltf, displayName || url.split('/').pop(), url.toLowerCase().endsWith('.vrm'));
+      }
+    },
+    (xhr) => {
+      if (autoLoadCancelled) return;
+      const loadedMB = (xhr.loaded / 1048576).toFixed(1);
+      if (xhr.total > 0) {
+        const totalMB = (xhr.total / 1048576).toFixed(1);
+        const pct = (xhr.loaded / xhr.total * 100) | 0;
+        document.getElementById('loadText').textContent = `Fetching character… ${pct}%`;
+        document.getElementById('loadSub').textContent = `${loadedMB} / ${totalMB} MB`;
+        document.getElementById('loadBar').style.width = pct + '%';
+      } else {
+        document.getElementById('loadText').textContent = `Fetching character… ${loadedMB} MB`;
+      }
+    },
+    (err) => {
+      showLoading(false);
+      if (autoLoadCancelled) return;
+      // Try next sample if available
+      currentSampleIdx++;
+      if (currentSampleIdx < SAMPLE_MODELS.length) {
+        console.warn('[Studio] Trying next sample model…');
+        const next = SAMPLE_MODELS[currentSampleIdx];
+        loadModelFromURL(next.url, next.name);
+      } else {
+        showError('Could not auto-load sample. Please import a VRM/GLB file manually.');
+        console.warn('[Studio] All sample models failed:', err);
+      }
+    }
+  );
+}
+
+/* Add gender/character switcher buttons to controls panel */
+(function buildSampleSwitcher() {
+  const sec = document.createElement('div');
+  sec.className = 'panel-sec';
+  sec.innerHTML = `
+    <div class="sec-head">Sample Characters</div>
+    <div class="btn-row">
+      <button class="btn active" onclick="switchSample(0,this)">Female A</button>
+      <button class="btn" onclick="switchSample(1,this)">Female B</button>
+      <button class="btn" onclick="switchSample(2,this)">Alt</button>
+    </div>
+    <p style="font-size:10px;color:var(--fg-dim);opacity:.6;margin-top:8px;line-height:1.6">
+      Official VRoid sample models. Fetched from GitHub at runtime for preview only. Replace with your own approved asset at Gate 5.
+    </p>`;
+  const physSec = document.querySelector('.panel-right .panel-sec:nth-child(3)');
+  if (physSec) physSec.parentNode.insertBefore(sec, physSec);
+})();
+
+function switchSample(idx, btn) {
+  autoLoadCancelled = false;
+  currentSampleIdx = idx;
+  document.querySelectorAll('.panel-right .btn').forEach(b => {
+    if (b.getAttribute('onclick') && b.getAttribute('onclick').startsWith('switchSample')) {
+      b.classList.remove('active');
+    }
+  });
+  if (btn) btn.classList.add('active');
+  const m = SAMPLE_MODELS[idx];
+  if (m) loadModelFromURL(m.url, m.name);
+}
+
+/* Subtle idle sway for models with no animation clips */
+let idleClock2 = 0;
+let idleBaseY = 0;
+
+function tickIdle(dt) {
+  if (!currentModel || animations.length > 0) return;
+  idleClock2 += dt * 0.8;
+  currentModel.position.y = idleBaseY + Math.sin(idleClock2) * 0.004;
+}
+
+/* Patch the main render loop to call tickIdle */
+const _origClock = clock;
+(function patchLoop() {
+  let last = performance.now();
+  function idle() {
+    const now = performance.now();
+    tickIdle((now - last) / 1000);
+    last = now;
+    requestAnimationFrame(idle);
+  }
+  requestAnimationFrame(idle);
+})();
+
+/* Trigger auto-load after scene is ready */
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    if (!currentModel) {
+      const m = SAMPLE_MODELS[currentSampleIdx];
+      loadModelFromURL(m.url, m.name);
+    }
+  }, 500);
 });
 </script>
 </body>
