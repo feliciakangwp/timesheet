@@ -2046,6 +2046,36 @@ let _stPaused=false,_stRaycaster=null,_stWavers=[],_stFlags=[];
 const _ST_FEMALE=new Set(['shivani','dharani','eejya']);
 const _ST_COLORS={p_orion:0xE91E8C,p_polaris:0x29B6F6,p_cordis:0xFDD835};
 const _ST_LANES=[{a:9.1,b:6.1},{a:9.75,b:6.75},{a:10.4,b:7.35}];
+
+// Arc-length LUT: pre-compute once so runners move at constant ground speed on each ellipse lane.
+// Each sample uses 3-point Gauss-Legendre for accurate arc-length integration.
+(function _stBuildLUTs(){
+  const N=512,sq35=Math.sqrt(3/5);
+  _ST_LANES.forEach(lane=>{
+    const{a,b}=lane;
+    const lut=new Float64Array(N+1);
+    let s=0;
+    for(let k=0;k<N;k++){
+      const t0=k*2*Math.PI/N,t1=(k+1)*2*Math.PI/N,h=(t1-t0)/2,mid=(t0+t1)/2;
+      const ds=t=>Math.sqrt(a*a*Math.sin(t)*Math.sin(t)+b*b*Math.cos(t)*Math.cos(t));
+      s+=h*(5/9*ds(mid-h*sq35)+8/9*ds(mid)+5/9*ds(mid+h*sq35));
+      lut[k+1]=s;
+    }
+    lane.lut=lut;lane.len=s;lane.N=N;
+  });
+})();
+
+// Given arc distance s, return {x,z,θ} on the lane ellipse.
+function _stLanePos(lane,s){
+  const{a,b,lut,len,N}=lane;
+  const sn=((s%len)+len)%len;
+  let lo=0,hi=N;
+  while(hi-lo>1){const m=(lo+hi)>>1;if(lut[m]<=sn)lo=m;else hi=m;}
+  const frac=lut[lo+1]-lut[lo]>1e-12?(sn-lut[lo])/(lut[lo+1]-lut[lo]):0;
+  const θ=(lo+frac)*2*Math.PI/N;
+  return{x:a*Math.cos(θ),z:b*Math.sin(θ),θ};
+}
+
 // BA name → field event key, and starting positions in the infield
 const _ST_BA_EVENTS={ryan:'javelin',christopher:'shotput',norman:'longjump',raja:'highjump'};
 const _ST_BA_POS={javelin:{x:-5.5,z:0},shotput:{x:4.5,z:-2},longjump:{x:.5,z:-4.5},highjump:{x:2,z:-1}};
@@ -2092,12 +2122,13 @@ function _stSpeedPct(devId){
 }
 
 function _stTier(pct){
+  // spd is arc-length units per frame so runners travel at constant ground speed
   if(pct===0)  return{spd:0,   freq:0,   label:'Standing'};
-  if(pct<=50)  return{spd:.003,freq:2.5, label:'Very Slow'};
-  if(pct<=60)  return{spd:.006,freq:4.0, label:'Slow'};
-  if(pct<=75)  return{spd:.010,freq:6.0, label:'Average'};
-  if(pct<=85)  return{spd:.016,freq:9.0, label:'Fast'};
-  return               {spd:.024,freq:13, label:'Very Fast'};
+  if(pct<=50)  return{spd:.024,freq:2.5, label:'Very Slow'};
+  if(pct<=60)  return{spd:.048,freq:4.0, label:'Slow'};
+  if(pct<=75)  return{spd:.080,freq:6.0, label:'Average'};
+  if(pct<=85)  return{spd:.128,freq:9.0, label:'Fast'};
+  return               {spd:.192,freq:13, label:'Very Fast'};
 }
 
 function _stNameLabel(name,labelY){
@@ -2572,15 +2603,17 @@ function _stInit(){
     const pct=_stSpeedPct(per.id);
     const{spd,freq,label}=_stTier(pct);
     const ph=_stPhysique(pct);
-    const lane=_ST_LANES[i%3];
-    const angle=(i/Math.max(runners.length,1))*Math.PI*2;
+    const laneIdx=i%3;
+    const lane=_ST_LANES[laneIdx];
+    const arcT=(i/Math.max(runners.length,1))*lane.len; // spread evenly by arc distance
+    const{x:px,z:pz,θ:pθ}=_stLanePos(lane,arcT);
     const dev=_stMakeDev(per.name,female,shirtHex,pct);
-    dev.g.position.set(lane.a*Math.cos(angle),0,lane.b*Math.sin(angle));
-    dev.g.rotation.y=Math.atan2(-lane.a*Math.sin(angle),lane.b*Math.cos(angle));
+    dev.g.position.set(px,0,pz);
+    dev.g.rotation.y=Math.atan2(-lane.a*Math.sin(pθ),lane.b*Math.cos(pθ));
     const idx=_stObjs.length;
     _stScene.add(dev.g);
     _stTagGroup(dev.g,idx);
-    _stObjs.push({...dev,angle,spd,freq,lA:lane.a,lB:lane.b,pct,isBA:false,projId,per});
+    _stObjs.push({...dev,arcT,spd,freq,laneIdx,pct,isBA:false,projId,per});
     const dot=projId==='p_orion'?'#E91E8C':projId==='p_polaris'?'#29B6F6':projId==='p_cordis'?'#FDD835':'#9E9E9E';
     sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct">${pct}%</div><div class="st-sb-spd">${label} · ${ph.label}</div></div></div>`;
   });
@@ -2666,10 +2699,12 @@ function _stInit(){
         else if(d.eventKey==='longjump')_stAnimateLongJump(d,t,dt);
         else if(d.eventKey==='highjump')_stAnimateHighJump(d,t,dt);
       } else if(d.spd>0){
-        d.angle+=d.spd;
-        d.g.position.x=d.lA*Math.cos(d.angle);
-        d.g.position.z=d.lB*Math.sin(d.angle);
-        d.g.rotation.y=Math.atan2(-d.lA*Math.sin(d.angle),d.lB*Math.cos(d.angle));
+        d.arcT+=d.spd;
+        const lane=_ST_LANES[d.laneIdx];
+        const{x:rx,z:rz,θ:rθ}=_stLanePos(lane,d.arcT);
+        d.g.position.x=rx;
+        d.g.position.z=rz;
+        d.g.rotation.y=Math.atan2(-lane.a*Math.sin(rθ),lane.b*Math.cos(rθ));
         const ph=t*d.freq;
         d.llP.rotation.x= .55*Math.sin(ph);
         d.rlP.rotation.x=-.55*Math.sin(ph);
