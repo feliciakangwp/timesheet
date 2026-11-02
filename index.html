@@ -7,6 +7,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -2051,6 +2052,7 @@ document.getElementById('modal-overlay').addEventListener('click',function(e){
 let _stRenderer=null,_stAnimId=null,_stClock=null,_stObjs=[],_stRO=null,_stCam=null,_stScene=null;
 let _stShowNames=true,_stPanX=0,_stPanZ=0,_stCamH=22,_stCamD=24;
 let _stPaused=false,_stRaycaster=null,_stWavers=[],_stFlags=[],_stTugNPCs=[],_stEventProps={};
+let _stModelCache={},_stGLTFLoader=null;
 const _ST_FEMALE=new Set(['shivani','dharani','eejya']);
 const _ST_COLORS={p_orion:0xE91E8C,p_polaris:0x29B6F6,p_cordis:0xFDD835};
 const _ST_LANES=[{a:9.1,b:6.1},{a:9.75,b:6.75},{a:10.4,b:7.35}];
@@ -2236,6 +2238,56 @@ function _stMakeNPC(shirtColor){
   const laP=mArm(-1),raP=mArm(1);
   const head=new THREE.Mesh(new THREE.SphereGeometry(hdR,12,12),skin);head.position.y=headY;g.add(head);
   return{g,laP,raP,llP,rlP};
+}
+
+function _stGLBPrefix(female,physiqueLabel){
+  const p=(physiqueLabel||'Average').toLowerCase();
+  if(female) return p==='average'?'chibi':'chibi-'+p;
+  return 'chibi-male-'+p;
+}
+
+function _stLoadGLBChunks(prefix){
+  if(_stModelCache[prefix]) return Promise.resolve(_stModelCache[prefix].clone(true));
+  const base='./assets/chars/';
+  return Promise.all([
+    fetch(base+prefix+'-p1.json').then(r=>{if(!r.ok)throw new Error(prefix+' p1:'+r.status);return r.json();}),
+    fetch(base+prefix+'-p2.json').then(r=>{if(!r.ok)throw new Error(prefix+' p2:'+r.status);return r.json();}),
+    fetch(base+prefix+'-p3.json').then(r=>{if(!r.ok)throw new Error(prefix+' p3:'+r.status);return r.json();})
+  ]).then(([j1,j2,j3])=>{
+    const b64=j1.d+j2.d+j3.d;
+    const binStr=atob(b64);
+    const bytes=new Uint8Array(binStr.length);
+    for(let i=0;i<binStr.length;i++) bytes[i]=binStr.charCodeAt(i);
+    return new Promise((res,rej)=>{
+      if(!_stGLTFLoader) _stGLTFLoader=new THREE.GLTFLoader();
+      _stGLTFLoader.parse(bytes.buffer,'./',(gltf)=>{
+        _stModelCache[prefix]=gltf.scene;
+        res(gltf.scene.clone(true));
+      },(err)=>rej(err));
+    });
+  });
+}
+
+function _stAsyncLoadGLB(d){
+  if(!d||!d.per)return;
+  const female=_ST_FEMALE.has(d.per.name.toLowerCase());
+  const ph=_stPhysique(d.pct||0);
+  const prefix=_stGLBPrefix(female,ph.label);
+  _stLoadGLBChunks(prefix).then(glbScene=>{
+    if(!_stScene||!d.g)return;
+    glbScene.scale.setScalar(.65);
+    glbScene.position.y=0;
+    const toRemove=[];
+    d.g.children.forEach(c=>{if(c!==d.label)toRemove.push(c);});
+    toRemove.forEach(c=>d.g.remove(c));
+    if(d.label) d.label.position.y=1.7;
+    d.g.add(glbScene);
+    d._glbMesh=glbScene;
+    d.isGLB=true;
+    d.laP=null;d.raP=null;d.llP=null;d.rlP=null;
+    const dIdx=_stObjs.indexOf(d);
+    if(dIdx>=0) _stTagGroup(d.g,dIdx);
+  }).catch(err=>console.warn('[Stadium] GLB load failed:',prefix,err));
 }
 
 function _stBuildStadium(sc){
@@ -2463,11 +2515,15 @@ function _stUpdateBAScore(d){
 function _stAnimateTugOfWar(d,t,dt){
   d.g.rotation.y=Math.PI/2;
   const ph=t*2.5;
-  d.raP.rotation.x=-Math.PI*.55+.2*Math.sin(ph);
-  d.laP.rotation.x=-Math.PI*.55+.2*Math.sin(ph+Math.PI);
+  if(!d.isGLB){
+    d.raP.rotation.x=-Math.PI*.55+.2*Math.sin(ph);
+    d.laP.rotation.x=-Math.PI*.55+.2*Math.sin(ph+Math.PI);
+    d.llP.rotation.x=.2*Math.sin(ph);
+    d.rlP.rotation.x=-.2*Math.sin(ph);
+  } else {
+    d.g.position.y=.02*Math.abs(Math.sin(ph*1.5));
+  }
   d.g.rotation.z=.32+.07*Math.sin(ph*.5);
-  d.llP.rotation.x=.2*Math.sin(ph);
-  d.rlP.rotation.x=-.2*Math.sin(ph);
   // Rope shifts to show tension — slow sinusoidal drift ±0.55
   const tp=_stEventProps.tugofwar;
   if(tp){const s=.55*Math.sin(t*.28+.8);tp.rope.position.x=-3+s;tp.midFlag.position.x=-3+s;}
@@ -2479,26 +2535,30 @@ function _stAnimatePuzzle(d,t,dt){
   if(!d.stateT)d.stateT=t;
   const e=t-d.stateT;
   if(d.baState==='idle'){
-    d.raP.rotation.x=0;d.laP.rotation.x=0;d.g.rotation.y=0;
+    if(!d.isGLB){d.raP.rotation.x=0;d.laP.rotation.x=0;}
+    d.g.rotation.y=0;
     if(e>1.5){d.baState='pickup';d.stateT=t;}
   } else if(d.baState==='pickup'){
     const p=Math.min(e/.5,1);
-    d.raP.rotation.x=-Math.PI*.6*p;d.laP.rotation.x=-Math.PI*.4*p;
+    if(!d.isGLB){d.raP.rotation.x=-Math.PI*.6*p;d.laP.rotation.x=-Math.PI*.4*p;}
+    else if(d._glbMesh) d._glbMesh.rotation.x=-0.15*p;
     d.g.position.y=.08*p;
     if(e>.5){d.baState='examine';d.stateT=t;}
   } else if(d.baState==='examine'){
     d.g.rotation.y+=dt*1.2;
-    d.raP.rotation.x=-Math.PI*.6+.15*Math.sin(t*4);
+    if(!d.isGLB){d.raP.rotation.x=-Math.PI*.6+.15*Math.sin(t*4);}
+    else if(d._glbMesh) d._glbMesh.rotation.x=-0.15+.05*Math.sin(t*4);
     if(e>1.2){d.baState='place';d.stateT=t;}
   } else if(d.baState==='place'){
     const p=Math.min(e/.4,1);
-    d.raP.rotation.x=-Math.PI*.6*(1-p);d.laP.rotation.x=-Math.PI*.4*(1-p);
+    if(!d.isGLB){d.raP.rotation.x=-Math.PI*.6*(1-p);d.laP.rotation.x=-Math.PI*.4*(1-p);}
+    else if(d._glbMesh) d._glbMesh.rotation.x=-0.15*(1-p);
     d.g.position.y=.08*(1-p);
     if(e>.4){d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);d.baState='celebrate';d.stateT=t;}
   } else {
-    d.raP.rotation.x=-.5+.5*Math.sin(t*6);
-    d.laP.rotation.x=-.5+.5*Math.sin(t*6+Math.PI);
-    if(e>1){d.baState='idle';d.stateT=t;d.g.rotation.y=0;}
+    if(!d.isGLB){d.raP.rotation.x=-.5+.5*Math.sin(t*6);d.laP.rotation.x=-.5+.5*Math.sin(t*6+Math.PI);}
+    else{d.g.position.y=.08+.06*Math.abs(Math.sin(t*6));if(d._glbMesh)d._glbMesh.rotation.z=.1*Math.sin(t*6);}
+    if(e>1){d.baState='idle';d.stateT=t;d.g.rotation.y=0;if(d._glbMesh)d._glbMesh.rotation.z=0;}
   }
 }
 
@@ -2506,22 +2566,29 @@ function _stAnimateDetective(d,t,dt){
   if(!d.stateT)d.stateT=t;
   const e=t-d.stateT;
   if(d.baState==='idle'){
-    d.raP.rotation.x=0;d.laP.rotation.x=0;d.g.rotation.y=0;
+    if(!d.isGLB){d.raP.rotation.x=0;d.laP.rotation.x=0;}
+    d.g.rotation.y=0;
     if(e>1){d.baState='patrol';d.stateT=t;d._patDir=1;}
   } else if(d.baState==='patrol'){
     d.g.rotation.y=d._patDir>0?0:Math.PI;
     d.g.position.x+=dt*d._patDir*.6;
     const ph=t*5;
-    d.llP.rotation.x=.4*Math.sin(ph);d.rlP.rotation.x=-.4*Math.sin(ph);
-    d.laP.rotation.x=-.25*Math.sin(ph);d.raP.rotation.x=.25*Math.sin(ph);
+    if(!d.isGLB){
+      d.llP.rotation.x=.4*Math.sin(ph);d.rlP.rotation.x=-.4*Math.sin(ph);
+      d.laP.rotation.x=-.25*Math.sin(ph);d.raP.rotation.x=.25*Math.sin(ph);
+    } else {
+      d.g.position.y=.04*Math.abs(Math.sin(ph*2));
+    }
     if(Math.abs(d.g.position.x-d._ox0||0)>1.2){d._patDir*=-1;if(!d._ox0)d._ox0=d.g.position.x;}
     if(e>2.5){d.baState='examine';d.stateT=t;}
   } else {
-    d.raP.rotation.x=-Math.PI*.45+.1*Math.sin(t*3);
-    d.laP.rotation.x=Math.PI*.15;
-    d.llP.rotation.x=0;d.rlP.rotation.x=0;
+    if(!d.isGLB){
+      d.raP.rotation.x=-Math.PI*.45+.1*Math.sin(t*3);
+      d.laP.rotation.x=Math.PI*.15;
+      d.llP.rotation.x=0;d.rlP.rotation.x=0;
+    } else if(d._glbMesh) d._glbMesh.rotation.x=-.12+.04*Math.sin(t*3);
     d.g.rotation.y+=dt*.5;
-    if(e>1.5){d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);d.baState='patrol';d.stateT=t;}
+    if(e>1.5){d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);d.baState='patrol';d.stateT=t;if(d._glbMesh)d._glbMesh.rotation.x=0;}
   }
 }
 
@@ -2530,7 +2597,7 @@ function _stAnimateWhackABug(d,t,dt){
   const e=t-d.stateT;
   const bugs=(_stEventProps.whackabug||{}).bugs||[];
   if(d.baState==='idle'){
-    d.raP.rotation.x=0;d.laP.rotation.x=0;
+    if(!d.isGLB){d.raP.rotation.x=0;d.laP.rotation.x=0;}
     if(e>0.8&&bugs.length){
       d._bugIdx=Math.floor(Math.random()*bugs.length);
       const b=bugs[d._bugIdx];
@@ -2541,11 +2608,13 @@ function _stAnimateWhackABug(d,t,dt){
     const bug=bugs[d._bugIdx];
     if(bug) bug.position.y=Math.min(.3,e/.3*.3);
     const r=Math.min(e/.3,1);
-    d.raP.rotation.x=-Math.PI*.8*r;d.laP.rotation.x=-Math.PI*.2*r;
+    if(!d.isGLB){d.raP.rotation.x=-Math.PI*.8*r;d.laP.rotation.x=-Math.PI*.2*r;}
+    else if(d._glbMesh) d._glbMesh.rotation.x=-0.2*r;
     if(e>.3){d.baState='strike';d.stateT=t;}
   } else if(d.baState==='strike'){
     const s=Math.min(e/.15,1);
-    d.raP.rotation.x=-Math.PI*.8+Math.PI*.9*s;
+    if(!d.isGLB){d.raP.rotation.x=-Math.PI*.8+Math.PI*.9*s;}
+    else if(d._glbMesh) d._glbMesh.rotation.x=-0.2+0.3*s;
     d.g.position.y=-.06*Math.sin(s*Math.PI);
     if(e>.15){
       if(bugs[d._bugIdx]) bugs[d._bugIdx].position.y=.02;
@@ -2554,7 +2623,8 @@ function _stAnimateWhackABug(d,t,dt){
     }
   } else {
     const rv=Math.min(e/.4,1);
-    d.raP.rotation.x=Math.PI*.1*(1-rv);d.laP.rotation.x=-Math.PI*.2*(1-rv);
+    if(!d.isGLB){d.raP.rotation.x=Math.PI*.1*(1-rv);d.laP.rotation.x=-Math.PI*.2*(1-rv);}
+    else if(d._glbMesh) d._glbMesh.rotation.x=0.1*(1-rv);
     d.g.position.y=0;
     if(e>.4){d.baState='idle';d.stateT=t;}
   }
@@ -2682,6 +2752,7 @@ function _stInit(){
     _stScene.add(dev.g);
     _stTagGroup(dev.g,idx);
     _stObjs.push({...dev,arcT,spd,freq,laneIdx,pct,isBA:false,projId,per});
+    _stAsyncLoadGLB(_stObjs[_stObjs.length-1]);
     const dot=projId==='p_orion'?'#E91E8C':projId==='p_polaris'?'#29B6F6':projId==='p_cordis'?'#FDD835':'#9E9E9E';
     sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct">${pct}%</div><div class="st-sb-spd">${label} · ${ph.label}</div></div></div>`;
   });
@@ -2700,6 +2771,7 @@ function _stInit(){
     _stScene.add(dev.g);
     _stTagGroup(dev.g,idx);
     _stObjs.push({...dev,isBA:true,baState:'idle',stateT:0,projId,per,pct,fieldEvent:eventLabel,eventKey,baScore:0,_sbIdx:idx});
+    _stAsyncLoadGLB(_stObjs[_stObjs.length-1]);
     const dot=projId==='p_orion'?'#E91E8C':projId==='p_polaris'?'#29B6F6':projId==='p_cordis'?'#FDD835':'#9E9E9E';
     sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct" style="color:#FFD700">BA</div><div class="st-sb-spd" id="st-ba-spd-${idx}">${eventLabel}</div></div></div>`;
   });
@@ -2771,12 +2843,18 @@ function _stInit(){
         d.g.position.z=rz;
         d.g.rotation.y=Math.atan2(-lane.a*Math.sin(rθ),lane.b*Math.cos(rθ));
         const ph=t*d.freq;
-        d.llP.rotation.x= .55*Math.sin(ph);
-        d.rlP.rotation.x=-.55*Math.sin(ph);
-        d.laP.rotation.x=-.35*Math.sin(ph);
-        d.raP.rotation.x= .35*Math.sin(ph);
-        d.g.position.y=.04*Math.abs(Math.sin(ph*2));
+        if(d.isGLB){
+          d.g.position.y=.04*Math.abs(Math.sin(ph*2));
+          if(d._glbMesh) d._glbMesh.rotation.x=-0.08+.02*Math.sin(ph);
+        } else {
+          d.llP.rotation.x= .55*Math.sin(ph);
+          d.rlP.rotation.x=-.55*Math.sin(ph);
+          d.laP.rotation.x=-.35*Math.sin(ph);
+          d.raP.rotation.x= .35*Math.sin(ph);
+          d.g.position.y=.04*Math.abs(Math.sin(ph*2));
+        }
       } else {
+        if(d.isGLB&&d._glbMesh) d._glbMesh.rotation.x=0;
         d.g.rotation.z=.04*Math.sin(t*1.2+(d.angle||0)*7);
         d.g.position.y=.01*Math.sin(t*1.8+(d.angle||0)*3);
       }
