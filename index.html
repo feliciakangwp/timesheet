@@ -2086,7 +2086,7 @@ function _stLanePos(lane,s){
 
 // BA name → field event key, and starting positions in the infield
 const _ST_BA_EVENTS={ryan:'tugofwar',christopher:'puzzle',norman:'detective',raja:'whackabug'};
-const _ST_BA_POS={tugofwar:{x:-5,z:0},puzzle:{x:4,z:-2},detective:{x:0,z:-3.5},whackabug:{x:3,z:1.5}};
+const _ST_BA_POS={tugofwar:{x:-6,z:0},puzzle:{x:4,z:-2},detective:{x:0,z:-3.5},whackabug:{x:3,z:1.5}};
 
 function _stPhysique(pct){
   if(pct<=50) return{tR:.22,tH:.46,tB:.20,legL:.36,armL:.30,hdR:.18,label:'Obese'};
@@ -2389,20 +2389,21 @@ function _stBuildStadium(sc){
   }
 
   // ── BA Event Props ──────────────────────────────────────
-  // Tug of War (Ryan at x=-5.5 vs team at x=-2) — rope + midpoint flag
+  // Tug of War — rope runs along X; Ryan(-6,0) ←rope→ team(-2 to 0,0)
   const ropeMat=new THREE.MeshLambertMaterial({color:0xA0522D});
-  const rope=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,4.2,8),ropeMat);
-  rope.position.set(-3.75,.28,0);rope.rotation.z=Math.PI/2;sc.add(rope);
+  const rope=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,7,8),ropeMat);
+  rope.position.set(-3,.28,0);rope.rotation.z=Math.PI/2;sc.add(rope);
   const midFlag=new THREE.Mesh(new THREE.PlaneGeometry(.22,.16),new THREE.MeshLambertMaterial({color:0xff0000,side:THREE.DoubleSide}));
-  midFlag.position.set(-3.75,.46,0);sc.add(midFlag);
+  midFlag.position.set(-3,.52,0);sc.add(midFlag);
   _stFlags.push(midFlag);
-  // Opposing team — 3 NPC figures facing Ryan (rotation.y = Math.PI → facing -x direction)
+  // Opposing team — 3 NPCs in single-file line along rope (front→back: x=-2,-1,0)
+  // rotation.y=Math.PI/2 makes them face -x (toward Ryan)
   const npcColors=[0x29B6F6,0x66BB6A,0xAB47BC];
-  const npcZOffsets=[-0.55,0,0.55];
+  const npcXPositions=[-2,-1,0];
   npcColors.forEach((col,i)=>{
     const npc=_stMakeNPC(col);
-    npc.g.position.set(-2,0,npcZOffsets[i]);
-    npc.g.rotation.y=Math.PI;
+    npc.g.position.set(npcXPositions[i],0,0);
+    npc.g.rotation.y=Math.PI/2;
     sc.add(npc.g);
     _stTugNPCs.push(npc);
   });
@@ -2434,17 +2435,15 @@ function _stBuildStadium(sc){
 // ── BA Event Animations ──────────────────────────────
 
 function _stAnimateTugOfWar(d,t,dt){
-  // Ryan faces the opposing team (+x direction)
-  d.g.rotation.y=0;
+  // rotation.y=-PI/2 → face +x (toward opposing team)
+  // rotation.z = positive → lean top toward -x (lean back, away from rope)
+  d.g.rotation.y=-Math.PI/2;
   const ph=t*2.5;
-  // Arms forward and up gripping rope
-  d.raP.rotation.x=-Math.PI*.5+.22*Math.sin(ph);
-  d.laP.rotation.x=-Math.PI*.5+.22*Math.sin(ph+Math.PI);
-  // Body leans back while pulling
-  d.g.rotation.x=.18*Math.sin(ph*.5);
-  // Legs brace
-  d.llP.rotation.x=.18*Math.sin(ph);
-  d.rlP.rotation.x=-.18*Math.sin(ph);
+  d.raP.rotation.x=-Math.PI*.55+.2*Math.sin(ph);
+  d.laP.rotation.x=-Math.PI*.55+.2*Math.sin(ph+Math.PI);
+  d.g.rotation.z=.32+.07*Math.sin(ph*.5);
+  d.llP.rotation.x=.2*Math.sin(ph);
+  d.rlP.rotation.x=-.2*Math.sin(ph);
 }
 
 function _stAnimatePuzzle(d,t,dt){
@@ -2750,12 +2749,14 @@ function _stInit(){
     });
     _stFlags.forEach((f,i)=>{f.rotation.z=Math.sin(t*1.9+i*.72)*.15;});
     _stTugNPCs.forEach((npc,i)=>{
-      const ph=t*2.5+i*.7;
-      npc.raP.rotation.x=-Math.PI*.5+.22*Math.sin(ph);
-      npc.laP.rotation.x=-Math.PI*.5+.22*Math.sin(ph+Math.PI);
-      npc.g.rotation.x=.18*Math.sin(ph*.5);
-      npc.llP.rotation.x=.18*Math.sin(ph);
-      npc.rlP.rotation.x=-.18*Math.sin(ph);
+      // rotation.y=PI/2 → face -x (toward Ryan); rotation.z negative → lean top toward +x (lean back)
+      const ph=t*2.5+i*.9;
+      npc.g.rotation.y=Math.PI/2;
+      npc.g.rotation.z=-(0.22+i*.08+.06*Math.sin(ph*.5));
+      npc.raP.rotation.x=-Math.PI*.55+.2*Math.sin(ph);
+      npc.laP.rotation.x=-Math.PI*.55+.2*Math.sin(ph+Math.PI);
+      npc.llP.rotation.x=.2*Math.sin(ph);
+      npc.rlP.rotation.x=-.2*Math.sin(ph);
     });
 
     _stRenderer.render(_stScene,_stCam);
