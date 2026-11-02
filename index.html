@@ -2050,7 +2050,7 @@ document.getElementById('modal-overlay').addEventListener('click',function(e){
 // ═══════════════════════════════════════
 let _stRenderer=null,_stAnimId=null,_stClock=null,_stObjs=[],_stRO=null,_stCam=null,_stScene=null;
 let _stShowNames=true,_stPanX=0,_stPanZ=0,_stCamH=22,_stCamD=24;
-let _stPaused=false,_stRaycaster=null,_stWavers=[],_stFlags=[];
+let _stPaused=false,_stRaycaster=null,_stWavers=[],_stFlags=[],_stTugNPCs=[];
 const _ST_FEMALE=new Set(['shivani','dharani','eejya']);
 const _ST_COLORS={p_orion:0xE91E8C,p_polaris:0x29B6F6,p_cordis:0xFDD835};
 const _ST_LANES=[{a:9.1,b:6.1},{a:9.75,b:6.75},{a:10.4,b:7.35}];
@@ -2212,9 +2212,35 @@ function _stMakeSpectator(x,y,z,color){
   return g;
 }
 
+function _stMakeNPC(shirtColor){
+  const g=new THREE.Group();
+  const skin=new THREE.MeshLambertMaterial({color:0xF5CBA7});
+  const shirt=new THREE.MeshLambertMaterial({color:shirtColor});
+  const pants=new THREE.MeshLambertMaterial({color:0x1a1a3e});
+  const shoe=new THREE.MeshLambertMaterial({color:0xf0f0f0});
+  const legL=.42,tH=.48,tR=.12,hdR=.13,armL=.32;
+  const hipY=legL+.05,shoulderY=hipY+tH*.75,headY=hipY+tH+hdR*.9;
+  function mLeg(sx){
+    const p=new THREE.Group();p.position.set(sx*.09,hipY,0);
+    const lm=new THREE.Mesh(new THREE.CylinderGeometry(.04,.035,legL,8),pants);lm.position.y=-legL/2;p.add(lm);
+    const sh=new THREE.Mesh(new THREE.BoxGeometry(.09,.065,.18),shoe);sh.position.set(0,-legL-.02,.045);p.add(sh);
+    g.add(p);return p;
+  }
+  const llP=mLeg(-1),rlP=mLeg(1);
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(tR*.82,tR,tH,10),shirt);torso.position.set(0,hipY+tH/2,0);g.add(torso);
+  function mArm(sx){
+    const p=new THREE.Group();p.position.set(sx*(tR+.04),shoulderY,0);
+    const am=new THREE.Mesh(new THREE.CylinderGeometry(tR*.28,tR*.22,armL,8),shirt);am.position.y=-armL/2;p.add(am);
+    g.add(p);return p;
+  }
+  const laP=mArm(-1),raP=mArm(1);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(hdR,12,12),skin);head.position.y=headY;g.add(head);
+  return{g,laP,raP,llP,rlP};
+}
+
 function _stBuildStadium(sc){
   const SEGS=64;
-  _stWavers=[];_stFlags=[];
+  _stWavers=[];_stFlags=[];_stTugNPCs=[];
 
   function mkEll(ax,bx){
     const sh=new THREE.Shape();
@@ -2363,12 +2389,23 @@ function _stBuildStadium(sc){
   }
 
   // ── BA Event Props ──────────────────────────────────────
-  // Tug of War (Ryan) — rope
+  // Tug of War (Ryan at x=-5.5 vs team at x=-2) — rope + midpoint flag
   const ropeMat=new THREE.MeshLambertMaterial({color:0xA0522D});
-  const rope=new THREE.Mesh(new THREE.CylinderGeometry(.04,.04,4,8),ropeMat);
-  rope.position.set(-5,.1,0);rope.rotation.z=Math.PI/2;sc.add(rope);
-  const flag=new THREE.Mesh(new THREE.PlaneGeometry(.3,.2),new THREE.MeshLambertMaterial({color:0xff0000,side:THREE.DoubleSide}));
-  flag.position.set(-5,.4,0);sc.add(flag);
+  const rope=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,4.2,8),ropeMat);
+  rope.position.set(-3.75,.28,0);rope.rotation.z=Math.PI/2;sc.add(rope);
+  const midFlag=new THREE.Mesh(new THREE.PlaneGeometry(.22,.16),new THREE.MeshLambertMaterial({color:0xff0000,side:THREE.DoubleSide}));
+  midFlag.position.set(-3.75,.46,0);sc.add(midFlag);
+  _stFlags.push(midFlag);
+  // Opposing team — 3 NPC figures facing Ryan (rotation.y = Math.PI → facing -x direction)
+  const npcColors=[0x29B6F6,0x66BB6A,0xAB47BC];
+  const npcZOffsets=[-0.55,0,0.55];
+  npcColors.forEach((col,i)=>{
+    const npc=_stMakeNPC(col);
+    npc.g.position.set(-2,0,npcZOffsets[i]);
+    npc.g.rotation.y=Math.PI;
+    sc.add(npc.g);
+    _stTugNPCs.push(npc);
+  });
 
   // Giant Puzzle (Christopher) — puzzle pieces on ground
   const pzMat=new THREE.MeshLambertMaterial({color:0x4FC3F7});
@@ -2397,23 +2434,17 @@ function _stBuildStadium(sc){
 // ── BA Event Animations ──────────────────────────────
 
 function _stAnimateTugOfWar(d,t,dt){
-  if(!d.stateT)d.stateT=t;
-  const e=t-d.stateT;
-  if(d.baState==='idle'){
-    d.raP.rotation.x=0;d.laP.rotation.x=0;d.g.rotation.y=Math.PI/2;
-    if(e>1){d.baState='pull';d.stateT=t;}
-  } else if(d.baState==='pull'){
-    const ph=t*3;
-    d.raP.rotation.x=-.55+.3*Math.sin(ph);
-    d.laP.rotation.x=-.55+.3*Math.sin(ph+Math.PI);
-    d.g.position.z=d._oz+(d._oz===undefined?(d._oz=d.g.position.z,0):0)+.08*Math.sin(ph*.5);
-    d.llP.rotation.x=.2*Math.sin(ph*2);
-    d.rlP.rotation.x=-.2*Math.sin(ph*2);
-    if(e>4){d.baState='rest';d.stateT=t;}
-  } else {
-    d.raP.rotation.x=0;d.laP.rotation.x=0;d.llP.rotation.x=0;d.rlP.rotation.x=0;
-    if(e>1.2){d.baState='idle';d.stateT=t;d._oz=undefined;}
-  }
+  // Ryan faces the opposing team (+x direction)
+  d.g.rotation.y=0;
+  const ph=t*2.5;
+  // Arms forward and up gripping rope
+  d.raP.rotation.x=-Math.PI*.5+.22*Math.sin(ph);
+  d.laP.rotation.x=-Math.PI*.5+.22*Math.sin(ph+Math.PI);
+  // Body leans back while pulling
+  d.g.rotation.x=.18*Math.sin(ph*.5);
+  // Legs brace
+  d.llP.rotation.x=.18*Math.sin(ph);
+  d.rlP.rotation.x=-.18*Math.sin(ph);
 }
 
 function _stAnimatePuzzle(d,t,dt){
@@ -2547,7 +2578,7 @@ function closeSprintTrack(){
   document.getElementById('sprint-track-overlay').classList.remove('open');
   if(_stAnimId){cancelAnimationFrame(_stAnimId);_stAnimId=null;}
   if(_stRO){_stRO.disconnect();_stRO=null;}
-  if(_stRenderer){_stRenderer.dispose();_stRenderer=null;_stScene=null;_stCam=null;_stObjs=[];_stWavers=[];_stFlags=[];}
+  if(_stRenderer){_stRenderer.dispose();_stRenderer=null;_stScene=null;_stCam=null;_stObjs=[];_stWavers=[];_stFlags=[];_stTugNPCs=[];}
 }
 
 function _stInit(){
@@ -2718,6 +2749,14 @@ function _stInit(){
       if(w.g.userData.arm)w.g.userData.arm.rotation.z=.9+.45*Math.sin(t*w.freq+w.phase);
     });
     _stFlags.forEach((f,i)=>{f.rotation.z=Math.sin(t*1.9+i*.72)*.15;});
+    _stTugNPCs.forEach((npc,i)=>{
+      const ph=t*2.5+i*.7;
+      npc.raP.rotation.x=-Math.PI*.5+.22*Math.sin(ph);
+      npc.laP.rotation.x=-Math.PI*.5+.22*Math.sin(ph+Math.PI);
+      npc.g.rotation.x=.18*Math.sin(ph*.5);
+      npc.llP.rotation.x=.18*Math.sin(ph);
+      npc.rlP.rotation.x=-.18*Math.sin(ph);
+    });
 
     _stRenderer.render(_stScene,_stCam);
   };
