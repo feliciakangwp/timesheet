@@ -265,7 +265,12 @@ tbody tr:hover td{background:#f8fafc}
 .st-body{display:flex;flex:1;overflow:hidden;min-height:0}
 #sprint-track-canvas{flex:1;display:block;min-width:0;height:100%;cursor:grab}
 #sprint-track-canvas:active{cursor:grabbing}
-.st-board{width:210px;background:rgba(0,0,0,.72);border-left:1px solid rgba(255,255,255,.1);overflow-y:auto;padding:12px;flex-shrink:0}
+.st-board{width:210px;background:rgba(0,0,0,.72);border-left:1px solid rgba(255,255,255,.1);overflow-y:auto;padding:12px;flex-shrink:0;transition:width .22s ease;position:relative}
+.st-board.st-collapsed{width:28px;padding:0;overflow:hidden}
+.st-board.st-collapsed .st-sb-inner{display:none}
+.st-board-tab{position:sticky;top:0;display:flex;align-items:center;justify-content:center;height:36px;cursor:pointer;color:#94a3b8;font-size:14px;flex-shrink:0;user-select:none;background:rgba(0,0,0,.72);z-index:1}
+.st-board-tab:hover{color:#fff}
+.st-board.st-collapsed .st-board-tab{writing-mode:vertical-rl;height:auto;padding:10px 0;width:28px;justify-content:flex-start}
 .st-sb-hdr{color:#94a3b8;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
 .st-sb-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.06)}
 .st-sb-row:last-child{border:none}
@@ -336,7 +341,10 @@ tbody tr:hover td{background:#f8fafc}
   </div>
   <div class="st-body">
     <canvas id="sprint-track-canvas"></canvas>
-    <div class="st-board" id="st-scoreboard"><div class="st-sb-hdr">Sprint Board</div></div>
+    <div class="st-board" id="st-scoreboard">
+      <div class="st-board-tab" id="st-board-tab" onclick="_stToggleBoard()" title="Toggle panel">«</div>
+      <div class="st-sb-inner" id="st-sb-inner"><div class="st-sb-hdr">Sprint Board</div></div>
+    </div>
   </div>
   <div id="st-profile-panel" style="display:none"></div>
 </div>
@@ -2537,6 +2545,13 @@ function _stHideProfile(){
   const p=document.getElementById('st-profile-panel');if(p)p.style.display='none';
 }
 
+function _stToggleBoard(){
+  const board=document.getElementById('st-scoreboard');
+  const tab=document.getElementById('st-board-tab');
+  const collapsed=board.classList.toggle('st-collapsed');
+  tab.textContent=collapsed?'»':'«';
+}
+
 function openSprintTrack(){
   document.getElementById('sprint-track-overlay').classList.add('open');
   if(!_stRenderer)_stInit();
@@ -2639,7 +2654,7 @@ function _stInit(){
     sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct" style="color:#FFD700">BA</div><div class="st-sb-spd">${eventLabel}</div></div></div>`;
   });
 
-  document.getElementById('st-scoreboard').innerHTML=sbHTML;
+  document.getElementById('st-sb-inner').innerHTML=sbHTML;
 
   // ── Pan + click to select ──────────────────────────
   let _drag=false,_mx=0,_my=0,_downX=0,_downY=0,_didDrag=false;
