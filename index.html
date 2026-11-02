@@ -2413,7 +2413,7 @@ function _stBuildStadium(sc){
   npcColors.forEach((col,i)=>{
     const npc=_stMakeNPC(col);
     npc.g.position.set(npcXPositions[i],0,0);
-    npc.g.rotation.y=Math.PI/2;
+    npc.g.rotation.y=-Math.PI/2;
     sc.add(npc.g);
     _stTugNPCs.push(npc);
   });
@@ -2461,7 +2461,7 @@ function _stUpdateBAScore(d){
 // ── BA Event Animations ──────────────────────────────
 
 function _stAnimateTugOfWar(d,t,dt){
-  d.g.rotation.y=-Math.PI/2;
+  d.g.rotation.y=Math.PI/2;
   const ph=t*2.5;
   d.raP.rotation.x=-Math.PI*.55+.2*Math.sin(ph);
   d.laP.rotation.x=-Math.PI*.55+.2*Math.sin(ph+Math.PI);
@@ -2789,7 +2789,7 @@ function _stInit(){
     _stTugNPCs.forEach((npc,i)=>{
       // rotation.y=PI/2 → face -x (toward Ryan); rotation.z negative → lean top toward +x (lean back)
       const ph=t*2.5+i*.9;
-      npc.g.rotation.y=Math.PI/2;
+      npc.g.rotation.y=-Math.PI/2;
       npc.g.rotation.z=-(0.22+i*.08+.06*Math.sin(ph*.5));
       npc.raP.rotation.x=-Math.PI*.55+.2*Math.sin(ph);
       npc.laP.rotation.x=-Math.PI*.55+.2*Math.sin(ph+Math.PI);
