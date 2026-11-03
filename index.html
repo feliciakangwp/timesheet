@@ -2379,26 +2379,39 @@ function _stParseGLB(ab){
   return Promise.resolve(root);
 }
 
+// Sequential load queue — one model at a time to keep memory manageable on mobile
+let _stGLBQueue=[],_stGLBBusy=false;
+function _stEnqueueLoad(fn){
+  return new Promise((res,rej)=>{
+    _stGLBQueue.push(()=>fn().then(res,rej));
+    if(!_stGLBBusy) _stDrainQueue();
+  });
+}
+function _stDrainQueue(){
+  if(_stGLBBusy||!_stGLBQueue.length) return;
+  _stGLBBusy=true;
+  _stGLBQueue.shift()().finally(()=>{_stGLBBusy=false;_stDrainQueue();});
+}
+
 let _stGLBLoadPending={};
 function _stLoadGLBChunks(prefix){
   if(_stModelCache[prefix]) return Promise.resolve(_stModelCache[prefix].clone(true));
   if(_stGLBLoadPending[prefix]) return _stGLBLoadPending[prefix].then(()=>_stModelCache[prefix].clone(true));
   const base='./assets/chars/';
-  const p=Promise.all([
+  const p=_stEnqueueLoad(()=>Promise.all([
     fetch(base+prefix+'-p1.json').then(r=>{if(!r.ok)throw new Error(prefix+' p1:'+r.status);return r.json();}),
     fetch(base+prefix+'-p2.json').then(r=>{if(!r.ok)throw new Error(prefix+' p2:'+r.status);return r.json();}),
     fetch(base+prefix+'-p3.json').then(r=>{if(!r.ok)throw new Error(prefix+' p3:'+r.status);return r.json();})
   ]).then(([j1,j2,j3])=>{
-    const b64=j1.d+j2.d+j3.d;
-    const binStr=atob(b64);
-    const bytes=new Uint8Array(binStr.length);
-    for(let i=0;i<binStr.length;i++) bytes[i]=binStr.charCodeAt(i);
-    return _stParseGLB(bytes.buffer).then(scene=>{
+    // Use fetch(data:) for native C++ base64 decode — avoids 30M-iteration JS loop
+    return fetch('data:application/octet-stream;base64,'+j1.d+j2.d+j3.d).then(r=>r.arrayBuffer());
+  }).then(ab=>{
+    return _stParseGLB(ab).then(scene=>{
       _stModelCache[prefix]=scene;
       delete _stGLBLoadPending[prefix];
       return scene.clone(true);
     });
-  }).catch(err=>{delete _stGLBLoadPending[prefix];throw err;});
+  }).catch(err=>{delete _stGLBLoadPending[prefix];throw err;}));
   _stGLBLoadPending[prefix]=p;
   return p;
 }
@@ -2741,7 +2754,9 @@ function _stAnimateDetective(d,t,dt){
       d.llP.rotation.x=.4*Math.sin(ph);d.rlP.rotation.x=-.4*Math.sin(ph);
       d.laP.rotation.x=-.25*Math.sin(ph);d.raP.rotation.x=.25*Math.sin(ph);
     } else {
-      d.g.position.y=.04*Math.abs(Math.sin(ph*2));
+      const bnc=Math.abs(Math.sin(ph*2));
+      d.g.position.y=.03*bnc;
+      if(d._glbMesh){d._glbMesh.rotation.x=-.06+.04*Math.sin(ph);d._glbMesh.rotation.z=.04*Math.cos(ph);d._glbMesh.scale.y=1-.03*bnc;}
     }
     if(Math.abs(d.g.position.x-d._ox0||0)>1.2){d._patDir*=-1;if(!d._ox0)d._ox0=d.g.position.x;}
     if(e>2.5){d.baState='examine';d.stateT=t;}
@@ -3008,8 +3023,13 @@ function _stInit(){
         d.g.rotation.y=Math.atan2(-lane.a*Math.sin(rθ),lane.b*Math.cos(rθ));
         const ph=t*d.freq;
         if(d.isGLB){
-          d.g.position.y=.04*Math.abs(Math.sin(ph*2));
-          if(d._glbMesh) d._glbMesh.rotation.x=-0.08+.02*Math.sin(ph);
+          const bnc=Math.abs(Math.sin(ph*2));
+          d.g.position.y=.06*bnc;
+          if(d._glbMesh){
+            d._glbMesh.rotation.x=-0.14+.06*Math.sin(ph); // forward lean pumps with stride
+            d._glbMesh.rotation.z= .07*Math.cos(ph);       // shoulder sway L/R (90° offset)
+            d._glbMesh.scale.y  = 1-.06*bnc;               // squash on ground contact
+          }
         } else {
           d.llP.rotation.x= .55*Math.sin(ph);
           d.rlP.rotation.x=-.55*Math.sin(ph);
@@ -3018,7 +3038,7 @@ function _stInit(){
           d.g.position.y=.04*Math.abs(Math.sin(ph*2));
         }
       } else {
-        if(d.isGLB&&d._glbMesh) d._glbMesh.rotation.x=0;
+        if(d.isGLB&&d._glbMesh){d._glbMesh.rotation.x=0;d._glbMesh.rotation.z=0;d._glbMesh.scale.y=1;}
         d.g.rotation.z=.04*Math.sin(t*1.2+(d.angle||0)*7);
         d.g.position.y=.01*Math.sin(t*1.8+(d.angle||0)*3);
       }
