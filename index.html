@@ -703,7 +703,12 @@ function projBAs(projectId) {
 function sprintStats(spr) {
   const devs=projDevs(spr.projectId);
   const wd=workDaysInRange(spr.startDate,spr.endDate);
-  const totalH=wd*8*devs.length;
+  // Use max of current roster and actual sprint participants so devs who changed
+  // projects still count toward the sprint's effective capacity.
+  const sprintParticipants=Object.keys(spr.completedHours||{})
+    .filter(id=>S.personnel.some(p=>p.id===id)).length;
+  const numDevs=Math.max(devs.length,sprintParticipants);
+  const totalH=wd*8*numDevs;
   const effectiveH=Math.round(totalH*0.8*10)/10;
   const completedH=Object.values(spr.completedHours||{}).reduce((s,v)=>s+(parseFloat(v)||0),0);
   const pct=effectiveH>0?Math.round(completedH/effectiveH*100):0;
@@ -2901,7 +2906,7 @@ function _stInit(){
     const st=sprintStats(s);
     if(st.pct>0){if(!projVel[s.projectId]){projVel[s.projectId]={sum:0,n:0};}projVel[s.projectId].sum+=st.pct;projVel[s.projectId].n++;}
   });
-  let sbHTML='<div class="st-sb-hdr">⚡ Sprint Board</div><div id="st-glb-status" style="font-size:10px;color:#94a3b8;margin-bottom:6px;text-align:center"></div>';
+  let sbHTML='<div class="st-sb-hdr">⚡ Sprint Board</div>';
   Object.entries(projVel).forEach(([pid,v])=>{
     const pn=(S.projects||[]).find(p=>p.id===pid)?.name||pid;
     const dot=pid==='p_orion'?'#E91E8C':pid==='p_polaris'?'#29B6F6':pid==='p_cordis'?'#FDD835':'#9E9E9E';
@@ -2931,7 +2936,6 @@ function _stInit(){
     _stScene.add(dev.g);
     _stTagGroup(dev.g,idx);
     _stObjs.push({...dev,arcT,spd,freq,laneIdx,pct,isBA:false,projId,per});
-    _stAsyncLoadGLB(_stObjs[_stObjs.length-1]);
     const dot=projId==='p_orion'?'#E91E8C':projId==='p_polaris'?'#29B6F6':projId==='p_cordis'?'#FDD835':'#9E9E9E';
     sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct">${pct}%</div><div class="st-sb-spd">${label} · ${ph.label}</div></div></div>`;
   });
@@ -2950,7 +2954,6 @@ function _stInit(){
     _stScene.add(dev.g);
     _stTagGroup(dev.g,idx);
     _stObjs.push({...dev,isBA:true,baState:'idle',stateT:0,projId,per,pct,fieldEvent:eventLabel,eventKey,baScore:0,_sbIdx:idx});
-    _stAsyncLoadGLB(_stObjs[_stObjs.length-1]);
     const dot=projId==='p_orion'?'#E91E8C':projId==='p_polaris'?'#29B6F6':projId==='p_cordis'?'#FDD835':'#9E9E9E';
     sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct" style="color:#FFD700">BA</div><div class="st-sb-spd" id="st-ba-spd-${idx}">${eventLabel}</div></div></div>`;
   });
