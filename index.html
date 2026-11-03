@@ -2130,9 +2130,14 @@ function _stSpeedPct(devId){
     .sort((a,b)=>b.startDate.localeCompare(a.startDate));
   if(!arr.length)return 0;
   const s=arr[0];
-  const wd=workDaysInRange(s.startDate,s.endDate);
-  const eff=Math.round(wd*8*.8);
-  return eff?Math.round((s.completedHours[devId]||0)/eff*100):0;
+  // Base: fixed 10 working days × 8h = 80h per sprint
+  // Deduct this dev's leave/MC hours within the sprint window, then apply 20% buffer
+  const leaveH=(S.entries||[])
+    .filter(e=>e.personnelId===devId&&e.date>=s.startDate&&e.date<=s.endDate
+             &&(e.type==='leave_full'||e.type==='leave_am'||e.type==='leave_pm'||e.type==='mc'))
+    .reduce((sum,e)=>sum+(e.type==='leave_am'||e.type==='leave_pm'?4:8),0);
+  const eff=Math.round((80-leaveH)*0.8);
+  return eff>0?Math.round((s.completedHours[devId]||0)/eff*100):0;
 }
 
 function _stTier(pct){
