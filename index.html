@@ -7,7 +7,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/loaders/GLTFLoader.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -2052,7 +2051,7 @@ document.getElementById('modal-overlay').addEventListener('click',function(e){
 let _stRenderer=null,_stAnimId=null,_stClock=null,_stObjs=[],_stRO=null,_stCam=null,_stScene=null;
 let _stShowNames=true,_stPanX=0,_stPanZ=0,_stCamH=22,_stCamD=24;
 let _stPaused=false,_stRaycaster=null,_stWavers=[],_stFlags=[],_stTugNPCs=[],_stEventProps={};
-let _stModelCache={},_stGLTFLoader=null,_stGLBLoadCount=0;
+let _stModelCache={},_stGLBLoadCount=0;
 const _ST_FEMALE=new Set(['shivani','dharani','eejya']);
 const _ST_COLORS={p_orion:0xE91E8C,p_polaris:0x29B6F6,p_cordis:0xFDD835};
 const _ST_LANES=[{a:9.1,b:6.1},{a:9.75,b:6.75},{a:10.4,b:7.35}];
@@ -2246,14 +2245,144 @@ function _stGLBPrefix(female,physiqueLabel){
   return 'chibi-male-'+p;
 }
 
+// Inline GLB/GLTF 2.0 parser — no GLTFLoader CDN required
+function _stParseGLB(ab){
+  const dv=new DataView(ab);
+  if(dv.getUint32(0,true)!==0x46546C67) throw new Error('Not a GLB file');
+  const jsonLen=dv.getUint32(12,true);
+  const json=JSON.parse(new TextDecoder().decode(new Uint8Array(ab,20,jsonLen)));
+  const binOff=20+jsonLen+8;
+  const bin=ab.byteLength>binOff?ab.slice(binOff):null;
+
+  // Build textures from buffer views
+  const texCache={};
+  function _getTex(idx){
+    if(texCache[idx]!==undefined) return texCache[idx];
+    const ti=json.textures&&json.textures[idx];
+    if(!ti){texCache[idx]=null;return null;}
+    const src=json.images&&json.images[ti.source];
+    if(!src){texCache[idx]=null;return null;}
+    let blob;
+    if(src.bufferView!==undefined){
+      const bv=json.bufferViews[src.bufferView];
+      const slice=new Uint8Array(bin,bv.byteOffset||0,bv.byteLength);
+      blob=new Blob([slice],{type:src.mimeType||'image/png'});
+    } else if(src.uri&&src.uri.startsWith('data:')){
+      const [hdr,b64]=src.uri.split(',');
+      const mt=hdr.match(/:(.*?);/)[1];
+      const bs=atob(b64);const ba=new Uint8Array(bs.length);
+      for(let i=0;i<bs.length;i++) ba[i]=bs.charCodeAt(i);
+      blob=new Blob([ba],{type:mt});
+    } else {texCache[idx]=null;return null;}
+    const url=URL.createObjectURL(blob);
+    const tex=new THREE.TextureLoader().load(url);
+    tex.flipY=false;
+    texCache[idx]=tex;
+    return tex;
+  }
+
+  // Build material
+  function _makeMat(mi){
+    const m=json.materials&&json.materials[mi];
+    const opts={};
+    if(m){
+      const pbr=m.pbrMetallicRoughness||{};
+      const bc=pbr.baseColorFactor;
+      if(bc) opts.color=new THREE.Color(bc[0],bc[1],bc[2]);
+      if(pbr.baseColorTexture) opts.map=_getTex(pbr.baseColorTexture.index);
+      opts.metalness=pbr.metallicFactor!==undefined?pbr.metallicFactor:0;
+      opts.roughness=pbr.roughnessFactor!==undefined?pbr.roughnessFactor:0.8;
+      if(pbr.metallicRoughnessTexture) opts.metalnessMap=opts.roughnessMap=_getTex(pbr.metallicRoughnessTexture.index);
+      if(m.normalTexture) opts.normalMap=_getTex(m.normalTexture.index);
+      if(m.emissiveFactor){const ef=m.emissiveFactor;opts.emissive=new THREE.Color(ef[0],ef[1],ef[2]);}
+      if(m.emissiveTexture) opts.emissiveMap=_getTex(m.emissiveTexture.index);
+      if(m.alphaMode==='BLEND'){opts.transparent=true;opts.alphaTest=0;}
+      else if(m.alphaMode==='MASK'){opts.alphaTest=m.alphaCutoff!==undefined?m.alphaCutoff:0.5;}
+      opts.side=m.doubleSided?THREE.DoubleSide:THREE.FrontSide;
+    }
+    return new THREE.MeshStandardMaterial(opts);
+  }
+
+  // Accessor → typed array
+  function _acc(idx){
+    const ac=json.accessors[idx];
+    const bv=json.bufferViews[ac.bufferView];
+    const byteOff=(bv.byteOffset||0)+(ac.byteOffset||0);
+    const stride=bv.byteStride||0;
+    const compMap={SCALAR:1,VEC2:2,VEC3:3,VEC4:4,MAT2:4,MAT3:9,MAT4:16};
+    const nc=compMap[ac.type]||1;
+    const TypedArr={5120:Int8Array,5121:Uint8Array,5122:Int16Array,5123:Uint16Array,5125:Uint32Array,5126:Float32Array}[ac.componentType];
+    if(!stride||stride===nc*(TypedArr.BYTES_PER_ELEMENT)){
+      return new TypedArr(bin,byteOff,ac.count*nc);
+    }
+    // Interleaved: copy element by element
+    const out=new TypedArr(ac.count*nc);
+    const elBytes=nc*TypedArr.BYTES_PER_ELEMENT;
+    for(let i=0;i<ac.count;i++){
+      const src=new TypedArr(bin,byteOff+i*stride,nc);
+      out.set(src,i*nc);
+    }
+    return out;
+  }
+
+  // Build mesh from GLTF primitive
+  function _mkMesh(prim){
+    const geo=new THREE.BufferGeometry();
+    const attr=prim.attributes;
+    if(attr.POSITION!==undefined){
+      const pos=_acc(attr.POSITION);
+      geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(pos),3));
+    }
+    if(attr.NORMAL!==undefined){
+      const nor=_acc(attr.NORMAL);
+      geo.setAttribute('normal',new THREE.BufferAttribute(new Float32Array(nor),3));
+    }
+    if(attr.TEXCOORD_0!==undefined){
+      const uv=_acc(attr.TEXCOORD_0);
+      geo.setAttribute('uv',new THREE.BufferAttribute(new Float32Array(uv),2));
+    }
+    if(prim.indices!==undefined){
+      const idx=_acc(prim.indices);
+      const ac=json.accessors[prim.indices];
+      const IdxArr=ac.componentType===5125?Uint32Array:Uint16Array;
+      geo.setIndex(new THREE.BufferAttribute(new IdxArr(idx),1));
+    }
+    if(!geo.attributes.normal) geo.computeVertexNormals();
+    const mat=prim.material!==undefined?_makeMat(prim.material):new THREE.MeshStandardMaterial();
+    return new THREE.Mesh(geo,mat);
+  }
+
+  // Build scene node hierarchy
+  function _mkNode(ni){
+    const nd=json.nodes[ni];
+    const grp=new THREE.Group();
+    if(nd.matrix){
+      const m=new THREE.Matrix4();m.fromArray(nd.matrix);
+      grp.applyMatrix4(m);
+    } else {
+      if(nd.translation) grp.position.fromArray(nd.translation);
+      if(nd.rotation) grp.quaternion.fromArray(nd.rotation);
+      if(nd.scale) grp.scale.fromArray(nd.scale);
+    }
+    if(nd.mesh!==undefined){
+      json.meshes[nd.mesh].primitives.forEach(prim=>{
+        grp.add(_mkMesh(prim));
+      });
+    }
+    if(nd.children) nd.children.forEach(ci=>grp.add(_mkNode(ci)));
+    return grp;
+  }
+
+  const root=new THREE.Group();
+  const sc=json.scenes&&json.scenes[json.scene||0];
+  if(sc&&sc.nodes) sc.nodes.forEach(ni=>root.add(_mkNode(ni)));
+  return Promise.resolve(root);
+}
+
 let _stGLBLoadPending={};
 function _stLoadGLBChunks(prefix){
   if(_stModelCache[prefix]) return Promise.resolve(_stModelCache[prefix].clone(true));
-  // Deduplicate: return same promise if already in-flight for this prefix
   if(_stGLBLoadPending[prefix]) return _stGLBLoadPending[prefix].then(()=>_stModelCache[prefix].clone(true));
-  if(typeof THREE.GLTFLoader!=='function'){
-    return Promise.reject(new Error('THREE.GLTFLoader not available — CDN script may not have loaded'));
-  }
   const base='./assets/chars/';
   const p=Promise.all([
     fetch(base+prefix+'-p1.json').then(r=>{if(!r.ok)throw new Error(prefix+' p1:'+r.status);return r.json();}),
@@ -2264,13 +2393,10 @@ function _stLoadGLBChunks(prefix){
     const binStr=atob(b64);
     const bytes=new Uint8Array(binStr.length);
     for(let i=0;i<binStr.length;i++) bytes[i]=binStr.charCodeAt(i);
-    return new Promise((res,rej)=>{
-      if(!_stGLTFLoader) _stGLTFLoader=new THREE.GLTFLoader();
-      _stGLTFLoader.parse(bytes.buffer,'./',(gltf)=>{
-        _stModelCache[prefix]=gltf.scene;
-        delete _stGLBLoadPending[prefix];
-        res(gltf.scene.clone(true));
-      },(err)=>{delete _stGLBLoadPending[prefix];rej(err);});
+    return _stParseGLB(bytes.buffer).then(scene=>{
+      _stModelCache[prefix]=scene;
+      delete _stGLBLoadPending[prefix];
+      return scene.clone(true);
     });
   }).catch(err=>{delete _stGLBLoadPending[prefix];throw err;});
   _stGLBLoadPending[prefix]=p;
