@@ -2052,7 +2052,7 @@ document.getElementById('modal-overlay').addEventListener('click',function(e){
 let _stRenderer=null,_stAnimId=null,_stClock=null,_stObjs=[],_stRO=null,_stCam=null,_stScene=null;
 let _stShowNames=true,_stPanX=0,_stPanZ=0,_stCamH=22,_stCamD=24;
 let _stPaused=false,_stRaycaster=null,_stWavers=[],_stFlags=[],_stTugNPCs=[],_stEventProps={};
-let _stModelCache={},_stGLTFLoader=null;
+let _stModelCache={},_stGLTFLoader=null,_stGLBLoadCount=0;
 const _ST_FEMALE=new Set(['shivani','dharani','eejya']);
 const _ST_COLORS={p_orion:0xE91E8C,p_polaris:0x29B6F6,p_cordis:0xFDD835};
 const _ST_LANES=[{a:9.1,b:6.1},{a:9.75,b:6.75},{a:10.4,b:7.35}];
@@ -2246,10 +2246,16 @@ function _stGLBPrefix(female,physiqueLabel){
   return 'chibi-male-'+p;
 }
 
+let _stGLBLoadPending={};
 function _stLoadGLBChunks(prefix){
   if(_stModelCache[prefix]) return Promise.resolve(_stModelCache[prefix].clone(true));
+  // Deduplicate: return same promise if already in-flight for this prefix
+  if(_stGLBLoadPending[prefix]) return _stGLBLoadPending[prefix].then(()=>_stModelCache[prefix].clone(true));
+  if(typeof THREE.GLTFLoader!=='function'){
+    return Promise.reject(new Error('THREE.GLTFLoader not available — CDN script may not have loaded'));
+  }
   const base='./assets/chars/';
-  return Promise.all([
+  const p=Promise.all([
     fetch(base+prefix+'-p1.json').then(r=>{if(!r.ok)throw new Error(prefix+' p1:'+r.status);return r.json();}),
     fetch(base+prefix+'-p2.json').then(r=>{if(!r.ok)throw new Error(prefix+' p2:'+r.status);return r.json();}),
     fetch(base+prefix+'-p3.json').then(r=>{if(!r.ok)throw new Error(prefix+' p3:'+r.status);return r.json();})
@@ -2262,10 +2268,19 @@ function _stLoadGLBChunks(prefix){
       if(!_stGLTFLoader) _stGLTFLoader=new THREE.GLTFLoader();
       _stGLTFLoader.parse(bytes.buffer,'./',(gltf)=>{
         _stModelCache[prefix]=gltf.scene;
+        delete _stGLBLoadPending[prefix];
         res(gltf.scene.clone(true));
-      },(err)=>rej(err));
+      },(err)=>{delete _stGLBLoadPending[prefix];rej(err);});
     });
-  });
+  }).catch(err=>{delete _stGLBLoadPending[prefix];throw err;});
+  _stGLBLoadPending[prefix]=p;
+  return p;
+}
+
+function _stGLBStatusEl(){return document.getElementById('st-glb-status');}
+function _stGLBStatusUpdate(){
+  const el=_stGLBStatusEl();if(!el)return;
+  el.textContent=_stGLBLoadCount>0?`⬇ Loading models (${_stGLBLoadCount} left)…`:'';
 }
 
 function _stAsyncLoadGLB(d){
@@ -2273,16 +2288,19 @@ function _stAsyncLoadGLB(d){
   const female=_ST_FEMALE.has(d.per.name.toLowerCase());
   const ph=_stPhysique(d.pct||0);
   const prefix=_stGLBPrefix(female,ph.label);
+  _stGLBLoadCount++;_stGLBStatusUpdate();
   _stLoadGLBChunks(prefix).then(glbScene=>{
     if(!_stScene||!d.g)return;
-    // Normalize: feet at y=0, centred on x/z, height ~1.3 units
+    // Normalize: compute bounding box BEFORE scaling, then apply scale-aware translation
     const box=new THREE.Box3().setFromObject(glbScene);
     const size=box.getSize(new THREE.Vector3());
     const center=box.getCenter(new THREE.Vector3());
-    glbScene.position.x-=center.x;
-    glbScene.position.z-=center.z;
-    glbScene.position.y-=box.min.y;
-    if(size.y>0.01) glbScene.scale.setScalar(1.3/size.y);
+    const s=size.y>0.01?1.3/size.y:1.0;
+    glbScene.scale.setScalar(s);
+    // After scale s, world pos = glbScene.position + s * unscaled_vertex
+    // To place feet at 0: position.y = -s * box.min.y
+    // To center x/z: position.x = -s * center.x, position.z = -s * center.z
+    glbScene.position.set(-s*center.x, -s*box.min.y, -s*center.z);
     const toRemove=[];
     d.g.children.forEach(c=>{if(c!==d.label)toRemove.push(c);});
     toRemove.forEach(c=>d.g.remove(c));
@@ -2293,7 +2311,21 @@ function _stAsyncLoadGLB(d){
     d.laP=null;d.raP=null;d.llP=null;d.rlP=null;
     const dIdx=_stObjs.indexOf(d);
     if(dIdx>=0) _stTagGroup(d.g,dIdx);
-  }).catch(err=>console.warn('[Stadium] GLB load failed:',prefix,err));
+    _stGLBLoadCount=Math.max(0,_stGLBLoadCount-1);_stGLBStatusUpdate();
+  }).catch(err=>{
+    _stGLBLoadCount=Math.max(0,_stGLBLoadCount-1);_stGLBStatusUpdate();
+    console.error('[Stadium] GLB load failed for',prefix,err);
+    // Make the error visible inside the scene by updating the name label
+    if(d.label&&d.label.material){
+      const c=document.createElement('canvas');c.width=256;c.height=72;
+      const ctx=c.getContext('2d');
+      ctx.fillStyle='rgba(160,0,0,.9)';ctx.fillRect(4,4,248,64);
+      ctx.fillStyle='#fff';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText('⚠ '+prefix.replace('chibi-',''),128,36);
+      d.label.material.map=new THREE.CanvasTexture(c);
+      d.label.material.needsUpdate=true;
+    }
+  });
 }
 
 function _stBuildStadium(sc){
@@ -2728,7 +2760,7 @@ function _stInit(){
     const st=sprintStats(s);
     if(st.pct>0){if(!projVel[s.projectId]){projVel[s.projectId]={sum:0,n:0};}projVel[s.projectId].sum+=st.pct;projVel[s.projectId].n++;}
   });
-  let sbHTML='<div class="st-sb-hdr">⚡ Sprint Board</div>';
+  let sbHTML='<div class="st-sb-hdr">⚡ Sprint Board</div><div id="st-glb-status" style="font-size:10px;color:#94a3b8;margin-bottom:6px;text-align:center"></div>';
   Object.entries(projVel).forEach(([pid,v])=>{
     const pn=(S.projects||[]).find(p=>p.id===pid)?.name||pid;
     const dot=pid==='p_orion'?'#E91E8C':pid==='p_polaris'?'#29B6F6':pid==='p_cordis'?'#FDD835':'#9E9E9E';
