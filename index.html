@@ -278,7 +278,30 @@ tbody tr:hover td{background:#f8fafc}
 .st-sb-name{color:#e2e8f0;font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .st-sb-pct{font-size:11px;font-weight:700;color:#cbd5e1;text-align:right}
 .st-sb-spd{font-size:10px;color:#64748b;text-align:right}
-#st-profile-panel{position:absolute;top:60px;right:220px;width:200px;background:rgba(0,0,0,.9);border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:14px;color:#fff;z-index:10;pointer-events:auto}
+/* ── Dev Profile Modal ── */
+#st-dev-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:12px}
+.st-dm-inner{background:#111c2d;border:1px solid rgba(255,255,255,.13);border-radius:20px;width:min(700px,100%);max-height:88vh;overflow-y:auto;color:#f1f5f9;scrollbar-width:thin;scrollbar-color:#334155 transparent}
+.st-dm-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
+.st-dm-tabs{display:flex;gap:6px}
+.st-dm-tab{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#94a3b8;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap}
+.st-dm-tab.active{background:#3b82f6;border-color:#3b82f6;color:#fff}
+.st-dm-close{background:none;border:none;color:rgba(255,255,255,.35);cursor:pointer;font-size:22px;line-height:1;padding:4px 8px;border-radius:6px}
+.st-dm-close:hover{color:#fff;background:rgba(255,255,255,.1)}
+.st-dm-body{padding:20px}
+.st-dm-profile{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.st-dm-fig{display:flex;flex-direction:column;align-items:center;gap:6px;flex-shrink:0}
+.st-dm-info{flex:1;min-width:200px}
+.st-dm-name{font-size:18px;font-weight:900;margin-bottom:2px}
+.st-dm-role{font-size:11px;color:#64748b;margin-bottom:14px;letter-spacing:.02em}
+.st-dm-vel{display:flex;align-items:flex-end;gap:14px;margin-bottom:18px}
+.st-dm-pct-big{font-size:40px;font-weight:900;line-height:1}
+.st-dm-chart-lbl{font-size:10px;color:#475569;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+.st-dm-chart-wrap{position:relative;height:200px}
+.st-dm-devrow{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;scrollbar-width:thin;scrollbar-color:#334155 transparent;margin-bottom:18px}
+.st-dm-dev-card{display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;cursor:pointer;padding:8px 5px;border-radius:10px;border:1.5px solid transparent;transition:all .15s}
+.st-dm-dev-card:hover,.st-dm-dev-card.selected{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.06)}
+.st-dm-dev-name{font-size:10px;font-weight:600;color:#94a3b8;text-align:center;width:68px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.st-dm-all-chart-wrap{position:relative;height:250px}
 .st-sb-clickable{cursor:pointer;border-radius:4px;transition:background .15s}
 .st-sb-clickable:hover{background:rgba(255,255,255,.08)}
 .st-ctrl{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);color:#fff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer}
@@ -346,7 +369,19 @@ tbody tr:hover td{background:#f8fafc}
       <div class="st-sb-inner" id="st-sb-inner"><div class="st-sb-hdr">Sprint Board</div></div>
     </div>
   </div>
-  <div id="st-profile-panel" style="display:none"></div>
+  <!-- Dev Profile / All-Developers Modal -->
+  <div id="st-dev-modal" hidden onclick="_stCloseModal()">
+    <div class="st-dm-inner" onclick="event.stopPropagation()">
+      <div class="st-dm-head">
+        <div class="st-dm-tabs">
+          <button class="st-dm-tab active" id="stDMt0" onclick="_stDMTab('profile')">👤 Profile</button>
+          <button class="st-dm-tab" id="stDMt1" onclick="_stDMTab('all')">👥 All Developers</button>
+        </div>
+        <button class="st-dm-close" onclick="_stCloseModal()">✕</button>
+      </div>
+      <div class="st-dm-body" id="st-dm-body"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -2819,43 +2854,247 @@ function _stAnimateWhackABug(d,t,dt){
   }
 }
 
-// ── Profile Panel ───────────────────────────────────
+// ── Profile Modal ───────────────────────────────────
+
+let _stProfChart=null,_stAllChart=null,_stDMSelIdx=0,_stDMCurTab='profile';
+
+function _stBodySVG(pct,w,h){
+  w=w||110;h=h||180;
+  const shirt=pct<=50?'#EF4444':pct<=60?'#F97316':pct<=75?'#3B82F6':'#22C55E';
+  const ds=pct<=50?'#B91C1C':pct<=60?'#C2410C':pct<=75?'#1D4ED8':'#15803D';
+  const SK='#FDBA74',HD='#FACC15',BK='#111827',GR='#374151';
+  if(pct<=50) return`<svg viewBox="0 0 120 205" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="60" cy="200" rx="40" ry="5" fill="rgba(0,0,0,.08)"/>
+    <line x1="36" y1="90" x2="8" y2="126" stroke="${SK}" stroke-width="13" stroke-linecap="round"/>
+    <line x1="84" y1="90" x2="112" y2="126" stroke="${SK}" stroke-width="13" stroke-linecap="round"/>
+    <rect x="28" y="142" width="22" height="50" rx="10" fill="${GR}"/>
+    <rect x="70" y="142" width="22" height="50" rx="10" fill="${GR}"/>
+    <ellipse cx="39" cy="193" rx="18" ry="8" fill="${BK}"/>
+    <ellipse cx="81" cy="193" rx="18" ry="8" fill="${BK}"/>
+    <ellipse cx="60" cy="97" rx="41" ry="49" fill="${shirt}"/>
+    <path d="M 22,140 Q 60,157 98,140" stroke="${ds}" stroke-width="2.5" fill="none"/>
+    <circle cx="8" cy="126" r="9" fill="${SK}"/><circle cx="112" cy="126" r="9" fill="${SK}"/>
+    <rect x="53" y="45" width="14" height="13" rx="5" fill="${SK}"/>
+    <circle cx="60" cy="27" r="21" fill="${HD}" stroke="${BK}" stroke-width="2.5"/>
+    <ellipse cx="51" cy="21" rx="4.5" ry="6.5" fill="${BK}"/>
+    <ellipse cx="69" cy="21" rx="4.5" ry="6.5" fill="${BK}"/>
+    <path d="M 45 32 Q 60 46 75 32" stroke="${BK}" stroke-width="3" fill="none" stroke-linecap="round"/>
+  </svg>`;
+  if(pct<=60) return`<svg viewBox="0 0 120 205" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="58" cy="200" rx="36" ry="5" fill="rgba(0,0,0,.08)"/>
+    <line x1="75" y1="86" x2="96" y2="116" stroke="${SK}" stroke-width="12" stroke-linecap="round"/>
+    <circle cx="96" cy="116" r="8" fill="${SK}"/>
+    <rect x="68" y="134" width="20" height="55" rx="9" fill="${GR}"/>
+    <ellipse cx="78" cy="190" rx="17" ry="7" fill="${BK}"/>
+    <ellipse cx="58" cy="93" rx="31" ry="43" fill="${shirt}" transform="rotate(-4,58,93)"/>
+    <path d="M 29,130 Q 58,147 87,130" stroke="${ds}" stroke-width="2.5" fill="none"/>
+    <rect x="40" y="136" width="20" height="57" rx="9" fill="#2D3748" transform="rotate(8,50,162)"/>
+    <ellipse cx="44" cy="194" rx="16" ry="7" fill="${BK}"/>
+    <line x1="40" y1="86" x2="18" y2="112" stroke="${SK}" stroke-width="12" stroke-linecap="round"/>
+    <circle cx="18" cy="112" r="8" fill="${SK}"/>
+    <rect x="51" y="47" width="14" height="12" rx="4" fill="${SK}"/>
+    <circle cx="60" cy="29" r="20" fill="${HD}" stroke="${BK}" stroke-width="2.5"/>
+    <ellipse cx="52" cy="23" rx="4" ry="6" fill="${BK}"/>
+    <ellipse cx="68" cy="23" rx="4" ry="6" fill="${BK}"/>
+    <path d="M 46 33 Q 60 46 74 33" stroke="${BK}" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+  </svg>`;
+  if(pct<=75) return`<svg viewBox="0 0 120 205" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="60" cy="200" rx="32" ry="5" fill="rgba(0,0,0,.08)"/>
+    <line x1="72" y1="83" x2="98" y2="57" stroke="${SK}" stroke-width="11" stroke-linecap="round"/>
+    <circle cx="98" cy="57" r="7.5" fill="${SK}"/>
+    <rect x="64" y="128" width="17" height="55" rx="8" fill="${GR}" transform="rotate(17,72,155)"/>
+    <ellipse cx="82" cy="184" rx="15" ry="6.5" fill="${BK}" transform="rotate(8,82,184)"/>
+    <rect x="45" y="76" width="30" height="56" rx="12" fill="${shirt}" transform="rotate(-5,60,104)"/>
+    <path d="M 46,126 Q 60,139 74,126" stroke="${ds}" stroke-width="2.5" fill="none" transform="rotate(-5,60,130)"/>
+    <rect x="38" y="128" width="17" height="60" rx="8" fill="#2D3748" transform="rotate(-16,46,158)"/>
+    <ellipse cx="33" cy="188" rx="15" ry="6.5" fill="${BK}" transform="rotate(-6,33,188)"/>
+    <line x1="50" y1="83" x2="24" y2="108" stroke="${SK}" stroke-width="11" stroke-linecap="round"/>
+    <circle cx="24" cy="108" r="7.5" fill="${SK}"/>
+    <rect x="54" y="48" width="12" height="12" rx="4" fill="${SK}"/>
+    <circle cx="61" cy="30" r="20" fill="${HD}" stroke="${BK}" stroke-width="2.5"/>
+    <ellipse cx="53" cy="24" rx="4" ry="5.5" fill="${BK}"/>
+    <ellipse cx="69" cy="24" rx="4" ry="5.5" fill="${BK}"/>
+    <path d="M 47 34 Q 61 47 75 34" stroke="${BK}" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+  </svg>`;
+  return`<svg viewBox="0 0 120 205" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="58" cy="200" rx="30" ry="5" fill="rgba(0,0,0,.08)"/>
+    <line x1="70" y1="80" x2="104" y2="52" stroke="${SK}" stroke-width="11" stroke-linecap="round"/>
+    <circle cx="104" cy="52" r="7" fill="${SK}"/>
+    <rect x="58" y="124" width="16" height="62" rx="7" fill="${GR}" transform="rotate(24,66,155)"/>
+    <ellipse cx="86" cy="188" rx="14" ry="6" fill="${BK}" transform="rotate(10,86,188)"/>
+    <ellipse cx="39" cy="82" rx="13" ry="10" fill="${shirt}"/>
+    <ellipse cx="83" cy="82" rx="13" ry="10" fill="${shirt}"/>
+    <rect x="40" y="78" width="42" height="55" rx="6" fill="${shirt}"/>
+    <path d="M 40,128 Q 61,142 82,128" stroke="${ds}" stroke-width="2.5" fill="none"/>
+    <rect x="40" y="118" width="16" height="42" rx="7" fill="${GR}" transform="rotate(-40,48,139)"/>
+    <rect x="26" y="126" width="14" height="36" rx="6" fill="#2D3748" transform="rotate(12,33,144)"/>
+    <ellipse cx="24" cy="162" rx="13" ry="6" fill="${BK}" transform="rotate(4,24,162)"/>
+    <line x1="52" y1="80" x2="22" y2="52" stroke="${SK}" stroke-width="11" stroke-linecap="round"/>
+    <circle cx="22" cy="52" r="7" fill="${SK}"/>
+    <rect x="54" y="46" width="14" height="12" rx="4" fill="${SK}"/>
+    <circle cx="62" cy="28" r="20" fill="${HD}" stroke="${BK}" stroke-width="2.5"/>
+    <ellipse cx="54" cy="22" rx="4" ry="5.5" fill="${BK}"/>
+    <ellipse cx="70" cy="22" rx="4" ry="5.5" fill="${BK}"/>
+    <path d="M 48 32 Q 62 45 76 32" stroke="${BK}" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+  </svg>`;
+}
+
+function _stCutoff(){const d=new Date();d.setMonth(d.getMonth()-6);return d.toISOString().slice(0,10);}
+
+function _stVelocityHistory(devId){
+  const cut=_stCutoff();
+  return(S.sprints||[])
+    .filter(s=>s.startDate>=cut&&s.completedHours&&s.completedHours[devId]!==undefined)
+    .sort((a,b)=>a.startDate.localeCompare(b.startDate))
+    .map(s=>{
+      const lh=(S.entries||[]).filter(e=>e.personnelId===devId&&e.date>=s.startDate&&e.date<=s.endDate&&['leave_full','leave_am','leave_pm','mc'].includes(e.type)).reduce((sm,e)=>sm+(e.type==='leave_am'||e.type==='leave_pm'?4:8),0);
+      const eff=Math.round((80-lh)*.8);
+      return{label:s.name,pct:eff>0?Math.round((s.completedHours[devId]||0)/eff*100):0};
+    });
+}
+
+function _stCloseModal(){
+  const m=document.getElementById('st-dev-modal');if(m)m.hidden=true;
+  if(_stProfChart){_stProfChart.destroy();_stProfChart=null;}
+  if(_stAllChart){_stAllChart.destroy();_stAllChart=null;}
+}
 
 function _stSelectDev(idx){
-  const d=_stObjs[idx];if(!d)return;
-  const panel=document.getElementById('st-profile-panel');if(!panel)return;
-  const per=d.per;const pct=d.pct||0;
-  const ph=_stPhysique(pct);
-  const projName=(S.projects||[]).find(p=>p.id===((per.projectIds||[])[0]||''))?.name||'—';
-  const physColor=pct<=50?'#ef4444':pct<=60?'#f97316':pct<=75?'#eab308':'#22c55e';
-  const recentSprints=(S.sprints||[])
-    .filter(s=>s.completedHours&&s.completedHours[per.id]!==undefined)
-    .sort((a,b)=>b.startDate.localeCompare(a.startDate)).slice(0,3);
-  const sprintRows=recentSprints.map(s=>{
-    const wd=workDaysInRange(s.startDate,s.endDate);
-    const eff=Math.round(wd*8*.8)||1;
-    const p=Math.min(200,Math.round((s.completedHours[per.id]||0)/eff*100));
-    return`<div style="font-size:11px;display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.08)"><span style="color:rgba(255,255,255,.7)">${s.name}</span><span style="color:#10b981;font-weight:700">${p}%</span></div>`;
-  }).join('');
-  panel.innerHTML=`
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-      <b style="font-size:14px">${per.name}</b>
-      <button onclick="_stHideProfile()" style="background:none;border:none;color:rgba(255,255,255,.5);cursor:pointer;font-size:18px;line-height:1;padding:0">×</button>
-    </div>
-    <div style="font-size:11px;color:rgba(255,255,255,.55);margin-bottom:6px">${per.role||'—'} · ${projName}</div>
-    ${d.isBA?`<div style="font-size:12px;color:#FFD700;margin-bottom:8px">🏅 ${d.fieldEvent}</div>`:''}
-    <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:10px">
-      <div><div style="font-size:26px;font-weight:900;color:${physColor};line-height:1">${pct}%</div><div style="font-size:10px;color:rgba(255,255,255,.4)">Velocity</div></div>
-      <div><div style="font-size:13px;font-weight:700;color:${physColor}">${ph.label}</div><div style="font-size:10px;color:rgba(255,255,255,.4)">Physique</div></div>
-    </div>
-    ${sprintRows?`<div style="font-size:10px;color:rgba(255,255,255,.35);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Recent Sprints</div>${sprintRows}`:''}
-  `;
-  panel.style.display='block';
+  _stDMSelIdx=idx;
+  const m=document.getElementById('st-dev-modal');if(!m)return;
+  m.hidden=false;
+  _stDMCurTab='profile';
+  document.getElementById('stDMt0').classList.add('active');
+  document.getElementById('stDMt1').classList.remove('active');
+  _stRenderProfile(idx);
 }
 
-function _stHideProfile(){
-  const p=document.getElementById('st-profile-panel');if(p)p.style.display='none';
+function _stDMTab(tab){
+  _stDMCurTab=tab;
+  document.getElementById('stDMt0').classList.toggle('active',tab==='profile');
+  document.getElementById('stDMt1').classList.toggle('active',tab==='all');
+  if(tab==='profile') _stRenderProfile(_stDMSelIdx);
+  else _stRenderAllDevs();
 }
+
+function _stRenderProfile(idx){
+  const d=_stObjs[idx];if(!d)return;
+  const per=d.per;const pct=d.pct||0;
+  const ph=_stPhysique(pct);
+  const pc=pct<=50?'#ef4444':pct<=60?'#f97316':pct<=75?'#3b82f6':'#22c55e';
+  const projName=(S.projects||[]).find(p=>p.id===((per.projectIds||[])[0]||''))?.name||'—';
+  const hist=_stVelocityHistory(per.id);
+  if(_stProfChart){_stProfChart.destroy();_stProfChart=null;}
+  if(_stAllChart){_stAllChart.destroy();_stAllChart=null;}
+  document.getElementById('st-dm-body').innerHTML=`
+    <div class="st-dm-profile">
+      <div class="st-dm-fig">
+        ${_stBodySVG(pct,110,178)}
+        <div style="font-size:10px;font-weight:800;color:${pc};text-transform:uppercase;letter-spacing:.1em">${ph.label}</div>
+      </div>
+      <div class="st-dm-info">
+        <div class="st-dm-name">${per.name}</div>
+        <div class="st-dm-role">${per.role||'—'} · ${projName}${d.isBA?` · <span style="color:#FBBF24">BA</span>`:''}</div>
+        <div class="st-dm-vel">
+          <div>
+            <div class="st-dm-pct-big" style="color:${pc}">${pct}%</div>
+            <div style="font-size:11px;color:#475569;margin-top:2px">Sprint velocity</div>
+          </div>
+          ${d.fieldEvent?`<div style="align-self:flex-end;padding-bottom:4px;font-size:12px;color:#FBBF24">🏅 ${d.fieldEvent}</div>`:''}
+        </div>
+        <div class="st-dm-chart-lbl">Velocity · last 6 months</div>
+        <div class="st-dm-chart-wrap" id="st-vel-wrap">
+          ${hist.length?`<canvas id="st-vel-chart"></canvas>`:'<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#475569;font-size:12px">No sprint data in the last 6 months</div>'}
+        </div>
+      </div>
+    </div>`;
+  if(!hist.length||typeof Chart==='undefined') return;
+  const canvas=document.getElementById('st-vel-chart');
+  const labels=hist.map(h=>h.label);
+  const data=hist.map(h=>h.pct);
+  const ptC=data.map(p=>p<70?'#ef4444':'#22c55e');
+  _stProfChart=new Chart(canvas,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:per.name,data,borderColor:'#60a5fa',backgroundColor:'rgba(96,165,250,.1)',pointBackgroundColor:ptC,pointBorderColor:ptC,pointRadius:data.map(p=>p<70?6:4),tension:.3,fill:true},
+      {label:'_thr',data:labels.map(()=>70),borderColor:'#ef4444',borderDash:[5,5],borderWidth:1.5,pointRadius:0,fill:false}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label==='_thr'?'Threshold: 70%':c.parsed.y+'%'}}},
+      scales:{
+        y:{min:0,max:120,grid:{color:'rgba(255,255,255,.06)'},ticks:{color:'#64748b',callback:v=>v+'%',stepSize:20}},
+        x:{grid:{display:false},ticks:{color:'#64748b',maxRotation:40,font:{size:10}}}
+      }
+    }
+  });
+}
+
+function _stDMPickDev(pIdx){
+  const per=((S.personnel||[]).filter(p=>!p.offboard))[pIdx];
+  if(!per) return;
+  const idx=_stObjs.findIndex(o=>o.per&&o.per.id===per.id);
+  if(idx>=0){_stDMSelIdx=idx;_stDMTab('profile');}
+}
+
+function _stRenderAllDevs(){
+  if(_stProfChart){_stProfChart.destroy();_stProfChart=null;}
+  if(_stAllChart){_stAllChart.destroy();_stAllChart=null;}
+  const cut=_stCutoff();
+  const all=(S.personnel||[]).filter(p=>!p.offboard);
+  const sprints=(S.sprints||[]).filter(s=>s.startDate>=cut).sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  const COLS=['#F472B6','#60A5FA','#34D399','#FBBF24','#A78BFA','#F87171','#38BDF8','#FB923C','#818CF8','#4ADE80'];
+  // Character row
+  const rowHTML=all.map((per,i)=>{
+    const pct=_stSpeedPct(per.id);
+    const pc=pct<=50?'#ef4444':pct<=60?'#f97316':pct<=75?'#3b82f6':'#22c55e';
+    return`<div class="st-dm-dev-card" onclick="_stDMPickDev(${i})">
+      ${_stBodySVG(pct,62,100)}
+      <div style="font-size:10px;font-weight:800;color:${pc}">${pct}%</div>
+      <div class="st-dm-dev-name" title="${per.name}">${per.name}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('st-dm-body').innerHTML=`
+    <div class="st-dm-devrow">${rowHTML}</div>
+    <div class="st-dm-chart-lbl">Sprint velocity · all developers · last 6 months</div>
+    <div class="st-dm-all-chart-wrap">
+      ${sprints.length?`<canvas id="st-all-chart"></canvas>`:'<div style="height:100%;display:flex;align-items:center;justify-content:center;color:#475569;font-size:12px">No sprint data in the last 6 months</div>'}
+    </div>`;
+  if(!sprints.length||typeof Chart==='undefined') return;
+  const labels=sprints.map(s=>s.name);
+  const datasets=all
+    .filter(per=>sprints.some(s=>s.completedHours&&s.completedHours[per.id]!==undefined))
+    .map((per,i)=>{
+      const col=COLS[i%COLS.length];
+      const data=sprints.map(s=>{
+        if(!s.completedHours||s.completedHours[per.id]===undefined) return null;
+        const lh=(S.entries||[]).filter(e=>e.personnelId===per.id&&e.date>=s.startDate&&e.date<=s.endDate&&['leave_full','leave_am','leave_pm','mc'].includes(e.type)).reduce((sm,e)=>sm+(e.type==='leave_am'||e.type==='leave_pm'?4:8),0);
+        const eff=Math.round((80-lh)*.8);
+        return eff>0?Math.round((s.completedHours[per.id]||0)/eff*100):0;
+      });
+      return{label:per.name,data,borderColor:col,backgroundColor:'transparent',pointBackgroundColor:data.map(v=>v!==null&&v<70?'#ef4444':col),pointRadius:data.map(v=>v!==null?4:0),tension:.3,spanGaps:false};
+    });
+  _stAllChart=new Chart(document.getElementById('st-all-chart'),{
+    type:'line',
+    data:{labels,datasets:[
+      ...datasets,
+      {label:'_thr',data:labels.map(()=>70),borderColor:'#ef4444',borderDash:[5,5],borderWidth:1.5,pointRadius:0,fill:false}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom',labels:{color:'#94a3b8',boxWidth:12,font:{size:11},filter:i=>i.text!=='_thr'}},
+        tooltip:{callbacks:{label:c=>c.dataset.label==='_thr'?'Threshold: 70%':c.dataset.label+': '+c.parsed.y+'%'}}
+      },
+      scales:{
+        y:{min:0,max:120,grid:{color:'rgba(255,255,255,.06)'},ticks:{color:'#64748b',callback:v=>v+'%',stepSize:20}},
+        x:{grid:{display:false},ticks:{color:'#64748b',maxRotation:40,font:{size:10}}}
+      }
+    }
+  });
+}
+
+function _stHideProfile(){_stCloseModal();}
 
 function _stToggleBoard(){
   const board=document.getElementById('st-scoreboard');
