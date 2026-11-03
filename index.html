@@ -2275,8 +2275,14 @@ function _stAsyncLoadGLB(d){
   const prefix=_stGLBPrefix(female,ph.label);
   _stLoadGLBChunks(prefix).then(glbScene=>{
     if(!_stScene||!d.g)return;
-    glbScene.scale.setScalar(.65);
-    glbScene.position.y=0;
+    // Normalize: feet at y=0, centred on x/z, height ~1.3 units
+    const box=new THREE.Box3().setFromObject(glbScene);
+    const size=box.getSize(new THREE.Vector3());
+    const center=box.getCenter(new THREE.Vector3());
+    glbScene.position.x-=center.x;
+    glbScene.position.z-=center.z;
+    glbScene.position.y-=box.min.y;
+    if(size.y>0.01) glbScene.scale.setScalar(1.3/size.y);
     const toRemove=[];
     d.g.children.forEach(c=>{if(c!==d.label)toRemove.push(c);});
     toRemove.forEach(c=>d.g.remove(c));
