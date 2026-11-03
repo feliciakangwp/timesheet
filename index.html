@@ -279,7 +279,7 @@ tbody tr:hover td{background:#f8fafc}
 .st-sb-pct{font-size:11px;font-weight:700;color:#cbd5e1;text-align:right}
 .st-sb-spd{font-size:10px;color:#64748b;text-align:right}
 /* ── Dev Profile Modal ── */
-#st-dev-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:12px}
+#st-dev-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:12px}
 .st-dm-inner{background:#111c2d;border:1px solid rgba(255,255,255,.13);border-radius:20px;width:min(700px,100%);max-height:88vh;overflow-y:auto;color:#f1f5f9;scrollbar-width:thin;scrollbar-color:#334155 transparent}
 .st-dm-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
 .st-dm-tabs{display:flex;gap:6px}
@@ -373,10 +373,7 @@ tbody tr:hover td{background:#f8fafc}
   <div id="st-dev-modal" hidden onclick="_stCloseModal()">
     <div class="st-dm-inner" onclick="event.stopPropagation()">
       <div class="st-dm-head">
-        <div class="st-dm-tabs">
-          <button class="st-dm-tab active" id="stDMt0" onclick="_stDMTab('profile')">👤 Profile</button>
-          <button class="st-dm-tab" id="stDMt1" onclick="_stDMTab('all')">👥 All Developers</button>
-        </div>
+        <div id="st-dm-title" style="color:#f1f5f9;font-size:13px;font-weight:700"></div>
         <button class="st-dm-close" onclick="_stCloseModal()">✕</button>
       </div>
       <div class="st-dm-body" id="st-dm-body"></div>
@@ -2856,7 +2853,7 @@ function _stAnimateWhackABug(d,t,dt){
 
 // ── Profile Modal ───────────────────────────────────
 
-let _stProfChart=null,_stAllChart=null,_stDMSelIdx=0,_stDMCurTab='profile';
+let _stProfChart=null,_stAllChart=null,_stDMSelIdx=0;
 
 function _stBodySVG(pct,w,h){
   w=w||110;h=h||180;
@@ -2963,18 +2960,15 @@ function _stSelectDev(idx){
   _stDMSelIdx=idx;
   const m=document.getElementById('st-dev-modal');if(!m)return;
   m.hidden=false;
-  _stDMCurTab='profile';
-  document.getElementById('stDMt0').classList.add('active');
-  document.getElementById('stDMt1').classList.remove('active');
   _stRenderProfile(idx);
 }
 
-function _stDMTab(tab){
-  _stDMCurTab=tab;
-  document.getElementById('stDMt0').classList.toggle('active',tab==='profile');
-  document.getElementById('stDMt1').classList.toggle('active',tab==='all');
-  if(tab==='profile') _stRenderProfile(_stDMSelIdx);
-  else _stRenderAllDevs();
+function _stOpenAllDevs(){
+  const m=document.getElementById('st-dev-modal');if(!m)return;
+  m.hidden=false;
+  const t=document.getElementById('st-dm-title');
+  if(t) t.textContent='👥 All Developers';
+  _stRenderAllDevs();
 }
 
 function _stRenderProfile(idx){
@@ -2986,6 +2980,8 @@ function _stRenderProfile(idx){
   const hist=_stVelocityHistory(per.id);
   if(_stProfChart){_stProfChart.destroy();_stProfChart=null;}
   if(_stAllChart){_stAllChart.destroy();_stAllChart=null;}
+  const _dmT=document.getElementById('st-dm-title');
+  if(_dmT) _dmT.textContent='👤 '+per.name;
   document.getElementById('st-dm-body').innerHTML=`
     <div class="st-dm-profile">
       <div class="st-dm-fig">
@@ -3034,7 +3030,7 @@ function _stDMPickDev(pIdx){
   const per=((S.personnel||[]).filter(p=>!p.offboard))[pIdx];
   if(!per) return;
   const idx=_stObjs.findIndex(o=>o.per&&o.per.id===per.id);
-  if(idx>=0){_stDMSelIdx=idx;_stDMTab('profile');}
+  if(idx>=0) _stSelectDev(idx);
 }
 
 function _stRenderAllDevs(){
@@ -3150,7 +3146,7 @@ function _stInit(){
     const st=sprintStats(s);
     if(st.pct>0){if(!projVel[s.projectId]){projVel[s.projectId]={sum:0,n:0};}projVel[s.projectId].sum+=st.pct;projVel[s.projectId].n++;}
   });
-  let sbHTML='<div class="st-sb-hdr">⚡ Sprint Board</div>';
+  let sbHTML='<div class="st-sb-hdr">⚡ Sprint Board</div><button class="st-ctrl" style="width:100%;margin-bottom:12px;font-size:11px" onclick="_stOpenAllDevs()">👥 All Developers</button>';
   Object.entries(projVel).forEach(([pid,v])=>{
     const pn=(S.projects||[]).find(p=>p.id===pid)?.name||pid;
     const dot=pid==='p_orion'?'#E91E8C':pid==='p_polaris'?'#29B6F6':pid==='p_cordis'?'#FDD835':'#9E9E9E';
