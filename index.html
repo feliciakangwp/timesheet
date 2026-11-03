@@ -2578,7 +2578,7 @@ function _stBuildStadium(sc){
 
   // ── Floodlight towers ─────────────────────────────────
   const lMet=new THREE.MeshLambertMaterial({color:0x8090A0});
-  [[18,12],[18,-12],[-18,12],[-18,-12],[0,16],[0,-16]].forEach(([lx,lz])=>{
+  [[18,12],[18,-12],[-18,12],[-18,-12],[-10,16],[10,16]].forEach(([lx,lz])=>{
     const lH=19;
     const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.13,0.18,lH,8),lMet);
     pole.position.set(lx,lH/2,lz);sc.add(pole);
