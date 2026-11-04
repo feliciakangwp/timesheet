@@ -279,7 +279,8 @@ tbody tr:hover td{background:#f8fafc}
 .st-sb-pct{font-size:11px;font-weight:700;color:#cbd5e1;text-align:right}
 .st-sb-spd{font-size:10px;color:#64748b;text-align:right}
 /* ── Dev Profile Modal ── */
-#st-dev-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2100;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:12px}
+#st-dev-modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:2100;display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px);padding:12px}
+#st-dev-modal.open{display:flex}
 .st-dm-inner{background:#111c2d;border:1px solid rgba(255,255,255,.13);border-radius:20px;width:min(700px,100%);max-height:88vh;overflow-y:auto;color:#f1f5f9;scrollbar-width:thin;scrollbar-color:#334155 transparent}
 .st-dm-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,.08)}
 .st-dm-tabs{display:flex;gap:6px}
@@ -370,7 +371,7 @@ tbody tr:hover td{background:#f8fafc}
     </div>
   </div>
   <!-- Dev Profile / All-Developers Modal -->
-  <div id="st-dev-modal" hidden onclick="_stCloseModal()">
+  <div id="st-dev-modal" onclick="_stCloseModal()">
     <div class="st-dm-inner" onclick="event.stopPropagation()">
       <div class="st-dm-head">
         <div id="st-dm-title" style="color:#f1f5f9;font-size:13px;font-weight:700"></div>
@@ -2088,6 +2089,7 @@ document.getElementById('modal-overlay').addEventListener('click',function(e){
 let _stRenderer=null,_stAnimId=null,_stClock=null,_stObjs=[],_stRO=null,_stCam=null,_stScene=null;
 let _stShowNames=true,_stPanX=0,_stPanZ=0,_stCamH=22,_stCamD=24;
 let _stPaused=false,_stRaycaster=null,_stWavers=[],_stFlags=[],_stTugNPCs=[],_stEventProps={};
+let _stBARotSlot=-1,_stBARotTimer=null;
 let _stModelCache={},_stGLBLoadCount=0;
 const _ST_FEMALE=new Set(['shivani','dharani','eejya']);
 const _ST_COLORS={p_orion:0xE91E8C,p_polaris:0x29B6F6,p_cordis:0xFDD835};
@@ -2123,8 +2125,10 @@ function _stLanePos(lane,s){
 }
 
 // BA name → field event key, and starting positions in the infield
-const _ST_BA_EVENTS={ryan:'tugofwar',christopher:'puzzle',norman:'detective',raja:'whackabug'};
-const _ST_BA_POS={tugofwar:{x:-6,z:0},puzzle:{x:4,z:-2},detective:{x:0,z:-3.5},whackabug:{x:3,z:1.5}};
+const _ST_BA_EVENTS={ryan:'tugofwar',christopher:'puzzle',norman:'detective',raja:'agility'};
+const _ST_BA_POS={tugofwar:{x:-6,z:0},puzzle:{x:4,z:-2},detective:{x:0,z:-3.5},agility:{x:3,z:2}};
+const _ST_BA_ACT_ORDER=['tugofwar','puzzle','detective','agility'];
+const _ST_BA_ACT_LABELS={tugofwar:'Tug of War',puzzle:'Giant Puzzle',detective:'Detective Hunt',agility:'Agility Training'};
 
 function _stPhysique(pct){
   if(pct<=50) return{tR:.22,tH:.46,tB:.20,legL:.36,armL:.30,hdR:.18,label:'Obese'};
@@ -2704,18 +2708,14 @@ function _stBuildStadium(sc){
     clue.position.set(cx,.1,cz);sc.add(clue);
   });
 
-  // Whack-a-Bug (Raja) — mallet + bug holes + pop-up bug targets
-  const mltHead=new THREE.Mesh(new THREE.CylinderGeometry(.14,.14,.3,8),new THREE.MeshLambertMaterial({color:0x8B4513}));
-  mltHead.position.set(3,.6,1.5);sc.add(mltHead);
-  const bugMeshes=[];
-  [[3,0,1],[3.7,0,2],[2.4,0,2],[3,0,2.5]].forEach(([hx,hy,hz])=>{
-    const hole=new THREE.Mesh(new THREE.CylinderGeometry(.12,.12,.04,12),new THREE.MeshLambertMaterial({color:0x333333}));
-    hole.position.set(hx,.02,hz);sc.add(hole);
-    const bug=new THREE.Mesh(new THREE.SphereGeometry(.09,8,8),new THREE.MeshLambertMaterial({color:0x7CB342}));
-    bug.position.set(hx,.02,hz);bug.userData.hx=hx;bug.userData.hz=hz;sc.add(bug);
-    bugMeshes.push(bug);
+  // Agility Training (Raja) — light-up tap pads scattered around field
+  const agilityPositions=[{x:5,z:3},{x:-4,z:3.5},{x:1,z:5},{x:6,z:-1},{x:2,z:-4},{x:-3,z:-1},{x:4.5,z:1}];
+  const padMeshes=agilityPositions.map(pos=>{
+    const pad=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.06,16),new THREE.MeshLambertMaterial({color:0x1E3A5F}));
+    pad.position.set(pos.x,.03,pos.z);sc.add(pad);
+    return pad;
   });
-  _stEventProps.whackabug={bugs:bugMeshes};
+  _stEventProps.agility={pads:padMeshes,padPositions:agilityPositions,activePad:0};
 }
 
 // ── BA Score Display ─────────────────────────────────
@@ -2724,7 +2724,7 @@ function _stUpdateBAScore(d){
   const el=document.getElementById('st-ba-spd-'+d._sbIdx);
   if(!el)return;
   const s=d.baScore||0;
-  const txt={tugofwar:'Tug of War · '+s+' pts',puzzle:'Puzzle · '+(s%5)+'/4 done',detective:'Detective · '+s+' clues',whackabug:'Whack-a-Bug · '+s+' bugs'}[d.eventKey]||d.fieldEvent;
+  const txt={tugofwar:'Tug of War · '+s+' pts',puzzle:'Puzzle · '+(s%5)+'/4 done',detective:'Detective · '+s+' clues',agility:'Agility · '+s+' taps'}[d.eventKey]||d.fieldEvent;
   el.textContent=txt;el.style.color='#FFD700';
   clearTimeout(d._sbT);d._sbT=setTimeout(()=>{if(el)el.style.color='rgba(255,255,255,.6)';},700);
 }
@@ -2786,22 +2786,29 @@ function _stAnimateDetective(d,t,dt){
   const e=t-d.stateT;
   if(d.baState==='idle'){
     if(!d.isGLB){d.raP.rotation.x=0;d.laP.rotation.x=0;}
-    d.g.rotation.y=0;
-    if(e>1){d.baState='patrol';d.stateT=t;d._patDir=1;}
-  } else if(d.baState==='patrol'){
-    d.g.rotation.y=d._patDir>0?0:Math.PI;
-    d.g.position.x+=dt*d._patDir*.6;
-    const ph=t*5;
-    if(!d.isGLB){
-      d.llP.rotation.x=.4*Math.sin(ph);d.rlP.rotation.x=-.4*Math.sin(ph);
-      d.laP.rotation.x=-.25*Math.sin(ph);d.raP.rotation.x=.25*Math.sin(ph);
-    } else {
-      const bnc=Math.abs(Math.sin(ph*2));
-      d.g.position.y=.03*bnc;
-      if(d._glbMesh){d._glbMesh.rotation.x=-.06+.04*Math.sin(ph);d._glbMesh.rotation.z=.04*Math.cos(ph);d._glbMesh.scale.y=1-.03*bnc;}
+    d.g.rotation.y=Math.sin(t*.4)*Math.PI;
+    if(e>.8){
+      // Wide roam — covers infield, track, and approach to stands
+      d._wx=(Math.random()-.5)*20;d._wz=(Math.random()-.5)*14;
+      d.baState='patrol';d.stateT=t;
     }
-    if(Math.abs(d.g.position.x-d._ox0||0)>1.2){d._patDir*=-1;if(!d._ox0)d._ox0=d.g.position.x;}
-    if(e>2.5){d.baState='examine';d.stateT=t;}
+  } else if(d.baState==='patrol'){
+    const dx=(d._wx||0)-d.g.position.x,dz=(d._wz||0)-d.g.position.z;
+    const dist=Math.sqrt(dx*dx+dz*dz);
+    if(dist>.4){
+      const spd=1.1;
+      d.g.position.x+=dx/dist*spd*dt;d.g.position.z+=dz/dist*spd*dt;
+      d.g.rotation.y=Math.atan2(dx,dz);
+      const ph=t*5;
+      if(!d.isGLB){
+        d.llP.rotation.x=.4*Math.sin(ph);d.rlP.rotation.x=-.4*Math.sin(ph);
+        d.laP.rotation.x=-.25*Math.sin(ph);d.raP.rotation.x=.25*Math.sin(ph);
+      } else {
+        const bnc=Math.abs(Math.sin(ph*2));d.g.position.y=.03*bnc;
+        if(d._glbMesh){d._glbMesh.rotation.x=-.06+.04*Math.sin(ph);d._glbMesh.rotation.z=.04*Math.cos(ph);d._glbMesh.scale.y=1-.03*bnc;}
+      }
+    }
+    if(dist<.4||e>7){d.baState='examine';d.stateT=t;}
   } else {
     if(!d.isGLB){
       d.raP.rotation.x=-Math.PI*.45+.1*Math.sin(t*3);
@@ -2809,46 +2816,66 @@ function _stAnimateDetective(d,t,dt){
       d.llP.rotation.x=0;d.rlP.rotation.x=0;
     } else if(d._glbMesh) d._glbMesh.rotation.x=-.12+.04*Math.sin(t*3);
     d.g.rotation.y+=dt*.5;
-    if(e>1.5){d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);d.baState='patrol';d.stateT=t;if(d._glbMesh)d._glbMesh.rotation.x=0;}
+    if(e>1.5){d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);d.baState='idle';d.stateT=t;if(d._glbMesh)d._glbMesh.rotation.x=0;}
   }
 }
 
-function _stAnimateWhackABug(d,t,dt){
+function _stAnimateAgility(d,t,dt){
   if(!d.stateT)d.stateT=t;
   const e=t-d.stateT;
-  const bugs=(_stEventProps.whackabug||{}).bugs||[];
+  const ep=_stEventProps.agility;if(!ep)return;
+  const pads=ep.pads,positions=ep.padPositions;
+  // Pulse active pad — cyan glow
+  pads.forEach((p,i)=>{
+    if(i===ep.activePad){p.material.color.setHex(0x00FFCC);p.position.y=.03+.02*Math.sin(t*8);}
+    else{p.material.color.setHex(0x1E3A5F);p.position.y=.03;}
+  });
+  const tgt=positions[ep.activePad];
   if(d.baState==='idle'){
     if(!d.isGLB){d.raP.rotation.x=0;d.laP.rotation.x=0;}
-    if(e>0.8&&bugs.length){
-      d._bugIdx=Math.floor(Math.random()*bugs.length);
-      const b=bugs[d._bugIdx];
-      if(b) d.g.rotation.y=Math.atan2(b.userData.hx-d.g.position.x,b.userData.hz-d.g.position.z);
-      d.baState='raise';d.stateT=t;
-    }
-  } else if(d.baState==='raise'){
-    const bug=bugs[d._bugIdx];
-    if(bug) bug.position.y=Math.min(.3,e/.3*.3);
-    const r=Math.min(e/.3,1);
-    if(!d.isGLB){d.raP.rotation.x=-Math.PI*.8*r;d.laP.rotation.x=-Math.PI*.2*r;}
-    else if(d._glbMesh) d._glbMesh.rotation.x=-0.2*r;
-    if(e>.3){d.baState='strike';d.stateT=t;}
-  } else if(d.baState==='strike'){
-    const s=Math.min(e/.15,1);
-    if(!d.isGLB){d.raP.rotation.x=-Math.PI*.8+Math.PI*.9*s;}
-    else if(d._glbMesh) d._glbMesh.rotation.x=-0.2+0.3*s;
-    d.g.position.y=-.06*Math.sin(s*Math.PI);
-    if(e>.15){
-      if(bugs[d._bugIdx]) bugs[d._bugIdx].position.y=.02;
+    if(e>.35){d._wx=tgt.x;d._wz=tgt.z;d.baState='sprint';d.stateT=t;}
+  } else if(d.baState==='sprint'){
+    const dx=(d._wx||tgt.x)-d.g.position.x,dz=(d._wz||tgt.z)-d.g.position.z;
+    const dist=Math.sqrt(dx*dx+dz*dz);
+    if(dist>.35){
+      const spd=4;d.g.position.x+=dx/dist*spd*dt;d.g.position.z+=dz/dist*spd*dt;
+      d.g.rotation.y=Math.atan2(dx,dz);
+      const ph=t*9;
+      if(!d.isGLB){
+        d.llP.rotation.x=.65*Math.sin(ph);d.rlP.rotation.x=-.65*Math.sin(ph);
+        d.laP.rotation.x=-.45*Math.sin(ph);d.raP.rotation.x=.45*Math.sin(ph);
+      } else {
+        d.g.position.y=.06*Math.abs(Math.sin(ph*.5));
+        if(d._glbMesh){d._glbMesh.rotation.x=-.1+.06*Math.sin(ph);d._glbMesh.rotation.z=.05*Math.cos(ph);}
+      }
+    } else {
+      d.baState='tap';d.stateT=t;
       d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);
-      d.baState='recover';d.stateT=t;
+      let next=ep.activePad;
+      while(next===ep.activePad&&pads.length>1)next=Math.floor(Math.random()*pads.length);
+      ep.activePad=next;
     }
   } else {
-    const rv=Math.min(e/.4,1);
-    if(!d.isGLB){d.raP.rotation.x=Math.PI*.1*(1-rv);d.laP.rotation.x=-Math.PI*.2*(1-rv);}
-    else if(d._glbMesh) d._glbMesh.rotation.x=0.1*(1-rv);
-    d.g.position.y=0;
-    if(e>.4){d.baState='idle';d.stateT=t;}
+    if(!d.isGLB){d.raP.rotation.x=-.9+.5*Math.sin(t*10);d.laP.rotation.x=-.6+.4*Math.sin(t*10+1);}
+    else if(d._glbMesh){d.g.position.y=.06*Math.abs(Math.sin(t*10));d._glbMesh.rotation.z=.12*Math.sin(t*8);}
+    if(e>.5){d.baState='sprint';d.stateT=t;const nt=positions[ep.activePad];d._wx=nt.x;d._wz=nt.z;}
   }
+}
+
+function _stRotateBA(){
+  const slot=Math.floor(Date.now()/(2*60*60*1000));
+  if(slot===_stBARotSlot)return;
+  _stBARotSlot=slot;
+  _stObjs.forEach(d=>{
+    if(!d.isBA)return;
+    const newAct=_ST_BA_ACT_ORDER[(d._baBaseIdx+slot)%_ST_BA_ACT_ORDER.length];
+    if(newAct===d.eventKey)return;
+    d.eventKey=newAct;d.fieldEvent=_ST_BA_ACT_LABELS[newAct]||newAct;
+    d.baState='idle';d.stateT=0;d.baScore=0;
+    const pos=_ST_BA_POS[newAct]||{x:0,z:0};d.g.position.set(pos.x,0,pos.z);
+    const el=document.getElementById('st-ba-spd-'+d._sbIdx);
+    if(el){el.textContent=d.fieldEvent;el.style.color='rgba(255,255,255,.6)';}
+  });
 }
 
 // ── Profile Modal ───────────────────────────────────
@@ -2951,7 +2978,7 @@ function _stVelocityHistory(devId){
 }
 
 function _stCloseModal(){
-  const m=document.getElementById('st-dev-modal');if(m)m.hidden=true;
+  const m=document.getElementById('st-dev-modal');if(m)m.classList.remove('open');
   if(_stProfChart){_stProfChart.destroy();_stProfChart=null;}
   if(_stAllChart){_stAllChart.destroy();_stAllChart=null;}
 }
@@ -2959,13 +2986,13 @@ function _stCloseModal(){
 function _stSelectDev(idx){
   _stDMSelIdx=idx;
   const m=document.getElementById('st-dev-modal');if(!m)return;
-  m.hidden=false;
+  m.classList.add('open');
   _stRenderProfile(idx);
 }
 
 function _stOpenAllDevs(){
   const m=document.getElementById('st-dev-modal');if(!m)return;
-  m.hidden=false;
+  m.classList.add('open');
   const t=document.getElementById('st-dm-title');
   if(t) t.textContent='👥 All Developers';
   _stRenderAllDevs();
@@ -3109,6 +3136,7 @@ function closeSprintTrack(){
   document.getElementById('sprint-track-overlay').classList.remove('open');
   if(_stAnimId){cancelAnimationFrame(_stAnimId);_stAnimId=null;}
   if(_stRO){_stRO.disconnect();_stRO=null;}
+  if(_stBARotTimer){clearInterval(_stBARotTimer);_stBARotTimer=null;}_stBARotSlot=-1;
   if(_stRenderer){_stRenderer.dispose();_stRenderer=null;_stScene=null;_stCam=null;_stObjs=[];_stWavers=[];_stFlags=[];_stTugNPCs=[];_stEventProps={};}
 }
 
@@ -3186,19 +3214,25 @@ function _stInit(){
     const female=_ST_FEMALE.has(per.name.toLowerCase());
     const pct=_stSpeedPct(per.id);
     const eventKey=_ST_BA_EVENTS[per.name.toLowerCase()]||'idle';
-    const eventLabel={tugofwar:'Tug of War',puzzle:'Giant Puzzle',detective:'Detective Hunt',whackabug:'Whack-a-Bug'}[eventKey]||'Coordinator';
+    const eventLabel=_ST_BA_ACT_LABELS[eventKey]||'Coordinator';
     const pos=_ST_BA_POS[eventKey]||{x:0,z:0};
     const dev=_stMakeDev(per.name,female,shirtHex,pct);
     dev.g.position.set(pos.x,0,pos.z);
     const idx=_stObjs.length;
     _stScene.add(dev.g);
     _stTagGroup(dev.g,idx);
-    _stObjs.push({...dev,isBA:true,baState:'idle',stateT:0,projId,per,pct,fieldEvent:eventLabel,eventKey,baScore:0,_sbIdx:idx});
+    const _baBaseIdx=_ST_BA_ACT_ORDER.indexOf(eventKey);
+    _stObjs.push({...dev,isBA:true,baState:'idle',stateT:0,projId,per,pct,fieldEvent:eventLabel,eventKey,baScore:0,_sbIdx:idx,_baBaseIdx:Math.max(0,_baBaseIdx)});
     const dot=projId==='p_orion'?'#E91E8C':projId==='p_polaris'?'#29B6F6':projId==='p_cordis'?'#FDD835':'#9E9E9E';
     sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct" style="color:#FFD700">BA</div><div class="st-sb-spd" id="st-ba-spd-${idx}">${eventLabel}</div></div></div>`;
   });
 
   document.getElementById('st-sb-inner').innerHTML=sbHTML;
+
+  // BA activity rotation — every 2 real-world hours
+  _stBARotSlot=-1;_stRotateBA();
+  if(_stBARotTimer)clearInterval(_stBARotTimer);
+  _stBARotTimer=setInterval(_stRotateBA,60*1000);
 
   // ── Pan + click to select ──────────────────────────
   let _drag=false,_mx=0,_my=0,_downX=0,_downY=0,_didDrag=false;
@@ -3256,7 +3290,7 @@ function _stInit(){
         if(d.eventKey==='tugofwar')_stAnimateTugOfWar(d,t,dt);
         else if(d.eventKey==='puzzle')_stAnimatePuzzle(d,t,dt);
         else if(d.eventKey==='detective')_stAnimateDetective(d,t,dt);
-        else if(d.eventKey==='whackabug')_stAnimateWhackABug(d,t,dt);
+        else if(d.eventKey==='agility')_stAnimateAgility(d,t,dt);
       } else if(d.spd>0){
         d.arcT+=d.spd;
         const lane=_ST_LANES[d.laneIdx];
