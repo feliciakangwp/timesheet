@@ -437,6 +437,8 @@ let profileSort = {col:'name', dir:'asc'};
 let sprintView = 'details';
 let dashSelProj = '';
 let dashSelVar  = 'all';
+let dashSelMonths = [];
+let dashMonthMenuOpen = false;
 let S = {
   projects:[],
   personnel:[],
@@ -1974,6 +1976,14 @@ function dashVelocityRows(projIds) {
 
 const DASH_COLORS=['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#0ea5e9','#f97316'];
 
+function toggleDashMonthMenu(){dashMonthMenuOpen=!dashMonthMenuOpen;renderDashboard();}
+function toggleDashMonth(ym){
+  if(dashSelMonths.includes(ym)) dashSelMonths=dashSelMonths.filter(m=>m!==ym);
+  else dashSelMonths=[...dashSelMonths,ym];
+  renderDashboard();
+}
+function clearDashMonths(){dashSelMonths=[];renderDashboard();}
+
 function renderDashboard() {
   const el=document.getElementById('tab-dashboard');
   const projIds=dashProjIds();
@@ -1984,31 +1994,50 @@ function renderDashboard() {
   const expRows=dashExpenseRows(projIds);
   const velRows=dashVelocityRows(projIds);
 
-  // Current & last month labels
-  const now=new Date();
-  const curYM=`${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}`;
-  const lastMo=new Date(now.getFullYear(),now.getMonth()-1,1);
-  const lastYM=`${lastMo.getFullYear()}${String(lastMo.getMonth()+1).padStart(2,'0')}`;
-  const recentYMs=new Set([curYM,lastYM]);
-  const recentLabel=`${MN[lastMo.getMonth()].slice(0,3)} ${lastMo.getFullYear()} & ${MN[now.getMonth()].slice(0,3)} ${now.getFullYear()}`;
-
-  const tblExpRows=expRows.filter(r=>recentYMs.has(r.yyyymm));
-  const tblVelRows=velRows.filter(({s})=>{const[y,m]=s.endDate.split('-');return recentYMs.has(y+m);});
+  const filterYMs=dashSelMonths.length?new Set(dashSelMonths):null;
+  const tblExpRows=filterYMs?expRows.filter(r=>filterYMs.has(r.yyyymm)):expRows;
+  const tblVelRows=filterYMs?velRows.filter(({s})=>{const[y,m]=s.endDate.split('-');return filterYMs.has(y+m);}):velRows;
+  const selSorted=dashSelMonths.slice().sort();
+  const periodLabel=!selSorted.length?'All Time':
+    selSorted.length<=3?selSorted.map(ym=>`${MN[parseInt(ym.slice(4),10)-1].slice(0,3)} '${ym.slice(2,4)}`).join(', '):
+    `${selSorted.length} months`;
+  const availMonths=[...new Set([...expRows.map(r=>r.yyyymm),...velRows.map(({s})=>{const[y,m]=s.endDate.split('-');return y+m;})])].sort();
+  const ymLbl=ym=>`${MN[parseInt(ym.slice(4),10)-1]} ${ym.slice(0,4)}`;
+  const monthBtnLabel=!dashSelMonths.length?'All Months':
+    dashSelMonths.length===1?ymLbl(dashSelMonths[0]):`${dashSelMonths.length} months selected`;
 
   const projOpts=`<option value="">All Projects</option>`
     +S.projects.map(p=>`<option value="${p.id}"${dashSelProj===p.id?'selected':''}>${p.name}</option>`).join('');
   const varOpts=[['all','All'],['expenses','Expenses'],['velocity','Sprint Velocity']]
     .map(([v,l])=>`<option value="${v}"${dashSelVar===v?'selected':''}>${l}</option>`).join('');
 
+  const monthMenuHtml=dashMonthMenuOpen&&availMonths.length?`<div onclick="event.stopPropagation()"
+    style="position:absolute;top:calc(100% + 4px);left:0;min-width:200px;max-height:260px;overflow-y:auto;background:var(--white);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);z-index:200;padding:6px 0">
+    <div onclick="clearDashMonths()" style="display:flex;align-items:center;gap:8px;padding:7px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);margin-bottom:4px;${!dashSelMonths.length?'font-weight:700;color:var(--accent)':'color:var(--muted)'}">
+      ${!dashSelMonths.length?'✓ ':''}All Months
+    </div>
+    ${availMonths.map(ym=>{const ch=dashSelMonths.includes(ym);return`<label style="display:flex;align-items:center;gap:8px;padding:6px 14px;cursor:pointer;font-size:13px;${ch?'color:var(--accent)':''}">
+      <input type="checkbox" ${ch?'checked':''} onchange="toggleDashMonth('${ym}')" style="accent-color:var(--accent);width:14px;height:14px">
+      <span>${ymLbl(ym)}</span>
+    </label>`;}).join('')}
+  </div>`:'';
   const filterBar=`<div class="card" style="margin-bottom:16px">
     <div style="display:flex;gap:24px;align-items:flex-end;flex-wrap:wrap">
       <div><div class="sec-label" style="margin-bottom:6px">Project</div>
         <select onchange="setDashFilter('proj',this.value)"
           style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--text)">${projOpts}</select>
       </div>
-      <div><div class="sec-label" style="margin-bottom:6px">Show (tables)</div>
+      <div><div class="sec-label" style="margin-bottom:6px">Show</div>
         <select onchange="setDashFilter('var',this.value)"
           style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--text)">${varOpts}</select>
+      </div>
+      <div style="position:relative">
+        <div class="sec-label" style="margin-bottom:6px">Months</div>
+        <button onclick="event.stopPropagation();toggleDashMonthMenu()"
+          style="padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--text);cursor:pointer;display:flex;align-items:center;gap:6px;min-width:160px;justify-content:space-between">
+          <span>${monthBtnLabel}</span><span style="opacity:.6;font-size:11px">▾</span>
+        </button>
+        ${monthMenuHtml}
       </div>
     </div>
   </div>`;
@@ -2027,7 +2056,7 @@ function renderDashboard() {
     expHtml=`<div class="card" style="margin-bottom:16px">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
         <div class="exp-proj-hdr" style="margin:0">💰 Expenses</div>
-        <span style="font-size:12px;color:var(--muted);font-style:italic">${recentLabel}</span>
+        <span style="font-size:12px;color:var(--muted);font-style:italic">${periodLabel}</span>
       </div>
       <div class="tbl-wrap"><table>
         <thead><tr>
@@ -2043,7 +2072,7 @@ function renderDashboard() {
             <td style="font-size:12px">${r.per?.company||'—'}</td>
             <td style="font-size:12px">${r.type} · ${r.detail}</td>
             <td><strong>${r.amount!=null?money(r.amount):'—'}</strong></td>
-          </tr>`).join('')||`<tr><td colspan="7" class="empty-row">No expense data for ${recentLabel}.</td></tr>`}
+          </tr>`).join('')||`<tr><td colspan="7" class="empty-row">No expense data for ${periodLabel}.</td></tr>`}
           ${totalSuffix}
         </tbody>
       </table></div>
@@ -2055,7 +2084,7 @@ function renderDashboard() {
     velHtml=`<div class="card">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
         <div class="exp-proj-hdr" style="margin:0">🏃 Sprint Velocity</div>
-        <span style="font-size:12px;color:var(--muted);font-style:italic">${recentLabel}</span>
+        <span style="font-size:12px;color:var(--muted);font-style:italic">${periodLabel}</span>
       </div>
       <div class="tbl-wrap"><table>
         <thead><tr>
@@ -2080,14 +2109,14 @@ function renderDashboard() {
                 <span style="font-size:11px;font-weight:700;color:${pc};min-width:32px;text-align:right">${st.pct}%</span>
               </div></td>
             </tr>`;
-          }).join('')||`<tr><td colspan="9" class="empty-row">No sprints ending in ${recentLabel}.</td></tr>`}
+          }).join('')||`<tr><td colspan="9" class="empty-row">No sprints ending in ${periodLabel}.</td></tr>`}
         </tbody>
       </table></div>
     </div>`;
   }
 
   el.innerHTML=filterBar+chartCard+expHtml+velHtml;
-  setTimeout(()=>drawDashCombinedChart(expRows,velRows,projIds),0);
+  setTimeout(()=>drawDashCombinedChart(tblExpRows,tblVelRows,projIds),0);
 }
 
 function dashChartTheme() {
@@ -2191,6 +2220,12 @@ function closeModal() { document.getElementById('modal-overlay').classList.remov
 
 document.getElementById('modal-overlay').addEventListener('click',function(e){
   if(e.target===this) closeModal();
+});
+
+document.addEventListener('click',function(){
+  if(!dashMonthMenuOpen) return;
+  dashMonthMenuOpen=false;
+  if(document.getElementById('tab-dashboard').classList.contains('active')) renderDashboard();
 });
 
 // ═══════════════════════════════════════
