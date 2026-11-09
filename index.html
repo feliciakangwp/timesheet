@@ -124,12 +124,14 @@ tbody tr:hover td{background:#f8fafc}
 .cal-entries{display:flex;flex-direction:column;gap:2px;margin-top:3px}
 .ebadge{font-size:9px;font-weight:700;padding:2px 4px;border-radius:3px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
 .ebadge.leave_full{background:#fee2e2;color:#b91c1c}
-.ebadge.leave_am{background:#fef3c7;color:#92400e}
-.ebadge.leave_pm{background:#fef3c7;color:#92400e}
+.ebadge.leave_am{background:#fee2e2;color:#b91c1c}
+.ebadge.leave_pm{background:#fee2e2;color:#b91c1c}
 .ebadge.ot_full{background:#dcfce7;color:#15803d}
 .ebadge.ot_am{background:#d1fae5;color:#065f46}
 .ebadge.ot_pm{background:#d1fae5;color:#065f46}
 .ebadge.mc{background:#f3e8ff;color:#7e22ce}
+.ebadge.mc_am{background:#ede9fe;color:#6d28d9}
+.ebadge.mc_pm{background:#ede9fe;color:#6d28d9}
 
 /* TIMESHEET LAYOUT */
 .ts-layout{display:flex;gap:16px;align-items:flex-start}
@@ -411,11 +413,13 @@ const MN = ['January','February','March','April','May','June','July','August','S
 const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 const ETYPES = {
-  leave_full: {label:'Full Day Leave', short:'Leave',    cls:'leave_full', val:-1  },
+  leave_full: {label:'Leave',          short:'Leave',    cls:'leave_full', val:-1  },
+  mc:         {label:'MC',             short:'MC',       cls:'mc',         val:-1  },
+  ot_full:    {label:'OT',             short:'OT',       cls:'ot_full',    val:1   },
   leave_am:   {label:'AM Leave (½)',   short:'AM Leave', cls:'leave_am',   val:-.5 },
   leave_pm:   {label:'PM Leave (½)',   short:'PM Leave', cls:'leave_pm',   val:-.5 },
-  mc:         {label:'MC',             short:'MC',       cls:'mc',         val:-1  },
-  ot_full:    {label:'Full Day OT',    short:'OT',       cls:'ot_full',    val:1   },
+  mc_am:      {label:'AM MC (½)',      short:'AM MC',    cls:'mc_am',      val:-.5 },
+  mc_pm:      {label:'PM MC (½)',      short:'PM MC',    cls:'mc_pm',      val:-.5 },
   ot_am:      {label:'AM OT (½)',      short:'AM OT',    cls:'ot_am',      val:.5  },
   ot_pm:      {label:'PM OT (½)',      short:'PM OT',    cls:'ot_pm',      val:.5  },
 };
@@ -1323,8 +1327,10 @@ function delPerson(id) {
 // WORKING DAYS TAB
 // ═══════════════════════════════════════
 function renderWD() {
-  const years=[2026,2027,2028];
-  if(!years.includes(wdYear)) wdYear=years[0];
+  const curY=new Date().getFullYear();
+  const startY=2026, endY=Math.max(curY+3,2030);
+  if(wdYear<startY||wdYear>endY) wdYear=Math.max(startY,Math.min(endY,curY));
+  const opts=[];for(let y=startY;y<=endY;y++) opts.push(`<option value="${y}"${y===wdYear?' selected':''}>${y}</option>`);
   const cells=MN.map((mn,mi)=>{
     const wd=getWD(wdYear,mi);
     return`<div class="wd-cell${wd!==null?' wd-has':''}">
@@ -1339,10 +1345,9 @@ function renderWD() {
   <div class="card">
     <div class="card-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       📅 Working Days
-      <span class="wd-year-bar" style="margin-left:auto">
-        ${years.map(y=>`<button class="btn ${y===wdYear?'btn-primary':'btn-ghost'} btn-sm"
-          onclick="wdYear=${y};renderWD()">${y}</button>`).join('')}
-      </span>
+      <select onchange="wdYear=+this.value;renderWD()" style="margin-left:auto;padding:5px 10px;border:1.5px solid var(--border);border-radius:6px;background:var(--surface);color:var(--primary);font-size:13px;font-weight:600;cursor:pointer">
+        ${opts.join('')}
+      </select>
     </div>
     <p style="font-size:12px;color:var(--muted);margin-bottom:16px">
       These are official number of working days declared by Govtech. Changes save automatically.
@@ -1768,14 +1773,10 @@ function openDayModal(ds, isWe, isHol) {
 
   const personOpts=people.map(p=>`<option value="${p.id}">${p.name} (${p.company})</option>`).join('');
 
-  const leaveTypeBtns=['leave_full','leave_am','leave_pm','mc'].map(t=>{
-    const ec=ETYPES[t];
-    return`<button class="type-btn ${t==='mc'?'mc-btn':''}" onclick="selType(this,'${t}')">${ec.label}</button>`;
-  }).join('');
-  const otTypeBtns=['ot_full','ot_am','ot_pm'].map(t=>{
-    const ec=ETYPES[t];
-    return`<button class="type-btn" onclick="selType(this,'${t}')">${ec.label}</button>`;
-  }).join('');
+  const mkTypeBtn=(t)=>{const ec=ETYPES[t];const mc=['mc','mc_am','mc_pm'].includes(t)?'mc-btn':'';return`<button class="type-btn ${mc}" onclick="selType(this,'${t}')">${ec.label}</button>`;};
+  const fullDayBtns=['leave_full','mc','ot_full'].map(mkTypeBtn).join('');
+  const amBtns=['leave_am','mc_am','ot_am'].map(mkTypeBtn).join('');
+  const pmBtns=['leave_pm','mc_pm','ot_pm'].map(mkTypeBtn).join('');
 
   const firstPerson=people[0];
   const firstIsHourly=firstPerson&&(firstPerson.chargeType||'monthly')==='hourly';
@@ -1791,9 +1792,14 @@ function openDayModal(ds, isWe, isHol) {
         <select id="ep_person" onchange="toggleEntryForm(this.value)">${personOpts}</select>
       </div>
       <div id="monthly_entry_form" style="display:${firstIsHourly?'none':'block'}">
-        ${!isWe&&!isHol?`<div class="type-section">Leave / MC</div><div class="type-grid" style="grid-template-columns:repeat(4,1fr)">${leaveTypeBtns}</div>`:''}
-        <div class="type-section">Overtime</div>
-        <div class="type-grid">${otTypeBtns}</div>
+        ${!isWe&&!isHol?`
+        <div class="type-section">Full Day</div>
+        <div class="type-grid">${fullDayBtns}</div>
+        <div class="type-section">Half Day — AM</div>
+        <div class="type-grid">${amBtns}</div>
+        <div class="type-section">Half Day — PM</div>
+        <div class="type-grid">${pmBtns}</div>`
+        :''}
       </div>
       <div id="hourly_entry_form" style="display:${firstIsHourly?'block':'none'}">
         <div class="form-group" style="margin-top:8px">
