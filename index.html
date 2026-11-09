@@ -3155,7 +3155,7 @@ function _stAnimateAgility(d,t,dt){
 }
 
 function _stRotateBA(){
-  const slot=Math.floor(Date.now()/(2*60*60*1000));
+  const slot=Math.floor(Date.now()/(10*60*1000));
   if(slot===_stBARotSlot)return;
   _stBARotSlot=slot;
   _stObjs.forEach(d=>{
@@ -3526,7 +3526,7 @@ function _stInit(){
     sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct">${pct}%</div><div class="st-sb-spd">${label} · ${ph.label}</div></div></div>`;
   });
 
-  bas.forEach(per=>{
+  bas.forEach((per,i)=>{
     const projId=(per.projectIds||[])[0]||'';
     const shirtHex=_ST_COLORS[projId]||0xBDBDBD;
     const female=_ST_FEMALE.has(per.name.toLowerCase());
@@ -3534,16 +3534,16 @@ function _stInit(){
     const pct=isHourly
       ? Math.min(100,Math.round((S.entries||[]).filter(e=>e.personnelId===per.id&&e.type==='hours').reduce((s,e)=>s+(parseFloat(e.hours)||0),0)/(per.poHours||400)*100))
       : _stSpeedPct(per.id);
-    const eventKey=_ST_BA_EVENTS[per.name.toLowerCase()]||'idle';
-    const eventLabel=_ST_BA_ACT_LABELS[eventKey]||'Coordinator';
+    const _baBaseIdx=i%_ST_BA_ACT_ORDER.length;
+    const eventKey=_ST_BA_ACT_ORDER[_baBaseIdx];
+    const eventLabel=_ST_BA_ACT_LABELS[eventKey];
     const pos=_ST_BA_POS[eventKey]||{x:0,z:0};
     const dev=_stMakeDev(per.name,female,shirtHex,pct);
     dev.g.position.set(pos.x,0,pos.z);
     const idx=_stObjs.length;
     _stScene.add(dev.g);
     _stTagGroup(dev.g,idx);
-    const _baBaseIdx=_ST_BA_ACT_ORDER.indexOf(eventKey);
-    _stObjs.push({...dev,isBA:true,isHourly,baState:'idle',stateT:0,projId,per,pct,fieldEvent:eventLabel,eventKey,baScore:0,_sbIdx:idx,_baBaseIdx:Math.max(0,_baBaseIdx)});
+    _stObjs.push({...dev,isBA:true,isHourly,baState:'idle',stateT:0,projId,per,pct,fieldEvent:eventLabel,eventKey,baScore:0,_sbIdx:idx,_baBaseIdx});
     const dot=projId==='p_orion'?'#E91E8C':projId==='p_polaris'?'#29B6F6':projId==='p_cordis'?'#FDD835':'#38BDF8';
     if(isHourly){
       const totalHrs=(S.entries||[]).filter(e=>e.personnelId===per.id&&e.type==='hours').reduce((s,e)=>s+(parseFloat(e.hours)||0),0);
@@ -3555,7 +3555,7 @@ function _stInit(){
 
   document.getElementById('st-sb-inner').innerHTML=sbHTML;
 
-  // BA activity rotation — every 2 real-world hours
+  // BA activity rotation — every 10 real-world minutes
   _stBARotSlot=-1;_stRotateBA();
   if(_stBARotTimer)clearInterval(_stBARotTimer);
   _stBARotTimer=setInterval(_stRotateBA,60*1000);
