@@ -429,6 +429,8 @@ const ETYPES = {
 // ═══════════════════════════════════════
 let wdYear = new Date().getFullYear();
 let expSelProj = null;
+let expSortM = {col:'yyyymm', dir:1};
+let expSortH = {col:'yyyymm', dir:1};
 let curPersonId = null;
 let curProjectId = null;
 let profileSort = {col:'name', dir:'asc'};
@@ -1416,11 +1418,23 @@ function renderExpenses() {
           rows.push({yyyymm:`${year}${String(month+1).padStart(2,'0')}`,person,days,worked,leave,ot,rate,cost,bp});
         }
       }
+      rows.sort((a,b)=>{
+        const {col,dir}=expSortM;
+        let va,vb;
+        if(col==='yyyymm'){va=a.yyyymm;vb=b.yyyymm;}
+        else if(col==='name'){va=a.person.name||'';vb=b.person.name||'';}
+        else if(col==='company'){va=a.person.company||'';vb=b.person.company||'';}
+        else if(col==='worked'){va=a.worked;vb=b.worked;}
+        else if(col==='rate'){va=a.rate??-1;vb=b.rate??-1;}
+        else if(col==='cost'){va=a.cost??-1;vb=b.cost??-1;}
+        else{va=a.yyyymm;vb=b.yyyymm;}
+        return typeof va==='string'?va.localeCompare(vb)*dir:(va-vb)*dir;
+      });
       tableHtml+=`<div class="card">
         <div class="exp-proj-hdr">📁 ${proj.name}</div>
         <div class="tbl-wrap" style="margin-top:16px">
           <table>
-            <thead><tr><th>YYYYMM</th><th>Billing Period</th><th>Name</th><th>Company</th><th>Days Worked / Total</th><th>Monthly Rate</th><th>Cost (SGD)</th></tr></thead>
+            <thead><tr>${thS('m','yyyymm','YYYYMM')}<th>Billing Period</th>${thS('m','name','Name')}${thS('m','company','Company')}${thS('m','worked','Days Worked / Total')}${thS('m','rate','Monthly Rate')}${thS('m','cost','Cost (SGD)')}</tr></thead>
             <tbody>
               ${rows.map(r=>`<tr>
                 <td>${r.yyyymm}</td>
@@ -1444,17 +1458,31 @@ function renderExpenses() {
 
   // Hourly billing section
   if(hourlyMembers.length){
-    const bpRows=[...S.billingPeriods.filter(bp=>hourlyMembers.some(m=>m.id===bp.personnelId))].sort((a,b)=>b.createdAt-a.createdAt);
-    const bpTable=bpRows.length?`
+    const bpEnriched=[...S.billingPeriods.filter(bp=>hourlyMembers.some(m=>m.id===bp.personnelId))].map(bp=>{
+      const person=S.personnel.find(p=>p.id===bp.personnelId);
+      const liveHrs=calcHours(bp.personnelId,bp.periodStart,bp.periodEnd);
+      const liveAmt=liveHrs*(bp.rate||(person?.hourlyRate||0));
+      return {...bp,person,liveHrs,liveAmt,mismatch:liveHrs!==bp.totalHours};
+    });
+    bpEnriched.sort((a,b)=>{
+      const {col,dir}=expSortH;
+      let va,vb;
+      if(col==='yyyymm'){va=a.yyyymm;vb=b.yyyymm;}
+      else if(col==='name'){va=a.person?.name||'';vb=b.person?.name||'';}
+      else if(col==='company'){va=a.person?.company||'';vb=b.person?.company||'';}
+      else if(col==='hours'){va=a.liveHrs;vb=b.liveHrs;}
+      else if(col==='rate'){va=a.rate||0;vb=b.rate||0;}
+      else if(col==='amount'){va=a.liveAmt;vb=b.liveAmt;}
+      else{va=a.yyyymm;vb=b.yyyymm;}
+      return typeof va==='string'?va.localeCompare(vb)*dir:(va-vb)*dir;
+    });
+    const bpTable=bpEnriched.length?`
       <div class="tbl-wrap" style="margin-top:16px">
         <table>
-          <thead><tr><th>YYYYMM</th><th>Billing Period</th><th>Name</th><th>Company</th><th>Hours</th><th>Rate</th><th>Amount (SGD)</th><th></th></tr></thead>
+          <thead><tr>${thS('h','yyyymm','YYYYMM')}<th>Billing Period</th>${thS('h','name','Name')}${thS('h','company','Company')}${thS('h','hours','Hours')}${thS('h','rate','Rate')}${thS('h','amount','Amount (SGD)')}<th></th></tr></thead>
           <tbody>
-            ${bpRows.map(bp=>{
-              const person=S.personnel.find(p=>p.id===bp.personnelId);
-              const liveHrs=calcHours(bp.personnelId,bp.periodStart,bp.periodEnd);
-              const liveAmt=liveHrs*(bp.rate||(person?.hourlyRate||0));
-              const mismatch=liveHrs!==bp.totalHours;
+            ${bpEnriched.map(bp=>{
+              const {person,liveHrs,liveAmt,mismatch}=bp;
               return`<tr>
                 <td>${bp.yyyymm}</td>
                 <td style="white-space:nowrap;font-size:12px">${fmtDate(bp.periodStart)} – ${fmtDate(bp.periodEnd)}</td>
@@ -1508,6 +1536,21 @@ function renderExpenses() {
 function setExpProj(id){
   expSelProj=id;
   renderExpenses();
+}
+
+function setExpSort(tbl,col){
+  if(tbl==='m'){
+    if(expSortM.col===col) expSortM.dir*=-1; else {expSortM.col=col;expSortM.dir=1;}
+  } else {
+    if(expSortH.col===col) expSortH.dir*=-1; else {expSortH.col=col;expSortH.dir=1;}
+  }
+  renderExpenses();
+}
+
+function thS(tbl,col,label){
+  const st=tbl==='m'?expSortM:expSortH;
+  const ind=st.col===col?(st.dir===1?' ↑':' ↓'):' ↕';
+  return `<th style="cursor:pointer;user-select:none" onclick="setExpSort('${tbl}','${col}')">${label}<span style="opacity:.5;font-size:10px">${ind}</span></th>`;
 }
 
 function calcHours(pid, startDate, endDate) {
