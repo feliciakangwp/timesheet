@@ -1923,9 +1923,9 @@ function openDayModal(ds, isWe, isHol) {
   const personOpts=people.map(p=>`<option value="${p.id}">${p.name} (${p.company})</option>`).join('');
 
   const mkTypeBtn=(t)=>{const ec=ETYPES[t];const mc=['mc','mc_am','mc_pm'].includes(t)?'mc-btn':'';return`<button class="type-btn ${mc}" onclick="selType(this,'${t}')">${ec.label}</button>`;};
-  const fullDayBtns=['leave_full','mc','ot_full'].map(mkTypeBtn).join('');
-  const amBtns=['leave_am','mc_am','ot_am'].map(mkTypeBtn).join('');
-  const pmBtns=['leave_pm','mc_pm','ot_pm'].map(mkTypeBtn).join('');
+  const leaveBtns=['leave_full','leave_am','leave_pm'].map(mkTypeBtn).join('');
+  const mcBtns=['mc','mc_am','mc_pm'].map(mkTypeBtn).join('');
+  const otBtns=['ot_full','ot_am','ot_pm'].map(mkTypeBtn).join('');
 
   const firstPerson=people[0];
   const firstIsHourly=firstPerson&&(firstPerson.chargeType||'monthly')==='hourly';
@@ -1942,12 +1942,12 @@ function openDayModal(ds, isWe, isHol) {
       </div>
       <div id="monthly_entry_form" style="display:${firstIsHourly?'none':'block'}">
         ${!isWe&&!isHol?`
-        <div class="type-section">Full Day</div>
-        <div class="type-grid">${fullDayBtns}</div>
-        <div class="type-section">Half Day — AM</div>
-        <div class="type-grid">${amBtns}</div>
-        <div class="type-section">Half Day — PM</div>
-        <div class="type-grid">${pmBtns}</div>`
+        <div class="type-section">Leave</div>
+        <div class="type-grid">${leaveBtns}</div>
+        <div class="type-section">MC</div>
+        <div class="type-grid">${mcBtns}</div>
+        <div class="type-section">OT</div>
+        <div class="type-grid">${otBtns}</div>`
         :''}
       </div>
       <div id="hourly_entry_form" style="display:${firstIsHourly?'block':'none'}">
