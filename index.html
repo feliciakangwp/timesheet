@@ -1395,14 +1395,17 @@ function renderExpenses() {
           <tbody>
             ${bpRows.map(bp=>{
               const person=S.personnel.find(p=>p.id===bp.personnelId);
+              const liveHrs=calcHours(bp.personnelId,bp.periodStart,bp.periodEnd);
+              const liveAmt=liveHrs*(bp.rate||(person?.hourlyRate||0));
+              const mismatch=liveHrs!==bp.totalHours;
               return`<tr>
                 <td>${bp.yyyymm}</td>
                 <td style="white-space:nowrap;font-size:12px">${fmtDate(bp.periodStart)} – ${fmtDate(bp.periodEnd)}</td>
                 <td><strong>${person?.name||'?'}</strong></td>
                 <td>${person?.company||'?'}</td>
-                <td><strong>${bp.totalHours}h</strong></td>
+                <td><strong>${liveHrs}h</strong>${mismatch?`<span style="font-size:10px;color:var(--warning);margin-left:6px" title="Originally saved as ${bp.totalHours}h — timesheet entries changed">⚠ stored ${bp.totalHours}h</span>`:''}</td>
                 <td>$${bp.rate}/hr</td>
-                <td><strong>${money(bp.amount)}</strong></td>
+                <td><strong>${money(liveAmt)}</strong></td>
                 <td><button class="btn btn-danger btn-sm" onclick="delBillingPeriod('${bp.id}')">✕</button></td>
               </tr>`;
             }).join('')}
@@ -1593,12 +1596,18 @@ function buildCalHTML() {
     const mrows=people.map(p=>{
       if((p.chargeType||'monthly')==='hourly'){
         const pfx=`${y}-${String(m+1).padStart(2,'0')}`;
+        const mStart=`${pfx}-01`,mEnd=dk(y,m,new Date(y,m+1,0).getDate());
         const hrs=S.entries.filter(e=>e.personnelId===p.id&&e.type==='hours'&&e.date.startsWith(pfx)).reduce((s,e)=>s+(e.hours||0),0);
+        const bpOverlap=(S.billingPeriods||[]).filter(bp=>bp.personnelId===p.id&&bp.periodEnd>=mStart&&bp.periodStart<=mEnd);
+        const bpInfo=bpOverlap.map(bp=>{
+          const h=calcHours(bp.personnelId,bp.periodStart,bp.periodEnd);
+          return`<div style="font-size:11px;color:var(--muted);margin-top:2px">📋 ${fmtDate(bp.periodStart)}–${fmtDate(bp.periodEnd)}: <strong>${h}h</strong> @ $${bp.rate}/hr = <strong>$${(h*bp.rate).toLocaleString()}</strong></div>`;
+        }).join('');
         return`<tr>
           <td><strong>${p.name}</strong></td>
           <td>${p.company}</td>
           <td>${p.role||'—'}</td>
-          <td><span class="ebadge hours" style="display:inline-flex">${hrs}h clocked</span></td>
+          <td><span class="ebadge hours" style="display:inline-flex">${hrs}h this month</span>${bpInfo}</td>
         </tr>`;
       }
       const{leave,ot,days}=calcDays(p.id,y,m,totalWD);
@@ -2142,7 +2151,7 @@ function _stIsBA(per){return(per.role||'').toLowerCase().startsWith('ba')||per.c
 
 function _stSetCam(){if(!_stCam)return;_stCam.position.set(_stPanX,_stCamH,_stPanZ+_stCamD);_stCam.lookAt(_stPanX,0,_stPanZ);}
 
-function _stResetCam(){_stPanX=0;_stPanZ=0;_stCamH=30;_stCamD=34;_stSetCam();}
+function _stResetCam(){_stPanX=0;_stPanZ=0;_stCamH=18;_stCamD=22;_stSetCam();}
 
 function _stToggleNames(){
   _stShowNames=!_stShowNames;
@@ -2529,9 +2538,9 @@ function _stBuildStadium(sc){
     for(let i=0;i<=SEGS;i++){const a=i/SEGS*Math.PI*2;i===0?h.moveTo(iA*Math.cos(a),iB*Math.sin(a)):h.lineTo(iA*Math.cos(a),iB*Math.sin(a));}
     sh.holes=[h];return sh;
   }
-  // Back-half ring: Shape angles -π/9 → π+π/9 (~220°); after rotation.x=-PI/2 maps to world z≤0 (rear grandstand)
+  // Back-half ring: 0 → π in shape = world z≤0 (rear grandstand only, open front)
   function mkBackRing(oA,oB,iA,iB){
-    const N=56,a0=-Math.PI/9,a1=Math.PI+Math.PI/9;
+    const N=56,a0=0,a1=Math.PI;
     const sh=new THREE.Shape();
     for(let i=0;i<=N;i++){const a=a0+(a1-a0)*i/N;sh[i===0?'moveTo':'lineTo'](oA*Math.cos(a),oB*Math.sin(a));}
     for(let i=N;i>=0;i--){const a=a0+(a1-a0)*i/N;sh.lineTo(iA*Math.cos(a),iB*Math.sin(a));}
@@ -2583,7 +2592,7 @@ function _stBuildStadium(sc){
     const nSpec=Math.round(36+row*3.5);
     for(let s=0;s<nSpec;s++){
       const ang=s/nSpec*Math.PI*2;
-      if(Math.sin(ang)>0.3) continue; // skip front ~168° arc
+      if(Math.sin(ang)>0) continue; // skip front half (open view)
       const sx=midA*Math.cos(ang),sz=midB*Math.sin(ang);
       const col=SPEC_COLS[Math.floor(Math.random()*SPEC_COLS.length)];
       const sg=_stMakeSpectator(sx,specY,sz,col);
@@ -2596,8 +2605,8 @@ function _stBuildStadium(sc){
   // ── Outer stadium structure ───────────────────────────
   const wallA=SA+N_ROWS*RWA,wallB=SB+N_ROWS*RWB;
   const wallY=N_ROWS*RH;
-  // Outer retaining wall top
-  const wallRing=new THREE.Mesh(new THREE.ShapeGeometry(mkRing(wallA+0.65,wallB+0.55,wallA,wallB),64),darkMat);
+  // Outer retaining wall top (back half only)
+  const wallRing=new THREE.Mesh(new THREE.ShapeGeometry(mkBackRing(wallA+0.65,wallB+0.55,wallA,wallB),64),darkMat);
   wallRing.rotation.x=-Math.PI/2;wallRing.position.y=wallY;sc.add(wallRing);
   // Concrete skirt (visible from outside)
   const skirtRing=new THREE.Mesh(new THREE.ShapeGeometry(mkRing(wallA+0.65,wallB+0.55,SA-0.2,SB-0.2),64),new THREE.MeshLambertMaterial({color:0x706560}));
@@ -2608,6 +2617,7 @@ function _stBuildStadium(sc){
   const nCols=20;const colH=wallY+3.0;
   for(let c=0;c<nCols;c++){
     const ang=c/nCols*Math.PI*2;
+    if(Math.sin(ang)>0) continue; // back half only
     const cx=(wallA+0.3)*Math.cos(ang),cz=(wallB+0.3)*Math.sin(ang);
     const col=new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.22,colH,8),colMat);
     col.position.set(cx,colH/2,cz);sc.add(col);
@@ -2616,7 +2626,7 @@ function _stBuildStadium(sc){
   // ── Roof canopy ring ──────────────────────────────────
   const roofY=wallY+2.4;
   const roofOA=wallA+3.8,roofOB=wallB+3.0;
-  const roofRing=new THREE.Mesh(new THREE.ShapeGeometry(mkRing(roofOA,roofOB,wallA+0.5,wallB+0.4),64),new THREE.MeshLambertMaterial({color:0x7A7370,side:THREE.DoubleSide}));
+  const roofRing=new THREE.Mesh(new THREE.ShapeGeometry(mkBackRing(roofOA,roofOB,wallA+0.5,wallB+0.4),64),new THREE.MeshLambertMaterial({color:0x7A7370,side:THREE.DoubleSide}));
   roofRing.rotation.x=-Math.PI/2;roofRing.position.y=roofY;sc.add(roofRing);
 
   // ── Flags around upper perimeter ─────────────────────
@@ -2625,6 +2635,7 @@ function _stBuildStadium(sc){
   const fBaseA=roofOA+0.4,fBaseB=roofOB+0.4;
   for(let f=0;f<nFlags;f++){
     const ang=f/nFlags*Math.PI*2;
+    if(Math.sin(ang)>0) continue; // back half only
     const fx=fBaseA*Math.cos(ang),fz=fBaseB*Math.sin(ang);
     const poleBase=roofY+0.05;
     const poleMesh=new THREE.Mesh(new THREE.CylinderGeometry(0.038,0.038,fPoleH,6),new THREE.MeshLambertMaterial({color:0x9E9E9E}));
@@ -3179,7 +3190,7 @@ function _stInit(){
   _stScene.fog=new THREE.Fog(0x8AAFD4,80,130);
 
   _stCam=new THREE.PerspectiveCamera(55,W/H,.1,200);
-  _stPanX=0;_stPanZ=0;_stCamH=30;_stCamD=34;_stPaused=false;
+  _stPanX=0;_stPanZ=0;_stCamH=18;_stCamD=22;_stPaused=false;
   _stSetCam();
 
   _stRenderer=new THREE.WebGLRenderer({canvas,antialias:true});
