@@ -2186,7 +2186,7 @@ function _stLanePos(lane,s){
 }
 
 // BA name → field event key, and starting positions in the infield
-const _ST_BA_EVENTS={ryan:'tugofwar',christopher:'archery',norman:'lashing',raja:'agility'};
+const _ST_BA_EVENTS={ryan:'tugofwar',christopher:'archery',norman:'lashing'};
 // Q2=top-left, Q3=bottom-left, Q4=bottom-right, Q1=top-right (camera at +z)
 const _ST_BA_POS={tugofwar:{x:-6.5,z:-2.5},archery:{x:-3.5,z:2.5},lashing:{x:4,z:2.5},agility:{x:4,z:-2.5}};
 const _ST_BA_ACT_ORDER=['tugofwar','archery','lashing','agility'];
@@ -2199,7 +2199,7 @@ function _stPhysique(pct){
   return            {tR:.13,tH:.43,tB:.10,legL:.40,armL:.34,hdR:.14,label:'Muscular'};
 }
 
-function _stIsBA(per){return(per.role||'').toLowerCase().startsWith('ba')||per.chargeType==='hourly';}
+function _stIsBA(per){return(per.role||'').toLowerCase().startsWith('ba');}
 
 function _stSetCam(){if(!_stCam)return;_stCam.position.set(_stPanX,_stCamH,_stPanZ+_stCamD);_stCam.lookAt(_stPanX,0,_stPanZ);}
 
@@ -3269,7 +3269,7 @@ function _stInit(){
   _stRaycaster=new THREE.Raycaster();
 
   const today=new Date().toISOString().slice(0,10);
-  const allDevs=(S.personnel||[]).filter(p=>!p.offboard||(p.offboardDate&&p.offboardDate>=today));
+  const allDevs=(S.personnel||[]).filter(p=>(!p.offboard||(p.offboardDate&&p.offboardDate>=today))&&p.chargeType!=='hourly');
   _stObjs=[];
 
   // ── Project velocity averages for scoreboard ──
