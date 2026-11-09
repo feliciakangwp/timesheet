@@ -1200,9 +1200,9 @@ function openPersonModal(editId) {
   const ct=p.chargeType||'monthly';
 
   const projChips=S.projects.map(proj=>`
-    <label class="proj-chip ${(p.projectIds||[]).includes(proj.id)?'checked':''}" data-projid="${proj.id}" onclick="toggleChip(this)">
-      <input type="checkbox"> ${proj.name}
-    </label>`).join('');
+    <div class="proj-chip ${(p.projectIds||[]).includes(proj.id)?'checked':''}" data-projid="${proj.id}" onclick="toggleChip(this)">
+      ${proj.name}
+    </div>`).join('');
 
   const ratesHtml=(p.rates&&p.rates.length?p.rates:[{from:'',to:'',rate:''}]).map((r,i)=>rateRow(r,i)).join('');
 
