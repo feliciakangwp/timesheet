@@ -2126,7 +2126,8 @@ function _stLanePos(lane,s){
 
 // BA name → field event key, and starting positions in the infield
 const _ST_BA_EVENTS={ryan:'tugofwar',christopher:'puzzle',norman:'detective',raja:'agility'};
-const _ST_BA_POS={tugofwar:{x:-6,z:0},puzzle:{x:4,z:-2},detective:{x:0,z:-3.5},agility:{x:3,z:2}};
+// Q2=top-left, Q3=bottom-left, Q4=bottom-right, Q1=top-right (camera at +z)
+const _ST_BA_POS={tugofwar:{x:-6.5,z:-2.5},puzzle:{x:-4,z:2.5},detective:{x:4,z:2.5},agility:{x:4,z:-2.5}};
 const _ST_BA_ACT_ORDER=['tugofwar','puzzle','detective','agility'];
 const _ST_BA_ACT_LABELS={tugofwar:'Tug of War',puzzle:'Giant Puzzle',detective:'Detective Hunt',agility:'Agility Training'};
 
@@ -2672,44 +2673,46 @@ function _stBuildStadium(sc){
     stripe.position.set(ax2,0.64,az);stripe.rotation.y=ang+Math.PI/2;sc.add(stripe);
   }
 
-  // ── BA Event Props ──────────────────────────────────────
-  // Tug of War — rope runs along X; Ryan(-6,0) ←rope→ team(-2 to 0,0)
+  // ── BA Event Props — Field split into 4 quarters ────────
+  // Quarter dividers: x=0 (vertical) and z=0 (horizontal) across infield
+  const qlineMat=new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:0.35});
+  sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,.02,-5.5),new THREE.Vector3(0,.02,5.5)]),qlineMat));
+  sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-8.5,.02,0),new THREE.Vector3(8.5,.02,0)]),qlineMat));
+
+  // Q2 (top-left x<0,z<0): Tug of War — Ryan(-6.5,z=-2.5) ←rope→ team(-0.5 to -2.5,z=-2.5)
   const ropeMat=new THREE.MeshLambertMaterial({color:0xA0522D});
-  const rope=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,7,8),ropeMat);
-  rope.position.set(-3,.28,0);rope.rotation.z=Math.PI/2;sc.add(rope);
+  const rope=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,6,8),ropeMat);
+  rope.position.set(-3.5,.28,-2.5);rope.rotation.z=Math.PI/2;sc.add(rope);
   const midFlag=new THREE.Mesh(new THREE.PlaneGeometry(.22,.16),new THREE.MeshLambertMaterial({color:0xff0000,side:THREE.DoubleSide}));
-  midFlag.position.set(-3,.52,0);sc.add(midFlag);
+  midFlag.position.set(-3.5,.52,-2.5);sc.add(midFlag);
   _stFlags.push(midFlag);
-  _stEventProps.tugofwar={rope,midFlag};
-  // Opposing team — 3 NPCs in single-file line along rope (front→back: x=-2,-1,0)
-  // rotation.y=Math.PI/2 makes them face -x (toward Ryan)
+  _stEventProps.tugofwar={rope,midFlag,cx:-3.5,cz:-2.5};
   const npcColors=[0x29B6F6,0x66BB6A,0xAB47BC];
-  const npcXPositions=[-2,-1,0];
   npcColors.forEach((col,i)=>{
     const npc=_stMakeNPC(col);
-    npc.g.position.set(npcXPositions[i],0,0);
+    npc.g.position.set(-2.5+i,0,-2.5);
     npc.g.rotation.y=-Math.PI/2;
     sc.add(npc.g);
     _stTugNPCs.push(npc);
   });
 
-  // Giant Puzzle (Christopher) — puzzle pieces on ground
+  // Q3 (bottom-left x<0,z>0): Giant Puzzle
   const pzMat=new THREE.MeshLambertMaterial({color:0x4FC3F7});
-  [[4,-2],[4.6,-1.5],[3.4,-1.5],[4,-2.6]].forEach(([px,pz])=>{
+  [[-4,2.5],[-3.4,3.0],[-4.6,3.0],[-4,1.9]].forEach(([px,pz])=>{
     const piece=new THREE.Mesh(new THREE.BoxGeometry(.55,.08,.55),pzMat);
     piece.position.set(px,.04,pz);sc.add(piece);
   });
 
-  // Detective Hunt (Norman) — magnifying glass prop & clue markers
+  // Q4 (bottom-right x>0,z>0): Detective Hunt
   const mgRing=new THREE.Mesh(new THREE.TorusGeometry(.18,.03,8,16),new THREE.MeshLambertMaterial({color:0xCDA434}));
-  mgRing.position.set(0,.5,-3.5);sc.add(mgRing);
-  [[-.6,0,-4],[.6,0,-3],[0,0,-2.8]].forEach(([cx,cy,cz])=>{
+  mgRing.position.set(4,.5,2.5);sc.add(mgRing);
+  [[3.4,0.1,2.0],[4.6,0.1,3.0],[4.0,0.1,1.9]].forEach(([dx,dy,dz])=>{
     const clue=new THREE.Mesh(new THREE.SphereGeometry(.08,8,8),new THREE.MeshLambertMaterial({color:0xFFE082}));
-    clue.position.set(cx,.1,cz);sc.add(clue);
+    clue.position.set(dx,dy,dz);sc.add(clue);
   });
 
-  // Agility Training (Raja) — light-up tap pads scattered around field
-  const agilityPositions=[{x:5,z:3},{x:-4,z:3.5},{x:1,z:5},{x:6,z:-1},{x:2,z:-4},{x:-3,z:-1},{x:4.5,z:1}];
+  // Q1 (top-right x>0,z<0): Agility Training — 6 pads within quarter
+  const agilityPositions=[{x:4,z:-2},{x:5.5,z:-1.5},{x:3,z:-3.5},{x:5,z:-3.5},{x:6,z:-2},{x:4.5,z:-1}];
   const padMeshes=agilityPositions.map(pos=>{
     const pad=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.06,16),new THREE.MeshLambertMaterial({color:0x1E3A5F}));
     pad.position.set(pos.x,.03,pos.z);sc.add(pad);
@@ -2745,7 +2748,7 @@ function _stAnimateTugOfWar(d,t,dt){
   d.g.rotation.z=.32+.07*Math.sin(ph*.5);
   // Rope shifts to show tension — slow sinusoidal drift ±0.55
   const tp=_stEventProps.tugofwar;
-  if(tp){const s=.55*Math.sin(t*.28+.8);tp.rope.position.x=-3+s;tp.midFlag.position.x=-3+s;}
+  if(tp){const s=.55*Math.sin(t*.28+.8);tp.rope.position.x=tp.cx+s;tp.midFlag.position.x=tp.cx+s;}
   // Score every ~3.2 s
   if(t-(d._lsc||0)>3.2){d._lsc=t;d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);}
 }
@@ -3004,11 +3007,37 @@ function _stRenderProfile(idx){
   const ph=_stPhysique(pct);
   const pc=pct<=50?'#ef4444':pct<=60?'#f97316':pct<=75?'#3b82f6':'#22c55e';
   const projName=(S.projects||[]).find(p=>p.id===((per.projectIds||[])[0]||''))?.name||'—';
-  const hist=_stVelocityHistory(per.id);
   if(_stProfChart){_stProfChart.destroy();_stProfChart=null;}
   if(_stAllChart){_stAllChart.destroy();_stAllChart=null;}
   const _dmT=document.getElementById('st-dm-title');
   if(_dmT) _dmT.textContent='👤 '+per.name;
+  const hist=_stVelocityHistory(per.id);
+  // Hourly consultant — show billing card instead of velocity
+  if(per.chargeType==='hourly'){
+    const hrs=(S.entries||[]).filter(e=>e.personnelId===per.id&&e.type==='hours').reduce((s,e)=>s+(parseFloat(e.hours)||0),0);
+    const rate=per.hourlyRate||200;const poHrs=per.poHours||400;
+    const amt=hrs*rate;const up=Math.min(100,Math.round(hrs/poHrs*100));
+    document.getElementById('st-dm-body').innerHTML=`
+      <div class="st-dm-profile">
+        <div class="st-dm-fig">
+          ${_stBodySVG(pct,110,178)}
+          <div style="font-size:10px;font-weight:800;color:#38BDF8;text-transform:uppercase;letter-spacing:.1em">Consultant</div>
+        </div>
+        <div class="st-dm-info">
+          <div class="st-dm-name">${per.name}</div>
+          <div class="st-dm-role">${per.role||'—'} · ${projName}</div>
+          <div class="st-dm-vel">
+            <div><div class="st-dm-pct-big" style="color:#38BDF8">${hrs.toFixed(0)}h</div><div style="font-size:11px;color:#475569;margin-top:2px">Hours billed</div></div>
+            <div style="align-self:flex-end;padding-bottom:4px;font-size:13px;font-weight:800;color:#22c55e">$${amt.toLocaleString()}</div>
+          </div>
+          <div class="st-dm-chart-lbl">PO utilization — ${up}% of ${poHrs}h used</div>
+          <div style="background:rgba(255,255,255,.1);border-radius:8px;height:10px;overflow:hidden;margin-bottom:16px"><div style="background:linear-gradient(90deg,#38BDF8,#06B6D4);height:100%;width:${up}%;border-radius:8px"></div></div>
+          <div class="st-dm-chart-lbl">Billing rate</div>
+          <div style="font-size:15px;font-weight:800;color:#f1f5f9">$${rate}<span style="font-size:11px;font-weight:400;color:#64748b">/hr · ${per.company||'—'}</span></div>
+        </div>
+      </div>`;
+    return;
+  }
   document.getElementById('st-dm-body').innerHTML=`
     <div class="st-dm-profile">
       <div class="st-dm-fig">
@@ -3212,7 +3241,10 @@ function _stInit(){
     const projId=(per.projectIds||[])[0]||'';
     const shirtHex=_ST_COLORS[projId]||0xBDBDBD;
     const female=_ST_FEMALE.has(per.name.toLowerCase());
-    const pct=_stSpeedPct(per.id);
+    const isHourly=per.chargeType==='hourly';
+    const pct=isHourly
+      ? Math.min(100,Math.round((S.entries||[]).filter(e=>e.personnelId===per.id&&e.type==='hours').reduce((s,e)=>s+(parseFloat(e.hours)||0),0)/(per.poHours||400)*100))
+      : _stSpeedPct(per.id);
     const eventKey=_ST_BA_EVENTS[per.name.toLowerCase()]||'idle';
     const eventLabel=_ST_BA_ACT_LABELS[eventKey]||'Coordinator';
     const pos=_ST_BA_POS[eventKey]||{x:0,z:0};
@@ -3222,9 +3254,14 @@ function _stInit(){
     _stScene.add(dev.g);
     _stTagGroup(dev.g,idx);
     const _baBaseIdx=_ST_BA_ACT_ORDER.indexOf(eventKey);
-    _stObjs.push({...dev,isBA:true,baState:'idle',stateT:0,projId,per,pct,fieldEvent:eventLabel,eventKey,baScore:0,_sbIdx:idx,_baBaseIdx:Math.max(0,_baBaseIdx)});
-    const dot=projId==='p_orion'?'#E91E8C':projId==='p_polaris'?'#29B6F6':projId==='p_cordis'?'#FDD835':'#9E9E9E';
-    sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct" style="color:#FFD700">BA</div><div class="st-sb-spd" id="st-ba-spd-${idx}">${eventLabel}</div></div></div>`;
+    _stObjs.push({...dev,isBA:true,isHourly,baState:'idle',stateT:0,projId,per,pct,fieldEvent:eventLabel,eventKey,baScore:0,_sbIdx:idx,_baBaseIdx:Math.max(0,_baBaseIdx)});
+    const dot=projId==='p_orion'?'#E91E8C':projId==='p_polaris'?'#29B6F6':projId==='p_cordis'?'#FDD835':'#38BDF8';
+    if(isHourly){
+      const totalHrs=(S.entries||[]).filter(e=>e.personnelId===per.id&&e.type==='hours').reduce((s,e)=>s+(parseFloat(e.hours)||0),0);
+      sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:#38BDF8"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct" style="color:#38BDF8">S/C</div><div class="st-sb-spd" id="st-ba-spd-${idx}">${totalHrs.toFixed(0)}h billed</div></div></div>`;
+    } else {
+      sbHTML+=`<div class="st-sb-row st-sb-clickable" onclick="_stSelectDev(${idx})"><div class="st-sb-dot" style="background:${dot}"></div><div class="st-sb-name">${per.name}</div><div><div class="st-sb-pct" style="color:#FFD700">BA</div><div class="st-sb-spd" id="st-ba-spd-${idx}">${eventLabel}</div></div></div>`;
+    }
   });
 
   document.getElementById('st-sb-inner').innerHTML=sbHTML;
