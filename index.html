@@ -1009,6 +1009,20 @@ function delSprint(id) {
 }
 
 // ═══════════════════════════════════════
+// ═══════════════════════════════════════
+// PROJECT ASSIGNMENT HELPERS
+// ═══════════════════════════════════════
+function personProjectsForMonth(person, year, month) {
+  const mEnd=`${year}-${String(month+1).padStart(2,'0')}-${String(new Date(year,month+1,0).getDate()).padStart(2,'0')}`;
+  const mStart=`${year}-${String(month+1).padStart(2,'0')}-01`;
+  if(!(person.projectAssignments||[]).length) return person.projectIds||[];
+  return person.projectAssignments.filter(a=>a.from<=mEnd&&(!a.to||a.to>=mStart)).map(a=>a.projectId);
+}
+function personCurrentProjects(person){
+  if(!(person.projectAssignments||[]).length) return person.projectIds||[];
+  return person.projectAssignments.filter(a=>!a.to).map(a=>a.projectId);
+}
+
 // PROFILE TAB
 // ═══════════════════════════════════════
 function sortProfile(col) {
@@ -1097,7 +1111,25 @@ function showPersonDetail(id) {
   curPersonId = id;
   const p = S.personnel.find(m=>m.id===id);
   if(!p) { renderProfile(); return; }
-  const projs=(p.projectIds||[]).map(pid=>{const pr=S.projects.find(x=>x.id===pid);return pr?pr.name:'?';}).join(', ')||'—';
+  const curProjIds=personCurrentProjects(p);
+  const projs=curProjIds.map(pid=>{const pr=S.projects.find(x=>x.id===pid);return pr?pr.name:'?';}).join(', ')||'—';
+  const assignments=p.projectAssignments||[];
+  const assignHistory=assignments.length?`
+    <div class="sec-label">Project History</div>
+    <div class="tbl-wrap" style="margin:8px 0 20px">
+      <table>
+        <thead><tr><th>Project</th><th>From</th><th>To</th></tr></thead>
+        <tbody>${[...assignments].reverse().map(a=>{
+          const ap=S.projects.find(x=>x.id===a.projectId);
+          return`<tr>
+            <td><strong>${ap?.name||'?'}</strong></td>
+            <td style="font-size:12px">${fmtDate(a.from)}</td>
+            <td style="font-size:12px">${a.to?fmtDate(a.to):'<span style="color:var(--success);font-weight:600">Current</span>'}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>
+    </div>`:'';
+  const canTransfer=!p.offboard&&S.projects.filter(x=>!curProjIds.includes(x.id)).length>0;
   const isHourly=(p.chargeType||'monthly')==='hourly';
   let rateSection;
   if(isHourly){
@@ -1132,7 +1164,8 @@ function showPersonDetail(id) {
       ${p.name}
       <span class="status ${p.offboard?'status-offboard':'status-active'}" style="margin-left:4px">${p.offboard?'Offboarded':'Active'}</span>
       ${isHourly?'<span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:20px;font-weight:600;margin-left:4px">Hourly</span>':''}
-      <button class="btn btn-secondary btn-sm" onclick="openPersonModal('${p.id}')" style="margin-left:auto">✏ Edit</button>
+      ${canTransfer?`<button class="btn btn-secondary btn-sm" onclick="openTransferModal('${p.id}')" style="margin-left:auto">↔ Transfer</button>`:'<span style="margin-left:auto"></span>'}
+      <button class="btn btn-secondary btn-sm" onclick="openPersonModal('${p.id}')" style="margin-left:${canTransfer?'8px':'auto'}">✏ Edit</button>
     </div>
     <div class="detail-grid">
       <div class="detail-field"><label>Company</label><span>${p.company||'—'}</span></div>
@@ -1140,10 +1173,11 @@ function showPersonDetail(id) {
       <div class="detail-field"><label>Start Date</label><span>${fmtDate(p.startDate)}</span></div>
       <div class="detail-field"><label>PO Start</label><span>${fmtDate(p.poStart)}</span></div>
       <div class="detail-field"><label>PO Until</label><span>${p.poUntil?fmtDate(p.poUntil):'Open'}</span></div>
-      <div class="detail-field"><label>Projects</label><span>${projs}</span></div>
+      <div class="detail-field"><label>Current Project</label><span>${projs}</span></div>
       ${p.offboard?`<div class="detail-field"><label>Offboard Date</label><span>${fmtDate(p.offboardDate)}</span></div>`:''}
     </div>
     ${rateSection}
+    ${assignHistory}
     <div class="sec-label">Remarks</div>
     <textarea class="detail-remarks" placeholder="Add notes about this person..." onblur="saveRemarks('${p.id}',this.value)">${(p.remarks||'').replace(/</g,'&lt;')}</textarea>
   </div>`;
@@ -1308,7 +1342,8 @@ function savePerson(editId) {
   const rec={
     id:editId||uid(),name,company,role,startDate,poStart,poUntil,chargeType,
     rates,hourlyRate,poHours,projectIds,offboard,offboardDate:offboard?offboardDate:null,
-    remarks:existRec?existRec.remarks||'':''
+    remarks:existRec?existRec.remarks||'':'',
+    projectAssignments:existRec?existRec.projectAssignments||[]:[]
   };
 
   if(editId){ const i=S.personnel.findIndex(p=>p.id===editId); if(i>=0) S.personnel[i]=rec; }
@@ -1316,6 +1351,66 @@ function savePerson(editId) {
   save('personnel');
   closeModal();
   if(editId) showPersonDetail(editId); else renderProfile();
+}
+
+function openTransferModal(id) {
+  const p=S.personnel.find(m=>m.id===id);
+  if(!p) return;
+  const curProjIds=personCurrentProjects(p);
+  const curProjId=curProjIds[0]||(p.projectIds||[])[0];
+  const curProj=S.projects.find(x=>x.id===curProjId);
+  const otherProjs=S.projects.filter(x=>x.id!==curProjId);
+  document.getElementById('modal-title').textContent=`Transfer ${p.name} to Another Project`;
+  document.getElementById('modal-body').innerHTML=`
+    <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:13px">
+      <strong>Current Project:</strong> ${curProj?.name||'None'}
+      <span style="margin-left:12px;font-size:11px;color:var(--muted)">Historical expenses and velocity will stay with this project.</span>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Last Day on ${curProj?.name||'Current Project'} *</label>
+        <input type="date" id="tx_end">
+      </div>
+      <div class="form-group">
+        <label>New Project *</label>
+        <select id="tx_proj" style="padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;background:var(--white);color:var(--text);width:100%">
+          <option value="">— Select —</option>
+          ${otherProjs.map(x=>`<option value="${x.id}">${x.name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>First Day on New Project *</label>
+        <input type="date" id="tx_start">
+      </div>
+    </div>`;
+  document.getElementById('modal-ftr').innerHTML=`
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-primary" onclick="saveTransfer('${id}','${curProjId||''}')">Confirm Transfer</button>`;
+  openModal();
+}
+
+function saveTransfer(personId, fromProjId) {
+  const p=S.personnel.find(m=>m.id===personId);
+  if(!p) return;
+  const endDate=document.getElementById('tx_end').value;
+  const newProjId=document.getElementById('tx_proj').value;
+  const startDate=document.getElementById('tx_start').value;
+  if(!endDate) return alert('Please enter the last day on the current project.');
+  if(!newProjId) return alert('Please select the new project.');
+  if(!startDate) return alert('Please enter the first day on the new project.');
+  if(startDate<=endDate) return alert('Start date on new project must be after the last day on the current project.');
+  if(!p.projectAssignments||!p.projectAssignments.length) {
+    p.projectAssignments=[{id:uid(),projectId:fromProjId||newProjId,from:p.startDate||'2000-01-01',to:fromProjId?endDate:null}];
+    if(!fromProjId){p.projectAssignments[0].projectId=newProjId;p.projectAssignments[0].to=null;save('personnel');closeModal();showPersonDetail(personId);return;}
+  } else {
+    const open=[...p.projectAssignments].reverse().find(a=>!a.to&&a.projectId===fromProjId)||[...p.projectAssignments].reverse().find(a=>!a.to);
+    if(open) open.to=endDate;
+  }
+  p.projectAssignments.push({id:uid(),projectId:newProjId,from:startDate,to:null});
+  p.projectIds=[newProjId];
+  save('personnel');
+  closeModal();
+  showPersonDetail(personId);
 }
 
 function delPerson(id) {
@@ -1395,7 +1490,10 @@ function renderExpenses() {
   </div>`;
 
   const proj=S.projects.find(p=>p.id===expSelProj);
-  const members=S.personnel.filter(p=>(p.projectIds||[]).includes(proj.id));
+  const members=S.personnel.filter(p=>{
+    if((p.projectAssignments||[]).length) return p.projectAssignments.some(a=>a.projectId===proj.id);
+    return(p.projectIds||[]).includes(proj.id);
+  });
   const monthlyMembers=members.filter(p=>(p.chargeType||'monthly')==='monthly');
   const hourlyMembers=members.filter(p=>(p.chargeType||'monthly')==='hourly');
 
@@ -1412,6 +1510,7 @@ function renderExpenses() {
         for(const person of monthlyMembers){
           if(person.startDate&&new Date(person.startDate+'T00:00:00')>mEnd) continue;
           if(person.poUntil &&new Date(person.poUntil+'T00:00:00')<mStart) continue;
+          if(!personProjectsForMonth(person,year,month).includes(proj.id)) continue;
           const {leave,ot,days:worked}=calcDays(person.id,year,month,days);
           const rate=getRate(person,year,month);
           const cost=rate!==null?rate*(worked/days):null;
@@ -1938,7 +2037,10 @@ function dashExpenseRows(projIds) {
   const months=[...S.workingDays].sort((a,b)=>a.year-b.year||a.month-b.month);
   for(const pid of projIds) {
     const proj=S.projects.find(p=>p.id===pid); if(!proj) continue;
-    const members=S.personnel.filter(p=>(p.projectIds||[]).includes(pid));
+    const members=S.personnel.filter(p=>{
+      if((p.projectAssignments||[]).length) return p.projectAssignments.some(a=>a.projectId===pid);
+      return(p.projectIds||[]).includes(pid);
+    });
     const monthly=members.filter(p=>(p.chargeType||'monthly')==='monthly');
     const hourly=members.filter(p=>p.chargeType==='hourly');
     for(const {year,month,days} of months) {
@@ -1946,6 +2048,7 @@ function dashExpenseRows(projIds) {
       for(const per of monthly) {
         if(per.startDate&&new Date(per.startDate+'T00:00:00')>mEnd) continue;
         if(per.poUntil &&new Date(per.poUntil+'T00:00:00')<mStart) continue;
+        if(!personProjectsForMonth(per,year,month).includes(pid)) continue;
         const {leave,ot,days:worked}=calcDays(per.id,year,month,days);
         const rate=getRate(per,year,month);
         const cost=rate!==null?rate*(worked/days):null;
