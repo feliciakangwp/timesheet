@@ -2186,11 +2186,11 @@ function _stLanePos(lane,s){
 }
 
 // BA name → field event key, and starting positions in the infield
-const _ST_BA_EVENTS={ryan:'tugofwar',christopher:'puzzle',norman:'detective',raja:'agility'};
+const _ST_BA_EVENTS={ryan:'tugofwar',christopher:'archery',norman:'lashing',raja:'agility'};
 // Q2=top-left, Q3=bottom-left, Q4=bottom-right, Q1=top-right (camera at +z)
-const _ST_BA_POS={tugofwar:{x:-6.5,z:-2.5},puzzle:{x:-4,z:2.5},detective:{x:4,z:2.5},agility:{x:4,z:-2.5}};
-const _ST_BA_ACT_ORDER=['tugofwar','puzzle','detective','agility'];
-const _ST_BA_ACT_LABELS={tugofwar:'Tug of War',puzzle:'Giant Puzzle',detective:'Detective Hunt',agility:'Agility Training'};
+const _ST_BA_POS={tugofwar:{x:-6.5,z:-2.5},archery:{x:-3.5,z:2.5},lashing:{x:4,z:2.5},agility:{x:4,z:-2.5}};
+const _ST_BA_ACT_ORDER=['tugofwar','archery','lashing','agility'];
+const _ST_BA_ACT_LABELS={tugofwar:'Tug of War',archery:'Archery',lashing:'Scouts Lashing',agility:'Agility Training'};
 
 function _stPhysique(pct){
   if(pct<=50) return{tR:.22,tH:.46,tB:.20,legL:.36,armL:.30,hdR:.18,label:'Obese'};
@@ -2724,17 +2724,6 @@ function _stBuildStadium(sc){
     sp.position.set(sx,(sbBaseY+1.5)/2,-(wallB+4.5));sc.add(sp);
   });
 
-  // ── Advertising boards (trackside) ───────────────────
-  const AD_COLS=[0xE53935,0xFB8C00,0x283593,0x1B5E20,0x6A1B9A,0x880E4F,0xBF360C,0x004D40];
-  const nAds=14;
-  for(let a=0;a<nAds;a++){
-    const ang=a/nAds*Math.PI*2;
-    const ax2=12.35*Math.cos(ang),az=9.35*Math.sin(ang);
-    const adMesh=new THREE.Mesh(new THREE.BoxGeometry(3.0,0.72,0.12),new THREE.MeshLambertMaterial({color:AD_COLS[a%AD_COLS.length]}));
-    adMesh.position.set(ax2,0.46,az);adMesh.rotation.y=ang+Math.PI/2;sc.add(adMesh);
-    const stripe=new THREE.Mesh(new THREE.BoxGeometry(2.8,0.13,0.14),new THREE.MeshLambertMaterial({color:0xffffff}));
-    stripe.position.set(ax2,0.64,az);stripe.rotation.y=ang+Math.PI/2;sc.add(stripe);
-  }
 
   // ── BA Event Props — Field split into 4 quarters ────────
   // Quarter dividers: x=0 (vertical) and z=0 (horizontal) across infield
@@ -2759,23 +2748,48 @@ function _stBuildStadium(sc){
     _stTugNPCs.push(npc);
   });
 
-  // Q3 (bottom-left x<0,z>0): Giant Puzzle
-  const pzMat=new THREE.MeshLambertMaterial({color:0x4FC3F7});
-  [[-4,2.5],[-3.4,3.0],[-4.6,3.0],[-4,1.9]].forEach(([px,pz])=>{
-    const piece=new THREE.Mesh(new THREE.BoxGeometry(.55,.08,.55),pzMat);
-    piece.position.set(px,.04,pz);sc.add(piece);
+  // Q3 (bottom-left x<0,z>0): Archery
+  const archPoleMat=new THREE.MeshLambertMaterial({color:0x8B6914});
+  const archPost=new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,1.2,8),archPoleMat);
+  archPost.position.set(-6.5,.6,2.5);sc.add(archPost);
+  // Concentric target rings on a flat disc stand (face camera at +z)
+  [{r:.42,c:0xFFFF00},{r:.31,c:0xFF2020},{r:.20,c:0x1565C0},{r:.09,c:0xFFFFFF}].forEach(({r,c})=>{
+    const ring=new THREE.Mesh(new THREE.CylinderGeometry(r,r,.03,24),new THREE.MeshLambertMaterial({color:c}));
+    ring.position.set(-6.5,1.18,2.5);sc.add(ring);
   });
-
-  // Q4 (bottom-right x>0,z>0): Detective Hunt
-  const mgRing=new THREE.Mesh(new THREE.TorusGeometry(.18,.03,8,16),new THREE.MeshLambertMaterial({color:0xCDA434}));
-  mgRing.position.set(4,.5,2.5);sc.add(mgRing);
-  [[3.4,0.1,2.0],[4.6,0.1,3.0],[4.0,0.1,1.9]].forEach(([dx,dy,dz])=>{
-    const clue=new THREE.Mesh(new THREE.SphereGeometry(.08,8,8),new THREE.MeshLambertMaterial({color:0xFFE082}));
-    clue.position.set(dx,dy,dz);sc.add(clue);
+  // Firing-line marker
+  const fireBar=new THREE.Mesh(new THREE.BoxGeometry(1.4,.03,.07),new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:.7}));
+  fireBar.position.set(-3.5,.02,2.5);sc.add(fireBar);
+  // A few arrows embedded in ground near target
+  [[-6.3,.35,2.1],[-6.6,.35,2.8],[-6.1,.35,2.6]].forEach(([ax,ay,az])=>{
+    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.55,6),new THREE.MeshLambertMaterial({color:0xC8A041}));
+    shaft.position.set(ax,ay,az);shaft.rotation.z=0.28;sc.add(shaft);
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(.04,.1,6),new THREE.MeshLambertMaterial({color:0xBBBBBB}));
+    tip.position.set(ax+.18,ay+.03,az);tip.rotation.z=Math.PI/2+0.28;sc.add(tip);
   });
+  _stEventProps.archery={targetPos:{x:-6.5,z:2.5},firePos:{x:-3.5,z:2.5}};
 
-  // Q1 (top-right x>0,z<0): Agility Training — 6 pads within quarter
-  const agilityPositions=[{x:4,z:-2},{x:5.5,z:-1.5},{x:3,z:-3.5},{x:5,z:-3.5},{x:6,z:-2},{x:4.5,z:-1}];
+  // Q4 (bottom-right x>0,z>0): Scouts Lashing — poles and rope-lashing structure
+  const poleMat=new THREE.MeshLambertMaterial({color:0x7A5230});
+  const lashMat=new THREE.MeshLambertMaterial({color:0x5C3A14});
+  // Three poles being assembled into a tripod/tall structure
+  const poleData=[[4.5,1.6,2.5,0],[5.1,1.3,2.9,0.38],[3.9,1.3,2.2,-0.35]];
+  poleData.forEach(([px,ph,pz,rot])=>{
+    const pole=new THREE.Mesh(new THREE.CylinderGeometry(.055,.07,ph*2,8),poleMat);
+    pole.position.set(px,ph,pz);pole.rotation.z=rot;sc.add(pole);
+  });
+  // Lashing wraps at the junction where poles meet
+  [[4.6,2.4,2.6],[4.3,2.1,2.3],[4.9,1.9,2.8]].forEach(([lx,ly,lz])=>{
+    const lash=new THREE.Mesh(new THREE.TorusGeometry(.09,.026,6,10),lashMat);
+    lash.position.set(lx,ly,lz);sc.add(lash);
+  });
+  // Rope coil on ground
+  const coil=new THREE.Mesh(new THREE.TorusGeometry(.22,.045,6,12),lashMat);
+  coil.position.set(3.5,.04,3.3);coil.rotation.x=Math.PI/2;sc.add(coil);
+  _stEventProps.lashing={buildPos:{x:4.5,z:2.5}};
+
+  // Q1 (top-right x>0,z<0): Agility Training — pads spread across full quarter
+  const agilityPositions=[{x:3,z:-1.5},{x:6.5,z:-1.8},{x:3,z:-4},{x:6.5,z:-3.5},{x:5,z:-2.5},{x:4.5,z:-4.5}];
   const padMeshes=agilityPositions.map(pos=>{
     const pad=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.06,16),new THREE.MeshLambertMaterial({color:0x1E3A5F}));
     pad.position.set(pos.x,.03,pos.z);sc.add(pad);
@@ -2790,7 +2804,7 @@ function _stUpdateBAScore(d){
   const el=document.getElementById('st-ba-spd-'+d._sbIdx);
   if(!el)return;
   const s=d.baScore||0;
-  const txt={tugofwar:'Tug of War · '+s+' pts',puzzle:'Puzzle · '+(s%5)+'/4 done',detective:'Detective · '+s+' clues',agility:'Agility · '+s+' taps'}[d.eventKey]||d.fieldEvent;
+  const txt={tugofwar:'Tug of War · '+s+' pts',archery:'Archery · '+s+' arrows',lashing:'Lashing · '+s+' knots',agility:'Agility · '+s+' taps'}[d.eventKey]||d.fieldEvent;
   el.textContent=txt;el.style.color='#FFD700';
   clearTimeout(d._sbT);d._sbT=setTimeout(()=>{if(el)el.style.color='rgba(255,255,255,.6)';},700);
 }
@@ -2816,73 +2830,71 @@ function _stAnimateTugOfWar(d,t,dt){
   if(t-(d._lsc||0)>3.2){d._lsc=t;d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);}
 }
 
-function _stAnimatePuzzle(d,t,dt){
+function _stAnimateArchery(d,t,dt){
   if(!d.stateT)d.stateT=t;
   const e=t-d.stateT;
+  const ep=_stEventProps.archery;if(!ep)return;
   if(d.baState==='idle'){
     if(!d.isGLB){d.raP.rotation.x=0;d.laP.rotation.x=0;}
-    d.g.rotation.y=0;
-    if(e>1.5){d.baState='pickup';d.stateT=t;}
-  } else if(d.baState==='pickup'){
-    const p=Math.min(e/.5,1);
-    if(!d.isGLB){d.raP.rotation.x=-Math.PI*.6*p;d.laP.rotation.x=-Math.PI*.4*p;}
-    else if(d._glbMesh) d._glbMesh.rotation.x=-0.15*p;
-    d.g.position.y=.08*p;
-    if(e>.5){d.baState='examine';d.stateT=t;}
-  } else if(d.baState==='examine'){
-    d.g.rotation.y+=dt*1.2;
-    if(!d.isGLB){d.raP.rotation.x=-Math.PI*.6+.15*Math.sin(t*4);}
-    else if(d._glbMesh) d._glbMesh.rotation.x=-0.15+.05*Math.sin(t*4);
-    if(e>1.2){d.baState='place';d.stateT=t;}
-  } else if(d.baState==='place'){
-    const p=Math.min(e/.4,1);
-    if(!d.isGLB){d.raP.rotation.x=-Math.PI*.6*(1-p);d.laP.rotation.x=-Math.PI*.4*(1-p);}
-    else if(d._glbMesh) d._glbMesh.rotation.x=-0.15*(1-p);
-    d.g.position.y=.08*(1-p);
-    if(e>.4){d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);d.baState='celebrate';d.stateT=t;}
+    // Face the target (target is at more negative x, so face -x direction)
+    d.g.rotation.y=Math.PI/2;
+    if(e>0.9){d.baState='draw';d.stateT=t;}
+  } else if(d.baState==='draw'){
+    // Pull draw arm back, hold bow arm steady
+    const p=Math.min(e/.7,1);
+    if(!d.isGLB){d.raP.rotation.x=-Math.PI*.55*p;d.laP.rotation.x=-Math.PI*.3;}
+    else if(d._glbMesh) d._glbMesh.rotation.z=-.08*p;
+    if(e>.7){d.baState='aim';d.stateT=t;}
+  } else if(d.baState==='aim'){
+    // Hold still, slight sway
+    if(!d.isGLB){
+      d.raP.rotation.x=-Math.PI*.55+.04*Math.sin(t*5);
+      d.laP.rotation.x=-Math.PI*.3+.02*Math.sin(t*5);
+    }
+    if(e>.5){d.baState='release';d.stateT=t;}
+  } else if(d.baState==='release'){
+    // Arms snap open
+    if(!d.isGLB){d.raP.rotation.x=.1;d.laP.rotation.x=-.6;}
+    else if(d._glbMesh) d._glbMesh.rotation.z=.1*Math.sin(t*10);
+    if(e>.35){d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);d.baState='celebrate';d.stateT=t;}
   } else {
-    if(!d.isGLB){d.raP.rotation.x=-.5+.5*Math.sin(t*6);d.laP.rotation.x=-.5+.5*Math.sin(t*6+Math.PI);}
-    else{d.g.position.y=.08+.06*Math.abs(Math.sin(t*6));if(d._glbMesh)d._glbMesh.rotation.z=.1*Math.sin(t*6);}
-    if(e>1){d.baState='idle';d.stateT=t;d.g.rotation.y=0;if(d._glbMesh)d._glbMesh.rotation.z=0;}
+    if(!d.isGLB){d.raP.rotation.x=-.5+.5*Math.sin(t*5);d.laP.rotation.x=-.4+.4*Math.sin(t*5+Math.PI);}
+    else{d.g.position.y=.06*Math.abs(Math.sin(t*5));}
+    if(e>1.0){d.baState='idle';d.stateT=t;if(d._glbMesh)d._glbMesh.rotation.z=0;}
   }
 }
 
-function _stAnimateDetective(d,t,dt){
+function _stAnimateLashing(d,t,dt){
   if(!d.stateT)d.stateT=t;
   const e=t-d.stateT;
+  const ep=_stEventProps.lashing;if(!ep)return;
   if(d.baState==='idle'){
     if(!d.isGLB){d.raP.rotation.x=0;d.laP.rotation.x=0;}
-    d.g.rotation.y=Math.sin(t*.4)*Math.PI;
-    if(e>.8){
-      // Wide roam — covers infield, track, and approach to stands
-      d._wx=(Math.random()-.5)*20;d._wz=(Math.random()-.5)*14;
-      d.baState='patrol';d.stateT=t;
+    d.g.rotation.y+=dt*.4;
+    if(e>.5){
+      // Pick a spot within Q4 to work on (x:3.5–5.5, z:1.8–3.4)
+      d._wx=3.5+Math.random()*2;d._wz=1.8+Math.random()*1.6;
+      d.baState='walk';d.stateT=t;
     }
-  } else if(d.baState==='patrol'){
-    const dx=(d._wx||0)-d.g.position.x,dz=(d._wz||0)-d.g.position.z;
+  } else if(d.baState==='walk'){
+    const dx=(d._wx||ep.buildPos.x)-d.g.position.x,dz=(d._wz||ep.buildPos.z)-d.g.position.z;
     const dist=Math.sqrt(dx*dx+dz*dz);
-    if(dist>.4){
-      const spd=1.1;
-      d.g.position.x+=dx/dist*spd*dt;d.g.position.z+=dz/dist*spd*dt;
+    if(dist>.3){
+      const spd=0.9;d.g.position.x+=dx/dist*spd*dt;d.g.position.z+=dz/dist*spd*dt;
       d.g.rotation.y=Math.atan2(dx,dz);
-      const ph=t*5;
-      if(!d.isGLB){
-        d.llP.rotation.x=.4*Math.sin(ph);d.rlP.rotation.x=-.4*Math.sin(ph);
-        d.laP.rotation.x=-.25*Math.sin(ph);d.raP.rotation.x=.25*Math.sin(ph);
-      } else {
-        const bnc=Math.abs(Math.sin(ph*2));d.g.position.y=.03*bnc;
-        if(d._glbMesh){d._glbMesh.rotation.x=-.06+.04*Math.sin(ph);d._glbMesh.rotation.z=.04*Math.cos(ph);d._glbMesh.scale.y=1-.03*bnc;}
-      }
-    }
-    if(dist<.4||e>7){d.baState='examine';d.stateT=t;}
+      const ph=t*4;
+      if(!d.isGLB){d.llP.rotation.x=.3*Math.sin(ph);d.rlP.rotation.x=-.3*Math.sin(ph);}
+      else{d.g.position.y=.02*Math.abs(Math.sin(ph*2));}
+    } else {d.baState='lash';d.stateT=t;}
   } else {
+    // Lashing: arms wrap rope around poles
+    const ph=t*2.8;
     if(!d.isGLB){
-      d.raP.rotation.x=-Math.PI*.45+.1*Math.sin(t*3);
-      d.laP.rotation.x=Math.PI*.15;
+      d.raP.rotation.x=-Math.PI*.5+.3*Math.sin(ph);
+      d.laP.rotation.x=-Math.PI*.45+.3*Math.sin(ph+Math.PI*.6);
       d.llP.rotation.x=0;d.rlP.rotation.x=0;
-    } else if(d._glbMesh) d._glbMesh.rotation.x=-.12+.04*Math.sin(t*3);
-    d.g.rotation.y+=dt*.5;
-    if(e>1.5){d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);d.baState='idle';d.stateT=t;if(d._glbMesh)d._glbMesh.rotation.x=0;}
+    } else if(d._glbMesh){d._glbMesh.rotation.z=.07*Math.sin(ph);d.g.position.y=0;}
+    if(e>2.6){d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);d.baState='idle';d.stateT=t;if(d._glbMesh)d._glbMesh.rotation.z=0;}
   }
 }
 
@@ -3388,8 +3400,8 @@ function _stInit(){
       if(!d.g.visible)return;
       if(d.isBA){
         if(d.eventKey==='tugofwar')_stAnimateTugOfWar(d,t,dt);
-        else if(d.eventKey==='puzzle')_stAnimatePuzzle(d,t,dt);
-        else if(d.eventKey==='detective')_stAnimateDetective(d,t,dt);
+        else if(d.eventKey==='archery')_stAnimateArchery(d,t,dt);
+        else if(d.eventKey==='lashing')_stAnimateLashing(d,t,dt);
         else if(d.eventKey==='agility')_stAnimateAgility(d,t,dt);
       } else if(d.spd>0){
         d.arcT+=d.spd;
