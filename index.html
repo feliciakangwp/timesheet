@@ -678,15 +678,19 @@ function getRate(person, year, month) {
 }
 
 function calcDays(pid, year, month, totalWD) {
-  let leave=0, ot=0;
+  let leave=0, mc=0, ot=0;
   S.entries.filter(e=>{
     const [ey,em]=e.date.split('-').map(Number);
     return e.personnelId===pid && ey===year && em-1===month;
   }).forEach(e=>{
-    const v=ETYPES[e.type]?.val||0;
-    if(v<0) leave+=Math.abs(v); else ot+=v;
+    const t=e.type||'';
+    const v=ETYPES[t]?.val||0;
+    if(v<0){
+      if(t==='mc'||t==='mc_am'||t==='mc_pm') mc+=Math.abs(v);
+      else leave+=Math.abs(v);
+    } else ot+=v;
   });
-  return {leave, ot, days: totalWD - leave + ot};
+  return {leave, mc, ot, days: totalWD - leave - mc + ot};
 }
 
 function getWD(year, month) {
@@ -1511,12 +1515,12 @@ function renderExpenses() {
           if(person.startDate&&new Date(person.startDate+'T00:00:00')>mEnd) continue;
           if(person.poUntil &&new Date(person.poUntil+'T00:00:00')<mStart) continue;
           if(!personProjectsForMonth(person,year,month).includes(proj.id)) continue;
-          const {leave,ot,days:worked}=calcDays(person.id,year,month,days);
+          const {leave,mc,ot,days:worked}=calcDays(person.id,year,month,days);
           const rate=getRate(person,year,month);
           const cost=rate!==null?rate*(worked/days):null;
           const mEndD=new Date(year,month+1,0);
           const bp=`1 ${MN[month].slice(0,3)} ${year} – ${mEndD.getDate()} ${MN[month].slice(0,3)} ${year}`;
-          rows.push({yyyymm:`${year}${String(month+1).padStart(2,'0')}`,person,days,worked,leave,ot,rate,cost,bp});
+          rows.push({yyyymm:`${year}${String(month+1).padStart(2,'0')}`,person,days,worked,leave,mc,ot,rate,cost,bp});
         }
       }
       rows.sort((a,b)=>{
@@ -1545,6 +1549,7 @@ function renderExpenses() {
                 <td>
                   <strong>${r.worked}</strong>/${r.days}
                   ${r.leave?`<span style="font-size:11px;color:var(--danger);margin-left:4px">-${r.leave}L</span>`:''}
+                  ${r.mc?`<span style="font-size:11px;color:#7e22ce;margin-left:4px">-${r.mc}MC</span>`:''}
                   ${r.ot?`<span style="font-size:11px;color:var(--success);margin-left:4px">+${r.ot}OT</span>`:''}
                 </td>
                 <td>${r.rate!==null?money(r.rate):'<span style="color:var(--muted)">N/A</span>'}</td>
@@ -1811,9 +1816,10 @@ function buildCalHTML() {
           <td><span class="ebadge hours" style="display:inline-flex">${hrs}h this month</span>${bpInfo}</td>
         </tr>`;
       }
-      const{leave,ot,days}=calcDays(p.id,y,m,totalWD);
+      const{leave,mc,ot,days}=calcDays(p.id,y,m,totalWD);
       const parts=[];
       if(leave) parts.push(`<span style="color:var(--danger);font-size:11px">-${leave} leave</span>`);
+      if(mc) parts.push(`<span style="color:#7e22ce;font-size:11px">-${mc} MC</span>`);
       if(ot) parts.push(`<span style="color:var(--success);font-size:11px">+${ot} OT</span>`);
       return`<tr>
         <td><strong>${p.name}</strong></td>
@@ -2048,7 +2054,7 @@ function dashExpenseRows(projIds) {
         if(per.startDate&&new Date(per.startDate+'T00:00:00')>mEnd) continue;
         if(per.poUntil &&new Date(per.poUntil+'T00:00:00')<mStart) continue;
         if(!personProjectsForMonth(per,year,month).includes(pid)) continue;
-        const {leave,ot,days:worked}=calcDays(per.id,year,month,days);
+        const {leave,mc,ot,days:worked}=calcDays(per.id,year,month,days);
         const rate=getRate(per,year,month);
         const cost=rate!==null?rate*(worked/days):null;
         const yyyymm=`${year}${String(month+1).padStart(2,'0')}`;
