@@ -2980,7 +2980,14 @@ function _stBuildStadium(sc){
   // Firing-line marker
   const fireBar=new THREE.Mesh(new THREE.BoxGeometry(1.4,.03,.07),new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:.7}));
   fireBar.position.set(-3.5,.02,2.5);sc.add(fireBar);
-  _stEventProps.archery={targetPos:{x:-6.5,z:2.5},firePos:{x:-3.5,z:2.5}};
+  // Flying arrow for release animation (tip at group origin, points in -X world direction)
+  const flyAG=new THREE.Group();
+  const fShaft=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.45,6),new THREE.MeshLambertMaterial({color:0xC8A041}));
+  fShaft.rotation.z=Math.PI/2;fShaft.position.x=.225;flyAG.add(fShaft);
+  const fTip=new THREE.Mesh(new THREE.ConeGeometry(.025,.09,6),new THREE.MeshLambertMaterial({color:0xAAAAAA}));
+  fTip.rotation.z=-Math.PI/2;flyAG.add(fTip);
+  flyAG.visible=false;sc.add(flyAG);
+  _stEventProps.archery={targetPos:{x:-6.5,z:2.5},firePos:{x:-3.5,z:2.5},flyArrow:flyAG};
 
   // Q4 (bottom-right x>0,z>0): Scouts Lashing — poles and rope-lashing structure
   const poleMat=new THREE.MeshLambertMaterial({color:0x7A5230});
@@ -3048,32 +3055,63 @@ function _stAnimateArchery(d,t,dt){
   if(!d.stateT)d.stateT=t;
   const e=t-d.stateT;
   const ep=_stEventProps.archery;if(!ep)return;
+  // Create held bow on first archery call for this BA
+  if(!d._archInit && !d.isGLB){
+    d._archInit=true;
+    const bc=new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0,.19,0),new THREE.Vector3(.1,.10,0),
+      new THREE.Vector3(.11,0,0),new THREE.Vector3(.1,-.10,0),
+      new THREE.Vector3(0,-.19,0)
+    ]);
+    const bm=new THREE.Mesh(new THREE.TubeGeometry(bc,16,.013,6),
+      new THREE.MeshLambertMaterial({color:0x7B4F1E}));
+    bm.rotation.y=Math.PI;
+    d.g.add(bm);d._archBow=bm;
+  }
+  // Track held bow to left hand position (d.g local space)
+  if(d._archBow && d.laP){
+    const lrx=d.laP.rotation.x;
+    d._archBow.visible=true;
+    d._archBow.position.set(-0.17, 0.75-0.28*Math.cos(lrx), -0.28*Math.sin(lrx));
+  }
   if(d.baState==='idle'){
-    if(!d.isGLB){d.raP.rotation.x=0;d.laP.rotation.x=0;}
-    // Face the target (target is at more negative x, so face -x direction)
+    if(!d.isGLB){
+      d.raP.rotation.x=0;
+      d.laP.rotation.x=Math.PI*.42; // bow arm extends toward target (-Z in d.g local)
+    }
     d.g.rotation.y=Math.PI/2;
+    if(ep.flyArrow)ep.flyArrow.visible=false;
     if(e>0.9){d.baState='draw';d.stateT=t;}
   } else if(d.baState==='draw'){
-    // Pull draw arm back, hold bow arm steady
     const p=Math.min(e/.7,1);
-    if(!d.isGLB){d.raP.rotation.x=-Math.PI*.55*p;d.laP.rotation.x=-Math.PI*.3;}
+    if(!d.isGLB){
+      d.raP.rotation.x=-Math.PI*.55*p; // draw arm pulls away from target (+Z in d.g local)
+      d.laP.rotation.x=Math.PI*.42;    // bow arm stays extended toward target
+    }
     else if(d._glbMesh) d._glbMesh.rotation.z=-.08*p;
     if(e>.7){d.baState='aim';d.stateT=t;}
   } else if(d.baState==='aim'){
-    // Hold still, slight sway
     if(!d.isGLB){
       d.raP.rotation.x=-Math.PI*.55+.04*Math.sin(t*5);
-      d.laP.rotation.x=-Math.PI*.3+.02*Math.sin(t*5);
+      d.laP.rotation.x=Math.PI*.42+.02*Math.sin(t*5);
     }
+    if(ep.flyArrow)ep.flyArrow.visible=false;
     if(e>.5){d.baState='release';d.stateT=t;}
   } else if(d.baState==='release'){
-    // Arms snap open
-    if(!d.isGLB){d.raP.rotation.x=.1;d.laP.rotation.x=-.6;}
+    if(!d.isGLB){d.raP.rotation.x=.1;d.laP.rotation.x=-.5;}
     else if(d._glbMesh) d._glbMesh.rotation.z=.1*Math.sin(t*10);
-    if(e>.35){d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);d.baState='celebrate';d.stateT=t;}
+    // Animate flying arrow from BA position toward target
+    if(ep.flyArrow){
+      const prog=Math.min(e/.3,1);
+      ep.flyArrow.visible=true;
+      ep.flyArrow.position.set(-3.5-3.0*prog,.9,2.5);
+    }
+    if(e>.35){d.baScore=(d.baScore||0)+1;_stUpdateBAScore(d);d.baState='celebrate';d.stateT=t;
+      if(ep.flyArrow)ep.flyArrow.visible=false;}
   } else {
     if(!d.isGLB){d.raP.rotation.x=-.5+.5*Math.sin(t*5);d.laP.rotation.x=-.4+.4*Math.sin(t*5+Math.PI);}
     else{d.g.position.y=.06*Math.abs(Math.sin(t*5));}
+    if(ep.flyArrow)ep.flyArrow.visible=false;
     if(e>1.0){d.baState='idle';d.stateT=t;if(d._glbMesh)d._glbMesh.rotation.z=0;}
   }
 }
@@ -3165,6 +3203,8 @@ function _stRotateBA(){
     d.eventKey=newAct;d.fieldEvent=_ST_BA_ACT_LABELS[newAct]||newAct;
     d.baState='idle';d.stateT=0;d.baScore=0;
     const pos=_ST_BA_POS[newAct]||{x:0,z:0};d.g.position.set(pos.x,0,pos.z);
+    if(d._archBow)d._archBow.visible=(newAct==='archery');
+    const ep=_stEventProps.archery;if(ep&&ep.flyArrow&&newAct!=='archery')ep.flyArrow.visible=false;
     const el=document.getElementById('st-ba-spd-'+d._sbIdx);
     if(el){el.textContent=d.fieldEvent;el.style.color='rgba(255,255,255,.6)';}
   });
