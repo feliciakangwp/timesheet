@@ -2750,23 +2750,44 @@ function _stBuildStadium(sc){
 
   // Q3 (bottom-left x<0,z>0): Archery
   const archPoleMat=new THREE.MeshLambertMaterial({color:0x8B6914});
-  const archPost=new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,1.2,8),archPoleMat);
-  archPost.position.set(-6.5,.6,2.5);sc.add(archPost);
-  // Concentric target rings on a flat disc stand (face camera at +z)
-  [{r:.42,c:0xFFFF00},{r:.31,c:0xFF2020},{r:.20,c:0x1565C0},{r:.09,c:0xFFFFFF}].forEach(({r,c})=>{
-    const ring=new THREE.Mesh(new THREE.CylinderGeometry(r,r,.03,24),new THREE.MeshLambertMaterial({color:c}));
-    ring.position.set(-6.5,1.18,2.5);sc.add(ring);
+  // Target stand post
+  const archPost=new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,1.4,8),archPoleMat);
+  archPost.position.set(-6.5,.7,2.5);sc.add(archPost);
+  // Vertical target face — CircleGeometry rings, rotation.y=π/2 makes normal face +X (toward shooter)
+  [{r:.44,c:0xFFFF00},{r:.33,c:0xFF2020},{r:.21,c:0x1565C0},{r:.09,c:0xFFFFFF}].forEach(({r,c},i)=>{
+    const disc=new THREE.Mesh(new THREE.CircleGeometry(r,24),new THREE.MeshLambertMaterial({color:c,side:THREE.DoubleSide}));
+    disc.position.set(-6.5+i*.005,1.12,2.5);disc.rotation.y=Math.PI/2;sc.add(disc);
+  });
+  // Arrows embedded horizontally in target (shaft along x-axis, tip points -x into target)
+  [{dy:.07,dz:.09},{dy:-.09,dz:-.05},{dy:.1,dz:-.1}].forEach(({dy,dz})=>{
+    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.015,.015,.52,6),new THREE.MeshLambertMaterial({color:0xC8A041}));
+    shaft.position.set(-6.25,1.12+dy,2.5+dz);shaft.rotation.z=Math.PI/2;sc.add(shaft);
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(.034,.1,6),new THREE.MeshLambertMaterial({color:0xAAAAAA}));
+    tip.position.set(-6.54,1.12+dy,2.5+dz);tip.rotation.z=Math.PI/2;sc.add(tip);
+  });
+  // Bow at firing line — CatmullRom curve arc, standing vertically
+  const bowCurve=new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, .30,0),
+    new THREE.Vector3(.11,.16,0),
+    new THREE.Vector3(.13, 0, 0),
+    new THREE.Vector3(.11,-.16,0),
+    new THREE.Vector3(0,-.30,0)
+  ]);
+  const bowMesh=new THREE.Mesh(new THREE.TubeGeometry(bowCurve,20,.019,6),new THREE.MeshLambertMaterial({color:0x7B4F1E}));
+  bowMesh.position.set(-3.5,.9,2.5);bowMesh.rotation.y=-Math.PI/2;sc.add(bowMesh);
+  // Bowstring — thin rod connecting the two bow-tip ends (both at y±0.3 from center, z=0)
+  const strMesh=new THREE.Mesh(new THREE.CylinderGeometry(.007,.007,.62,4),new THREE.MeshLambertMaterial({color:0xE0D8B0}));
+  strMesh.position.set(-3.5,.9,2.5);sc.add(strMesh);
+  // Quiver with arrows near firing line
+  const qv=new THREE.Mesh(new THREE.CylinderGeometry(.055,.055,.42,10),new THREE.MeshLambertMaterial({color:0x8B4040}));
+  qv.position.set(-3.3,.22,2.75);qv.rotation.z=.28;sc.add(qv);
+  [0,Math.PI*.5,Math.PI,Math.PI*1.5].forEach(a=>{
+    const aShaft=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.48,4),new THREE.MeshLambertMaterial({color:0xC8A041}));
+    aShaft.position.set(-3.3+Math.sin(a)*.022,.46,2.75+Math.cos(a)*.022);aShaft.rotation.z=.28;sc.add(aShaft);
   });
   // Firing-line marker
   const fireBar=new THREE.Mesh(new THREE.BoxGeometry(1.4,.03,.07),new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:.7}));
   fireBar.position.set(-3.5,.02,2.5);sc.add(fireBar);
-  // A few arrows embedded in ground near target
-  [[-6.3,.35,2.1],[-6.6,.35,2.8],[-6.1,.35,2.6]].forEach(([ax,ay,az])=>{
-    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(.018,.018,.55,6),new THREE.MeshLambertMaterial({color:0xC8A041}));
-    shaft.position.set(ax,ay,az);shaft.rotation.z=0.28;sc.add(shaft);
-    const tip=new THREE.Mesh(new THREE.ConeGeometry(.04,.1,6),new THREE.MeshLambertMaterial({color:0xBBBBBB}));
-    tip.position.set(ax+.18,ay+.03,az);tip.rotation.z=Math.PI/2+0.28;sc.add(tip);
-  });
   _stEventProps.archery={targetPos:{x:-6.5,z:2.5},firePos:{x:-3.5,z:2.5}};
 
   // Q4 (bottom-right x>0,z>0): Scouts Lashing — poles and rope-lashing structure
@@ -2789,7 +2810,8 @@ function _stBuildStadium(sc){
   _stEventProps.lashing={buildPos:{x:4.5,z:2.5}};
 
   // Q1 (top-right x>0,z<0): Agility Training — pads spread across full quarter
-  const agilityPositions=[{x:3,z:-1.5},{x:6.5,z:-1.8},{x:3,z:-4},{x:6.5,z:-3.5},{x:5,z:-2.5},{x:4.5,z:-4.5}];
+  // All positions verified inside infield ellipse (a=8.5,b=5.5); ratio < 0.76
+  const agilityPositions=[{x:3,z:-1.5},{x:6,z:-1.8},{x:3,z:-4},{x:5.5,z:-3},{x:5,z:-2.5},{x:4,z:-4}];
   const padMeshes=agilityPositions.map(pos=>{
     const pad=new THREE.Mesh(new THREE.CylinderGeometry(.35,.35,.06,16),new THREE.MeshLambertMaterial({color:0x1E3A5F}));
     pad.position.set(pos.x,.03,pos.z);sc.add(pad);
