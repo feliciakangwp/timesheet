@@ -666,6 +666,13 @@ function initials(name) {
   return (name||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
 }
 
+function poExpiringSoon(p) {
+  if(!p||!p.poUntil||p.offboard) return false;
+  const until=new Date(p.poUntil);
+  const warn=new Date();warn.setMonth(warn.getMonth()+1);
+  return until<=warn;
+}
+
 function money(n) {
   return '$'+Number(n).toLocaleString('en-SG',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
@@ -1075,7 +1082,7 @@ function renderProfile() {
       <td>${p.company||'—'}</td>
       <td>${p.role||'—'}</td>
       <td style="white-space:nowrap">${fmtDate(p.poStart)}</td>
-      <td style="white-space:nowrap">${fmtDate(p.poUntil)}</td>
+      <td style="white-space:nowrap${poExpiringSoon(p)?';color:var(--danger);font-weight:600':''}">${fmtDate(p.poUntil)}${poExpiringSoon(p)?` <span title="PO expiring within 1 month">⚠</span>`:''}</td>
       <td style="font-size:12px;line-height:1.7">${rateStr||'—'}</td>
     </tr>`;
   };
@@ -1548,7 +1555,7 @@ function renderExpenses() {
                 <td>${r.yyyymm}</td>
                 <td><input class="inv-input" type="text" value="${(S.invoices[proj.id+'_'+r.yyyymm]||'').replace(/"/g,'&quot;')}" placeholder="—" onblur="saveInvoiceNo('${proj.id}_${r.yyyymm}',this.value)"></td>
                 <td style="white-space:nowrap;font-size:12px">${r.bp}</td>
-                <td><strong>${r.person.name}</strong></td>
+                <td><strong style="${poExpiringSoon(r.person)?'color:var(--danger)':''}">${r.person.name}</strong>${poExpiringSoon(r.person)?` <span style="font-size:10px" title="PO expiring within 1 month">⚠</span>`:''}</td>
                 <td>${r.person.company}</td>
                 <td>
                   <strong>${r.worked}</strong>/${r.days}
@@ -1597,7 +1604,7 @@ function renderExpenses() {
                 <td>${bp.yyyymm}</td>
                 <td><input class="inv-input" type="text" value="${(bp.invoiceNo||'').replace(/"/g,'&quot;')}" placeholder="—" onblur="saveBPInvoiceNo('${bp.id}',this.value)"></td>
                 <td style="white-space:nowrap;font-size:12px">${fmtDate(bp.periodStart)} – ${fmtDate(bp.periodEnd)}</td>
-                <td><strong>${person?.name||'?'}</strong></td>
+                <td><strong style="${poExpiringSoon(person)?'color:var(--danger)':''}">${person?.name||'?'}</strong>${poExpiringSoon(person)?` <span style="font-size:10px" title="PO expiring within 1 month">⚠</span>`:''}</td>
                 <td>${person?.company||'?'}</td>
                 <td><strong>${liveHrs}h</strong>${mismatch?`<span style="font-size:10px;color:var(--warning);margin-left:6px" title="Originally saved as ${bp.totalHours}h — timesheet entries changed">⚠ stored ${bp.totalHours}h</span>`:''}</td>
                 <td>$${bp.rate}/hr</td>
