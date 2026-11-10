@@ -72,6 +72,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 
 /* TABLE */
 .tbl-wrap{overflow-x:auto}
+.inv-input{width:110px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;font-size:12px;background:var(--bg);color:var(--fg);outline:none}
+.inv-input:focus{border-color:var(--accent)}
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead th{background:var(--primary);color:#fff;padding:10px 14px;text-align:left;font-weight:600;white-space:nowrap;font-size:12px}
 tbody td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
@@ -605,6 +607,7 @@ function load() {
     {id:'bp_8',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-08-27',periodEnd:'2026-09-26',yyyymm:'202609',totalHours:76,  rate:200,amount:15200,createdAt:1759276800000},
     {id:'bp_9',personnelId:'per_raja',projectId:'p_hourly',periodStart:'2026-09-27',periodEnd:'2026-10-26',yyyymm:'202610',totalHours:32,  rate:200,amount:6400, createdAt:1761955200000},
   ];
+  S.invoices   = JSON.parse(localStorage.getItem('ts_invoices')  || '{}');
   S.sprints    = JSON.parse(localStorage.getItem('ts_sprints') || 'null') || [
     {id:'s_o1', projectId:'p_orion',name:'Sprint 1', startDate:'2026-02-01',endDate:'2026-02-14',completedHours:{per_shivani:62,per_dharani:64}},
     {id:'s_o2', projectId:'p_orion',name:'Sprint 2', startDate:'2026-02-15',endDate:'2026-02-28',completedHours:{per_shivani:46,per_dharani:48}},
@@ -1539,10 +1542,11 @@ function renderExpenses() {
         <div class="exp-proj-hdr">📁 ${proj.name}</div>
         <div class="tbl-wrap" style="margin-top:16px">
           <table>
-            <thead><tr>${thS('m','yyyymm','YYYYMM')}<th>Billing Period</th>${thS('m','name','Name')}${thS('m','company','Company')}${thS('m','worked','Days Worked / Total')}${thS('m','rate','Monthly Rate')}${thS('m','cost','Cost (SGD)')}</tr></thead>
+            <thead><tr>${thS('m','yyyymm','YYYYMM')}<th>Invoice No.</th><th>Billing Period</th>${thS('m','name','Name')}${thS('m','company','Company')}${thS('m','worked','Days Worked / Total')}${thS('m','rate','Monthly Rate')}${thS('m','cost','Cost (SGD)')}</tr></thead>
             <tbody>
               ${rows.map(r=>`<tr>
                 <td>${r.yyyymm}</td>
+                <td><input class="inv-input" type="text" value="${(S.invoices[proj.id+'_'+r.yyyymm]||'').replace(/"/g,'&quot;')}" placeholder="—" onblur="saveInvoiceNo('${proj.id}_${r.yyyymm}',this.value)"></td>
                 <td style="white-space:nowrap;font-size:12px">${r.bp}</td>
                 <td><strong>${r.person.name}</strong></td>
                 <td>${r.person.company}</td>
@@ -1554,7 +1558,7 @@ function renderExpenses() {
                 </td>
                 <td>${r.rate!==null?money(r.rate):'<span style="color:var(--muted)">N/A</span>'}</td>
                 <td><strong>${r.cost!==null?money(r.cost):'—'}</strong></td>
-              </tr>`).join('')||`<tr><td colspan="7" class="empty-row">No active members for recorded months.</td></tr>`}
+              </tr>`).join('')||`<tr><td colspan="8" class="empty-row">No active members for recorded months.</td></tr>`}
             </tbody>
           </table>
         </div>
@@ -1585,12 +1589,13 @@ function renderExpenses() {
     const bpTable=bpEnriched.length?`
       <div class="tbl-wrap" style="margin-top:16px">
         <table>
-          <thead><tr>${thS('h','yyyymm','YYYYMM')}<th>Billing Period</th>${thS('h','name','Name')}${thS('h','company','Company')}${thS('h','hours','Hours')}${thS('h','rate','Rate')}${thS('h','amount','Amount (SGD)')}<th></th></tr></thead>
+          <thead><tr>${thS('h','yyyymm','YYYYMM')}<th>Invoice No.</th><th>Billing Period</th>${thS('h','name','Name')}${thS('h','company','Company')}${thS('h','hours','Hours')}${thS('h','rate','Rate')}${thS('h','amount','Amount (SGD)')}<th></th></tr></thead>
           <tbody>
             ${bpEnriched.map(bp=>{
               const {person,liveHrs,liveAmt,mismatch}=bp;
               return`<tr>
                 <td>${bp.yyyymm}</td>
+                <td><input class="inv-input" type="text" value="${(bp.invoiceNo||'').replace(/"/g,'&quot;')}" placeholder="—" onblur="saveBPInvoiceNo('${bp.id}',this.value)"></td>
                 <td style="white-space:nowrap;font-size:12px">${fmtDate(bp.periodStart)} – ${fmtDate(bp.periodEnd)}</td>
                 <td><strong>${person?.name||'?'}</strong></td>
                 <td>${person?.company||'?'}</td>
@@ -1657,6 +1662,18 @@ function thS(tbl,col,label){
   const st=tbl==='m'?expSortM:expSortH;
   const ind=st.col===col?(st.dir===1?' ↑':' ↓'):' ↕';
   return `<th style="cursor:pointer;user-select:none" onclick="setExpSort('${tbl}','${col}')">${label}<span style="opacity:.5;font-size:10px">${ind}</span></th>`;
+}
+
+function saveInvoiceNo(key, val){
+  const v=val.trim();
+  if(v) S.invoices[key]=v; else delete S.invoices[key];
+  localStorage.setItem('ts_invoices', JSON.stringify(S.invoices));
+}
+function saveBPInvoiceNo(bpId, val){
+  const bp=S.billingPeriods.find(b=>b.id===bpId);
+  if(!bp)return;
+  bp.invoiceNo=val.trim();
+  localStorage.setItem('ts_billingPeriods', JSON.stringify(S.billingPeriods));
 }
 
 function calcHours(pid, startDate, endDate) {
