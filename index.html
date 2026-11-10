@@ -1083,6 +1083,7 @@ function renderProfile() {
       <td>${p.role||'—'}</td>
       <td style="white-space:nowrap">${fmtDate(p.poStart)}</td>
       <td style="white-space:nowrap${poExpiringSoon(p)?';color:var(--danger);font-weight:600':''}">${fmtDate(p.poUntil)}${poExpiringSoon(p)?` <span title="PO expiring within 1 month">⚠</span>`:''}</td>
+      <td style="white-space:nowrap">${(()=>{const b=calcPoBalance(p);if(!b)return'—';const c=b.value<=0?'color:var(--danger)':poExpiringSoon(p)?'color:var(--warning)':'';return`<span style="${c}"><strong>${b.value}</strong> ${b.type}</span>`;})()}</td>
       <td style="font-size:12px;line-height:1.7">${rateStr||'—'}</td>
     </tr>`;
   };
@@ -1103,10 +1104,11 @@ function renderProfile() {
           <th onclick="sortProfile('role')"    style="${thC('role')}">Role${arrow('role')}</th>
           <th onclick="sortProfile('poStart')" style="${thC('poStart')}">PO Start${arrow('poStart')}</th>
           <th onclick="sortProfile('poUntil')" style="${thC('poUntil')}">PO Until${arrow('poUntil')}</th>
+          <th>Balance</th>
           <th>Rate(s)</th>
         </tr></thead>
         <tbody>
-          ${active.map(p=>personRow(p,false)).join('')||`<tr><td colspan="7" class="empty-row">No active personnel.</td></tr>`}
+          ${active.map(p=>personRow(p,false)).join('')||`<tr><td colspan="8" class="empty-row">No active personnel.</td></tr>`}
         </tbody>
       </table>
     </div>
@@ -1114,7 +1116,7 @@ function renderProfile() {
     <div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:24px 0 8px">Offboarded · ${offboarded.length}</div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Status</th><th>Name</th><th>Company</th><th>Role</th><th>PO Start</th><th>PO Until</th><th>Rate(s)</th></tr></thead>
+        <thead><tr><th>Status</th><th>Name</th><th>Company</th><th>Role</th><th>PO Start</th><th>PO Until</th><th>Balance</th><th>Rate(s)</th></tr></thead>
         <tbody>${offboarded.map(p=>personRow(p,true)).join('')}</tbody>
       </table>
     </div>`:''}
@@ -1685,6 +1687,32 @@ function saveBPInvoiceNo(bpId, val){
 
 function calcHours(pid, startDate, endDate) {
   return S.entries.filter(e=>e.personnelId===pid&&e.type==='hours'&&e.date>=startDate&&e.date<=endDate).reduce((s,e)=>s+(e.hours||0),0);
+}
+
+function calcPoBalance(p) {
+  if(!p||p.offboard) return null;
+  const isHourly=(p.chargeType||'monthly')==='hourly';
+  if(isHourly){
+    const used=S.entries.filter(e=>e.personnelId===p.id&&e.type==='hours').reduce((s,e)=>s+(e.hours||0),0);
+    return {type:'hrs', value:(p.poHours||0)-used};
+  }
+  if(!p.poUntil) return null;
+  const today=new Date();today.setHours(0,0,0,0);
+  const until=new Date(p.poUntil);until.setHours(0,0,0,0);
+  if(until<today) return {type:'days',value:0};
+  let total=0,y=today.getFullYear(),m=today.getMonth();
+  const y1=until.getFullYear(),m1=until.getMonth();
+  while(y<y1||(y===y1&&m<=m1)){
+    const dim=new Date(y,m+1,0).getDate();
+    const wd=S.workingDays.find(w=>w.year===y&&w.month===m)?.days||22;
+    const isFirst=(y===today.getFullYear()&&m===today.getMonth());
+    const isLast=(y===y1&&m===m1);
+    const startD=isFirst?today.getDate():1;
+    const endD=isLast?until.getDate():dim;
+    total+=Math.round(wd*(Math.max(0,endD-startD+1)/dim));
+    if(++m>11){m=0;y++;}
+  }
+  return {type:'days',value:Math.max(0,total)};
 }
 
 function updateBPPreview() {
